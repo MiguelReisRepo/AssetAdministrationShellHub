@@ -208,6 +208,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       if (Array.isArray(element.value) && element.value.length > 0) {
         return element.value.some((item: any) => item && item.text)
       }
+      // This branch might be deprecated if parser always returns array, but keep for robustness
       if (typeof element.value === "object" && element.value !== null) {
         return Object.keys(element.value).length > 0
       }
@@ -275,17 +276,19 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     }
 
     const getDisplayValueForTreeNode = () => {
+      console.log(`[v0] VISUALIZER DEBUG: getDisplayValueForTreeNode for ${element.idShort}. element.value received:`, element.value);
       if (type === "Property" || type === "File") {
         return element.value ? String(element.value) : null
       }
       if (type === "MultiLanguageProperty") {
-        console.log(`[v0] VISUALIZER DEBUG: MLP ${element.idShort} element object:`, element); // NEW LOG
         if (Array.isArray(element.value)) {
           const enText = element.value.find((item: any) => item && item.language === 'en')?.text
           return enText || element.value[0]?.text || null
         } else if (typeof element.value === "object" && element.value !== null) {
-          // This branch might be deprecated if parser always returns array
-          return element.value.en || Object.values(element.value)[0] || null
+          // Fallback for older parsing or different structures, convert to array for consistency
+          const valuesArray = Object.entries(element.value).map(([language, text]) => ({ language, text: String(text) }));
+          const enText = valuesArray.find((item: any) => item && item.language === 'en')?.text
+          return enText || valuesArray[0]?.text || null
         }
       }
       return null
@@ -439,7 +442,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           return selectedElement.value
         } else if (typeof selectedElement.value === "object" && selectedElement.value !== null) {
           // Convert object to array format for consistent display
-          return Object.entries(selectedElement.value).map(([language, text]) => ({ language, text }))
+          return Object.entries(selectedElement.value).map(([language, text]) => ({ language, text: String(text) }))
         }
         return []
       }
@@ -561,7 +564,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   </div>
                 ))
               ) : (
-                <div className="text-sm text-gray-500 italic">Collection (0 items)</div>
+                <div className="text-sm text-gray-500 italic">Not specified</div>
               )}
             </div>
           ) : (
@@ -835,7 +838,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               {selectedSubmodel ? (
                 <>
                   <div className="aasx-submodel-header">
-                    <div className="flex items-center gap-3">
+                    <div className="aasx-submodel-header-left">
                       <span className="aasx-submodel-badge">SM</span>
                       <span>{selectedSubmodel.idShort}</span>
                     </div>

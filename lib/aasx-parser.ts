@@ -35,7 +35,7 @@ function getTextContent(element: Element, tagName: string): string {
 }
 
 function parseElement(element: Element): AASXElement | null {
-  console.log("[v0] PARSER V2: Processing element", element.tagName)
+  console.log("[v0] PARSER V2: START Processing element. OuterHTML:", element.outerHTML);
 
   const idShort = getTextContent(element, "idShort")
   if (!idShort) {
@@ -147,21 +147,22 @@ function parseElement(element: Element): AASXElement | null {
   // Handle different element types
   if (modelType === "Property") {
     parsed.valueType = getTextContent(element, "valueType")
-    parsed.value = getTextContent(element, "value")
-    console.log(`[v0] PARSER V2: Property ${idShort} = '${parsed.value}' (valueType: ${parsed.valueType})`)
+    const extractedValue = getTextContent(element, "value"); // Capture direct result
+    parsed.value = extractedValue;
+    console.log(`[v0] PARSER V2: Property ${idShort} - Extracted Value: '${extractedValue}' (valueType: ${parsed.valueType})`);
   } else if (modelType === "MultiLanguageProperty") {
     // CRITICAL FIX: Target langStringTextType specifically within the 'value' tag
     const langStrings = element.querySelectorAll("value langStringTextType")
-    const values: { language: string; text: string }[] = []
+    const values: { language: string; text: string }[] = [];
     langStrings.forEach((ls) => {
       const lang = getTextContent(ls, "language")
       const text = getTextContent(ls, "text")
-      if (lang && text) { // Only add if both language and text are present
+      if (lang && text) {
         values.push({ language: lang, text })
       }
     })
-    parsed.value = values
-    console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} with ${values.length} translations:`, values)
+    parsed.value = values;
+    console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} - Extracted Values Array:`, values);
   } else if (modelType === "File") {
     parsed.contentType = getTextContent(element, "contentType")
     parsed.value = getTextContent(element, "value")
@@ -201,13 +202,17 @@ function parseElement(element: Element): AASXElement | null {
   }
 
   // FINAL LOG for parsed element
-  console.log(`[v0] PARSER V2: Final parsed element for ${idShort}:`, {
+  console.log(`[v0] PARSER V2: FINAL PARSED OBJECT for ${idShort}:`, JSON.stringify({
     idShort: parsed.idShort,
     modelType: parsed.modelType,
     value: parsed.value,
     semanticId: parsed.semanticId,
-    childrenCount: parsed.children?.length || 0
-  });
+    childrenCount: parsed.children?.length || 0,
+    valueType: parsed.valueType,
+    preferredName: parsed.preferredName,
+    shortName: parsed.shortName,
+    description: parsed.description,
+  }, null, 2));
 
   return parsed
 }
