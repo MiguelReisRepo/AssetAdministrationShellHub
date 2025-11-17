@@ -88,10 +88,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   useEffect(() => {
     if (!selectedFile) return
 
+    // Ensure content is parsed AASXData structure
     if (selectedFile.content && selectedFile.content.submodels) {
       setAasxData(selectedFile.content)
       setSelectedSubmodel(selectedFile.content.submodels[0])
     } else {
+      // Fallback if content is not in expected AASXData format
       setAasxData({ idShort: selectedFile.name, submodels: [] })
       setSelectedSubmodel(null)
     }

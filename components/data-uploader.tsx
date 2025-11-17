@@ -7,6 +7,7 @@ import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { validateAASXXml } from "@/lib/validate-aasx-xml"
+import { parseAASXML } from "@/lib/aasx-parser" // Import the new parser
 
 interface UploadedFile {
   name: string
@@ -97,14 +98,14 @@ const parseAASXFile = async (
 
   if (validationResult.valid) {
     return {
-      content: validationResult.aasData || parseXMLToJSON(xmlContent),
+      content: validationResult.aasData, // Use aasData directly
       thumbnail: thumbnailDataUrl,
       isValid: true,
       validationErrors: [],
     }
   } else {
     return {
-      content: validationResult.aasData || parseXMLToJSON(xmlContent),
+      content: validationResult.aasData, // Use aasData even if validation fails, for partial display
       thumbnail: thumbnailDataUrl,
       isValid: false,
       validationErrors: validationResult.errors || ["Validation failed"],
@@ -124,278 +125,8 @@ export async function parseAASXFileFromBlob(file: File): Promise<UploadedFile> {
   }
 }
 
-const parseXMLToJSON = (xmlString: string): any => {
-  try {
-    const parser = new DOMParser()
-    const xmlDoc = parser.parseFromString(xmlString, "text/xml")
-
-    const rootTag = xmlDoc.documentElement.tagName
-
-    if (rootTag.toLowerCase() === "html" || rootTag.toLowerCase() === "parsererror") {
-      return null
-    }
-
-    const findElements = (tagNames: string[]) => {
-      for (const tagName of tagNames) {
-        const elements = xmlDoc.getElementsByTagName(tagName)
-        if (elements.length > 0) {
-          return elements
-        }
-      }
-      return null
-    }
-
-    const result: any = {
-      idShort: "AAS",
-      submodels: [],
-    }
-
-    const aasElements = findElements([
-      "aas:assetAdministrationShells",
-      "assetAdministrationShells",
-      "AssetAdministrationShells",
-    ])
-
-    const submodelElements = findElements(["aas:submodels", "submodels", "Submodels"])
-
-    if (aasElements && aasElements.length > 0) {
-      const aasShells = findElements([
-        "aas:assetAdministrationShell",
-        "assetAdministrationShell",
-        "AssetAdministrationShell",
-      ])
-
-      if (aasShells && aasShells.length > 0) {
-        const aasElement = aasShells[0]
-        const idShortOptions = findElements(["aas:idShort", "idShort", "IdShort"])
-
-        if (idShortOptions && idShortOptions.length > 0) {
-          result.idShort = idShortOptions[0].textContent || "AAS"
-        }
-      }
-    }
-
-    if (submodelElements && submodelElements.length > 0) {
-      const submodelTags = ["aas:submodel", "submodel", "Submodel"]
-      let foundSubmodels: HTMLCollectionOf<Element> | null = null
-
-      for (const tag of submodelTags) {
-        const elements = xmlDoc.getElementsByTagName(tag)
-        if (elements.length > 0) {
-          foundSubmodels = elements
-          break
-        }
-      }
-
-      if (foundSubmodels) {
-        for (let i = 0; i < foundSubmodels.length; i++) {
-          const sm = foundSubmodels[i]
-
-          let idShort = "Submodel" + i
-          const idShortEl = sm.querySelector("idShort, [idShort], aas\\:idShort")
-          if (idShortEl) {
-            idShort = idShortEl.textContent || idShort
-          }
-
-          let id = `http://example.com/sm/${i}`
-          const idEl = sm.querySelector("identification, [identification], aas\\:identification")
-          if (idEl) {
-            const idValue = idEl.textContent || idEl.getAttribute("id")
-            if (idValue) id = idValue
-          }
-
-          const submodel: any = {
-            idShort,
-            id,
-            submodelElements: [],
-          }
-
-          const smElementsContainer = sm.querySelector("submodelElements, aas\\:submodelElements, SubmodelElements")
-          if (smElementsContainer) {
-            const elements = Array.from(smElementsContainer.children)
-            submodel.submodelElements = parseSubmodelElements(elements)
-          }
-
-          result.submodels.push(submodel)
-        }
-      }
-    }
-
-    return result
-  } catch (error) {
-    return null
-  }
-}
-
-const parseSubmodelElements = (elements: Element[]): any[] => {
-  const result: any[] = []
-
-  for (let i = 0; i < elements.length; i++) {
-    const element = elements[i]
-    const tagName = element.tagName.toLowerCase()
-
-    const idShortEl = element.querySelector("idShort")
-    const idShort = idShortEl?.textContent?.trim() || "Unknown"
-
-    const parsedElement: any = { idShort, modelType: tagName }
-
-    if (tagName === "submodelelementcollection") {
-      parsedElement.modelType = "SubmodelElementCollection"
-
-      let valueContainer: Element | null = null
-      for (let j = 0; j < element.children.length; j++) {
-        if (element.children[j].tagName.toLowerCase() === "value") {
-          valueContainer = element.children[j]
-          break
-        }
-      }
-
-      if (valueContainer) {
-        const childElements = Array.from(valueContainer.children)
-        parsedElement.value = parseSubmodelElements(childElements)
-      } else {
-        parsedElement.value = []
-      }
-    } else if (tagName === "submodelelementlist") {
-      parsedElement.modelType = "SubmodelElementList"
-
-      let valueContainer: Element | null = null
-      for (let j = 0; j < element.children.length; j++) {
-        if (element.children[j].tagName.toLowerCase() === "value") {
-          valueContainer = element.children[j]
-          break
-        }
-      }
-
-      if (valueContainer) {
-        const childElements = Array.from(valueContainer.children)
-        parsedElement.value = parseSubmodelElements(childElements)
-      } else {
-        parsedElement.value = []
-      }
-    } else if (tagName === "property") {
-      parsedElement.modelType = "Property"
-
-      const valueTypeEl = element.querySelector("valueType")
-      if (valueTypeEl) {
-        parsedElement.valueType = valueTypeEl.textContent?.trim()
-      }
-
-      let valueEl: Element | null = null
-      for (const child of Array.from(element.children)) {
-        if (child.tagName.toLowerCase() === "value") {
-          valueEl = child
-          break
-        }
-      }
-      if (valueEl) {
-        parsedElement.value = valueEl.textContent?.trim() || ""
-      }
-
-      const categoryEl = element.querySelector("category")
-      if (categoryEl) {
-        parsedElement.category = categoryEl.textContent?.trim()
-      }
-    } else if (tagName === "multilanguageproperty") {
-      parsedElement.modelType = "MultiLanguageProperty"
-
-      let valueEl: Element | null = null
-      for (const child of Array.from(element.children)) {
-        if (child.tagName.toLowerCase() === "value") {
-          valueEl = child
-          break
-        }
-      }
-      if (valueEl) {
-        const langStrings = valueEl.querySelectorAll("langStringTextType")
-        if (langStrings.length > 0) {
-          const values: { [key: string]: string } = {}
-          langStrings.forEach((ls) => {
-            const lang = ls.querySelector("language")?.textContent?.trim() || "en"
-            const text = ls.querySelector("text")?.textContent?.trim() || ""
-            values[lang] = text
-          })
-          parsedElement.value = values
-        }
-      }
-    } else if (tagName === "file") {
-      parsedElement.modelType = "File"
-
-      let valueEl: Element | null = null
-      for (const child of Array.from(element.children)) {
-        if (child.tagName.toLowerCase() === "value") {
-          valueEl = child
-          break
-        }
-      }
-      if (valueEl) {
-        parsedElement.value = valueEl.textContent?.trim() || ""
-      }
-
-      const contentTypeEl = element.querySelector("contentType")
-      if (contentTypeEl) {
-        parsedElement.contentType = contentTypeEl.textContent?.trim()
-      }
-    } else if (tagName === "basiceventelement") {
-      parsedElement.modelType = "BasicEventElement"
-
-      const directionEl = element.querySelector("direction")
-      if (directionEl) {
-        parsedElement.direction = directionEl.textContent?.trim()
-      }
-
-      const stateEl = element.querySelector("state")
-      if (stateEl) {
-        parsedElement.state = stateEl.textContent?.trim()
-      }
-
-      const observedEl = element.querySelector("observed")
-      if (observedEl) {
-        const keys = observedEl.querySelectorAll("key")
-        if (keys.length > 0) {
-          parsedElement.observed = {
-            keys: Array.from(keys).map((key) => ({
-              type: key.querySelector("type")?.textContent?.trim() || "",
-              value: key.querySelector("value")?.textContent?.trim() || "",
-            })),
-          }
-        }
-      }
-    }
-
-    const semanticIdEl = element.querySelector("semanticId")
-    if (semanticIdEl) {
-      const keys = semanticIdEl.querySelectorAll("key")
-      if (keys.length > 0) {
-        parsedElement.semanticId = {
-          type: semanticIdEl.querySelector("type")?.textContent?.trim() || "ExternalReference",
-          keys: Array.from(keys).map((key) => ({
-            type: key.querySelector("type")?.textContent?.trim() || "GlobalReference",
-            value: key.querySelector("value")?.textContent?.trim() || "",
-          })),
-        }
-      }
-    }
-
-    const descriptionEl = element.querySelector("description")
-    if (descriptionEl) {
-      const langStrings = descriptionEl.querySelectorAll("langStringTextType")
-      if (langStrings.length > 0) {
-        const values: { [key: string]: string } = {}
-        langStrings.forEach((ls) => {
-          const lang = ls.querySelector("language")?.textContent?.trim() || "en"
-          const text = ls.querySelector("text")?.textContent?.trim() || ""
-          values[lang] = text
-        })
-        parsedElement.description = values
-      }
-    }
-
-    result.push(parsedElement)
-  }
-
-  return result
-}
+// Removed parseXMLToJSON and parseSubmodelElements from here.
+// They are replaced by parseAASXML from lib/aasx-parser.ts
 
 export function DataUploader({ onDataUploaded }: DataUploaderProps) {
   const [isDragOver, setIsDragOver] = useState(false)
@@ -429,13 +160,15 @@ export function DataUploader({ onDataUploaded }: DataUploaderProps) {
       }
     } else if (fileExtension === "xml") {
       const text = await file.text()
+      
+      // For XML, we can reuse validateAASXXml for consistent parsing and validation.
       const validationResult = await validateAASXXml(text)
 
-      console.log(`[v0] Validation result - .valid: ${validationResult.valid}`)
+      console.log(`[v0] XML file validation result - .valid: ${validationResult.valid}`)
 
       return {
         name: file.name,
-        content: validationResult.aasData || parseXMLToJSON(text),
+        content: validationResult.aasData, // Use the AASData from validationResult
         fileType: "xml",
         isValid: validationResult.valid,
         validationErrors: validationResult.valid ? [] : validationResult.errors || ["Validation failed"],

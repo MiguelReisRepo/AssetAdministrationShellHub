@@ -30,7 +30,7 @@ interface SubmodelElement {
   cardinality: "One" | "ZeroToOne" | "ZeroToMany" | "OneToMany"
   description?: string
   semanticId?: string
-  children?: SubmodelElement[] // For SubmodelElementCollection, SubmodelElementList
+  children?: SubmodelElement[] // Explicitly for SubmodelElementCollection, SubmodelElementList
   preferredName?: string | Record<string, string>
   shortName?: string | Record<string, string>
   dataType?: string
@@ -59,7 +59,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     aasConfig.selectedSubmodels[0] || null
   )
   const [selectedElement, setSelectedElement] = useState<SubmodelElement | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // Re-confirming correct initialization
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [showAddSubmodel, setShowAddSubmodel] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -149,7 +149,10 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       }
       
       // Parse children if it's a collection or list
-      if (el.value && Array.isArray(el.value)) {
+      // Check both 'children' and 'value' for backward compatibility with template sources
+      if (Array.isArray(el.children)) {
+        element.children = parseSubmodelElements(el.children)
+      } else if (Array.isArray(el.value)) { // Fallback for templates that might use 'value' for children
         element.children = parseSubmodelElements(el.value)
       }
       
@@ -1427,7 +1430,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
     } finally {
       setIsGenerating(false)
     }
-  }
+    }
 
   const validateAAS = (): { valid: boolean; missingFields: string[] } => {
     const missingFields: string[] = []
