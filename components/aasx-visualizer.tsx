@@ -253,6 +253,11 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     const children = hasChildren(element) ? element.children : [] // Use element.children
     const hasKids = children.length > 0
 
+    // Debug log for collections
+    if (type === "SubmodelElementCollection" || type === "SubmodelElementList") {
+      console.log(`[v0] VISUALIZER DEBUG: Collection ${element.idShort} at depth ${depth}. Children count: ${children.length}`, children);
+    }
+
     const getNodeHeaderClass = () => {
       if (isSelected) {
         if (depth === 0 && hasKids && isExpanded) {

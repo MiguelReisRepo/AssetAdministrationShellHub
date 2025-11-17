@@ -147,7 +147,8 @@ function parseElement(element: Element): AASXElement | null {
     parsed.value = getTextContent(element, "value")
     console.log(`[v0] PARSER V2: Property ${idShort} = ${parsed.value}`)
   } else if (modelType === "MultiLanguageProperty") {
-    const langStrings = element.querySelectorAll("langStringTextType")
+    // CRITICAL FIX: Target langStringTextType specifically within the 'value' tag
+    const langStrings = element.querySelectorAll("value langStringTextType")
     const values: any[] = []
     langStrings.forEach((ls) => {
       const lang = getTextContent(ls, "language")
