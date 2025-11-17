@@ -530,7 +530,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       cardinality: selectedElement.cardinality,
       semanticId: semanticIdValue,
       description: descriptionText,
-      sourceOfDefinition: selectedElement.sourceOfDefinition
+      // Removed sourceOfDefinition from log
     })
 
     return (
@@ -703,15 +703,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           </div>
         </div>
 
-        {/* SOURCE OF DEFINITION section - always show */}
-        <div className="p-4 space-y-2 bg-amber-50 dark:bg-amber-900/20 border-b">
-          <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase">
-            Source of Definition
-          </h4>
-          <div className="text-xs text-gray-900 dark:text-gray-100">
-            {selectedElement.sourceOfDefinition || <span className="text-gray-400 italic">Not specified</span>}
-          </div>
-        </div>
+        {/* Removed SOURCE OF DEFINITION section */}
       </div>
     )
   }

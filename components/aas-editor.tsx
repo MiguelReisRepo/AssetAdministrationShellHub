@@ -36,7 +36,6 @@ interface SubmodelElement {
   dataType?: string
   unit?: string
   category?: string
-  sourceOfDefinition?: string
   fileData?: { content: string; mimeType: string; fileName: string } // For File
 }
 
@@ -59,7 +58,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     aasConfig.selectedSubmodels[0] || null
   )
   const [selectedElement, setSelectedElement] = useState<SubmodelElement | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // FIX: Corrected useState initialization
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [showAddSubmodel, setShowAddSubmodel] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -150,7 +149,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         dataType: embeddedDataSpec?.dataType,
         unit: embeddedDataSpec?.unit,
         category: el.category,
-        sourceOfDefinition: embeddedDataSpec?.sourceOfDefinition,
+        // Removed sourceOfDefinition
       }
       
       // Parse children if it's a collection or list
@@ -1093,20 +1092,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             />
           </div>
           
-          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
-            <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase">
-              Source of Definition
-            </h4>
-            <input
-              type="text"
-              value={selectedElement.sourceOfDefinition || ''}
-              onChange={(e) => {
-                updateElementMetadata(selectedSubmodel.idShort, elementPath, 'sourceOfDefinition', e.target.value)
-              }}
-              placeholder="IEC 61360-2:2012, EN ISO 13584-42:2010, etc."
-              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-xs"
-            />
-          </div>
+          {/* Removed Source of Definition input */}
         </div>
       </div>
     )
@@ -1143,7 +1129,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         console.log(`[v0] EDITOR XML GEN: unit:`, element.unit)
         console.log(`[v0] EDITOR XML GEN: category:`, element.category)
         console.log(`[v0] EDITOR XML GEN: description:`, element.description)
-        console.log(`[v0] EDITOR XML GEN: sourceOfDefinition:`, element.sourceOfDefinition)
+        // Removed sourceOfDefinition from log
         console.log(`[v0] EDITOR XML GEN: cardinality:`, element.cardinality)
         
         let xml = `${indent}<${tagName}>\n`
@@ -1174,7 +1160,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         }
         
         const hasMetadata = element.preferredName || element.shortName || element.dataType || 
-                           element.unit || element.category || element.description || element.sourceOfDefinition
+                           element.unit || element.category || element.description 
         
         if (hasMetadata) {
           console.log(`[v0] EDITOR XML GEN: ${element.idShort} HAS metadata, writing embeddedDataSpecifications`)
@@ -1247,11 +1233,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote unit for ${element.idShort}`)
           }
           
-          // Source of Definition
-          if (element.sourceOfDefinition) {
-            xml += `${indent}        <sourceOfDefinition>${element.sourceOfDefinition}</sourceOfDefinition>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote sourceOfDefinition for ${element.idShort}`)
-          }
+          // Removed Source of Definition from XML generation
           
           xml += `${indent}      </dataSpecificationContent>\n`
           xml += `${indent}    </embeddedDataSpecification>\n`
@@ -1278,7 +1260,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
-                xml += `${indent}    </langStringTextType>\n` // ADDED CLOSING TAG
+                xml += `${indent}          </langStringTextType>\n` // ADDED CLOSING TAG
               }
             })
             xml += `${indent}  </value>\n`

@@ -14,7 +14,6 @@ export interface AASXElement {
   shortName?: Record<string, string>
   dataType?: string
   unit?: string
-  sourceOfDefinition?: string
   category?: string
   cardinality?: string // Added cardinality property
 }
@@ -110,12 +109,7 @@ function parseElement(element: Element): AASXElement | null {
       console.log(`[v0] PARSER V2: Extracted description for ${idShort}:`, parsed.description)
     }
     
-    // Source of Definition
-    const sourceDef = getTextContent(dataSpec, "sourceOfDefinition")
-    if (sourceDef) {
-      parsed.sourceOfDefinition = sourceDef
-      console.log(`[v0] PARSER V2: Extracted sourceOfDefinition for ${idShort}:`, sourceDef)
-    }
+    // Removed Source of Definition parsing
     
     console.log(`[v0] PARSER V2: Complete metadata for ${idShort}:`, {
       preferredName: parsed.preferredName,
@@ -123,7 +117,6 @@ function parseElement(element: Element): AASXElement | null {
       dataType: parsed.dataType,
       unit: parsed.unit,
       description: parsed.description,
-      sourceOfDefinition: parsed.sourceOfDefinition
     })
   } else {
     console.log(`[v0] PARSER V2: No embeddedDataSpecifications found for ${idShort}`)
