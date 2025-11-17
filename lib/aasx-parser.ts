@@ -200,6 +200,15 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: BasicEventElement ${idShort} = '${parsed.value}'`)
   }
 
+  // FINAL LOG for parsed element
+  console.log(`[v0] PARSER V2: Final parsed element for ${idShort}:`, {
+    idShort: parsed.idShort,
+    modelType: parsed.modelType,
+    value: parsed.value,
+    semanticId: parsed.semanticId,
+    childrenCount: parsed.children?.length || 0
+  });
+
   return parsed
 }
 

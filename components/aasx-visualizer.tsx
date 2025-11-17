@@ -279,7 +279,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         return element.value ? String(element.value) : null
       }
       if (type === "MultiLanguageProperty") {
-        console.log(`[v0] VISUALIZER DEBUG: MLP ${element.idShort} element.value:`, element.value);
+        console.log(`[v0] VISUALIZER DEBUG: MLP ${element.idShort} element object:`, element); // NEW LOG
         if (Array.isArray(element.value)) {
           const enText = element.value.find((item: any) => item && item.language === 'en')?.text
           return enText || element.value[0]?.text || null
@@ -835,7 +835,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               {selectedSubmodel ? (
                 <>
                   <div className="aasx-submodel-header">
-                    <div className="aasx-submodel-header-left">
+                    <div className="flex items-center gap-3">
                       <span className="aasx-submodel-badge">SM</span>
                       <span>{selectedSubmodel.idShort}</span>
                     </div>
