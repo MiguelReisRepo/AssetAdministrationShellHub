@@ -4,12 +4,12 @@
 export interface AASXElement {
   idShort: string
   modelType: string
-  value?: any
+  value?: any // Make value optional, as collections/lists use children
   description?: string
   semanticId?: string
   valueType?: string
   contentType?: string
-  children?: AASXElement[]
+  children?: AASXElement[] // Explicitly for collections/lists
   preferredName?: Record<string, string>
   shortName?: Record<string, string>
   dataType?: string
@@ -159,7 +159,7 @@ function parseElement(element: Element): AASXElement | null {
     parsed.value = getTextContent(element, "value")
     console.log(`[v0] PARSER V2: File ${idShort} = ${parsed.value}`)
   } else if (modelType === "submodelElementCollection" || modelType === "submodelElementList") {
-    // CRITICAL: Extract children from <value> container
+    // CRITICAL: Extract children from <value> container and assign to 'children' property
     const valueContainer = element.querySelector("value")
     if (valueContainer) {
       console.log(`[v0] PARSER V2: Found value container for ${idShort}`)
@@ -176,12 +176,14 @@ function parseElement(element: Element): AASXElement | null {
         }
       })
 
-      parsed.value = parsedChildren
+      parsed.children = parsedChildren // Assign to children, not value
       console.log(`[v0] PARSER V2: Collection ${idShort} has ${parsedChildren.length} children`)
     } else {
       console.log(`[v0] PARSER V2: WARNING - No value container found for ${idShort}`)
-      parsed.value = []
+      parsed.children = [] // Ensure children is an empty array if no value container
     }
+    // Ensure 'value' is not set for collections/lists
+    delete parsed.value;
   } else if (modelType === "basicEventElement") {
     parsed.value = "Event"
   }

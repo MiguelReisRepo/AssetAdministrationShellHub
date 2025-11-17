@@ -38,7 +38,7 @@ const mockAASXData = {
         {
           idShort: "GeneralInformation",
           modelType: "SubmodelElementCollection",
-          value: [
+          children: [ // Changed from value to children
             { idShort: "ManufacturerName", modelType: "Property", valueType: "string", value: "Example Corp" },
             { idShort: "ProductCode", modelType: "Property", valueType: "string", value: "ABC-123" },
           ],
@@ -187,7 +187,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     if (element?.modelType === 'MultiLanguageProperty') {
       return false
     }
-    return Array.isArray(element?.value) && element.value.length > 0
+    // Check for the 'children' property for collections/lists
+    return Array.isArray(element?.children) && element.children.length > 0
   }
 
   const hasValue = (element: any): boolean => {
@@ -217,7 +218,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const hasVisibleChildren = (element: any): boolean => {
     if (!hasChildren(element)) return false
     
-    const children = element.value || []
+    const children = element.children || [] // Use element.children
     return children.some((child: any) => shouldShowElement(child))
   }
 
@@ -247,7 +248,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     const isExpanded = expandedNodes.has(nodeId)
     const isSelected = selectedElement === element
     const type = getElementType(element)
-    const children = hasChildren(element) ? element.value : []
+    const children = hasChildren(element) ? element.children : [] // Use element.children
     const hasKids = children.length > 0
 
     const getNodeHeaderClass = () => {
@@ -267,7 +268,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     }
 
     const getDisplayValue = () => {
-      if (hasKids) return null
+      if (hasKids) return null // Collections/Lists don't have a direct display value here
       
       if (type === "MultiLanguageProperty") {
         if (Array.isArray(element.value)) {
@@ -371,7 +372,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     })
 
     const type = getElementType(selectedElement)
-    const isCollection = type === "SubmodelElementCollection"
+    const isCollection = type === "SubmodelElementCollection" || type === "SubmodelElementList"
 
     const typeColorMap: Record<string, string> = {
       SubmodelElementCollection: "#61caf3",
@@ -441,8 +442,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         return []
       }
       
-      if (Array.isArray(selectedElement.value)) {
-        return isCollection ? "N/A" : `Collection (${selectedElement.value.length} items)`
+      if (isCollection) { // Check if it's a collection or list
+        return `Collection (${selectedElement.children?.length || 0} items)`
       }
       
       if (type === "BasicEventElement") {
