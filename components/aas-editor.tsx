@@ -59,7 +59,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     aasConfig.selectedSubmodels[0] || null
   )
   const [selectedElement, setSelectedElement] = useState<SubmodelElement | null>(null)
-  const [expandedNodes, setExpandedNodes] = new Set<string>()
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // FIX: Corrected useState initialization
   const [showAddSubmodel, setShowAddSubmodel] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
