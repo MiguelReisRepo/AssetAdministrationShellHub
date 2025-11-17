@@ -172,7 +172,10 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} - Extracted Values Array:`, values);
   } else if (modelType === "File") {
     parsed.contentType = getTextContent(element, "contentType")
-    parsed.value = getTextContent(element, "value")
+    // CRITICAL FIX: Ensure we get the direct child <value> of the file element
+    const directValueElement = Array.from(element.children).find(child => child.tagName === "value");
+    const extractedValue = directValueElement ? directValueElement.textContent?.trim() || "" : "";
+    parsed.value = extractedValue;
     console.log(`[v0] PARSER V2: File ${idShort} = '${parsed.value}' (contentType: ${parsed.contentType})`)
   } else if (modelType === "SubmodelElementCollection" || modelType === "SubmodelElementList") {
     console.log(`[v0] PARSER V2: Processing collection/list: ${idShort}`)
@@ -181,16 +184,17 @@ function parseElement(element: Element): AASXElement | null {
     const valueContainer = element.querySelector("value")
     if (valueContainer) {
       console.log(`[v0] PARSER V2: Found <value> container for ${idShort}. Outer HTML:`, valueContainer.outerHTML)
+      // CRITICAL FIX: Iterate over direct children of the <value> container
       const childrenElements = Array.from(valueContainer.children)
       console.log(`[v0] PARSER V2: <value> container has ${childrenElements.length} direct children. Tags:`, childrenElements.map(c => c.tagName))
 
       const parsedChildren: AASXElement[] = []
       childrenElements.forEach((childEl, index) => {
         console.log(`[v0] PARSER V2: Parsing child ${index + 1}/${childrenElements.length} tag: ${childEl.tagName} for ${idShort}`)
-        const parsedChild = parseElement(childEl)
-        if (parsedChild) {
-          parsedChildren.push(parsedChild)
-          console.log(`[v0] PARSER V2: Successfully parsed child: ${parsedChild.idShort} for ${idShort}`)
+        const parsed = parseElement(childEl)
+        if (parsed) {
+          parsedChildren.push(parsed)
+          console.log(`[v0] PARSER V2: Successfully parsed child: ${parsed.idShort} for ${idShort}`)
         } else {
           console.log(`[v0] PARSER V2: Failed to parse child element: ${childEl.tagName} for ${idShort}`)
         }
