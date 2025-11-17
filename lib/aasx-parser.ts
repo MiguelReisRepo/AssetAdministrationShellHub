@@ -181,12 +181,13 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: Processing collection/list: ${idShort}`)
     console.log(`[v0] PARSER V2: Outer HTML for ${idShort}:`, element.outerHTML)
 
-    const valueContainer = element.querySelector("value")
+    // CRITICAL FIX: Find the direct child <value> element for collections
+    const valueContainer = Array.from(element.children).find(child => child.tagName === "value");
+
     if (valueContainer) {
-      console.log(`[v0] PARSER V2: Found <value> container for ${idShort}. Outer HTML:`, valueContainer.outerHTML)
-      // CRITICAL FIX: Iterate over direct children of the <value> container
+      console.log(`[v0] PARSER V2: Found DIRECT <value> container for ${idShort}. Outer HTML:`, valueContainer.outerHTML)
       const childrenElements = Array.from(valueContainer.children)
-      console.log(`[v0] PARSER V2: <value> container has ${childrenElements.length} direct children. Tags:`, childrenElements.map(c => c.tagName))
+      console.log(`[v0] PARSER V2: DIRECT <value> container has ${childrenElements.length} direct children. Tags:`, childrenElements.map(c => c.tagName))
 
       const parsedChildren: AASXElement[] = []
       childrenElements.forEach((childEl, index) => {
@@ -203,7 +204,7 @@ function parseElement(element: Element): AASXElement | null {
       parsed.children = parsedChildren
       console.log(`[v0] PARSER V2: Collection ${idShort} has ${parsedChildren.length} parsed children.`)
     } else {
-      console.log(`[v0] PARSER V2: WARNING - No <value> container found for collection/list ${idShort}. Assuming no children or non-standard structure.`)
+      console.log(`[v0] PARSER V2: WARNING - No DIRECT <value> container found for collection/list ${idShort}. Assuming no children or non-standard structure.`)
       parsed.children = []
     }
     delete parsed.value; // Collections/lists don't have a direct 'value' property
