@@ -59,7 +59,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     aasConfig.selectedSubmodels[0] || null
   )
   const [selectedElement, setSelectedElement] = useState<SubmodelElement | null>(null)
-  const [expandedNodes, setExpandedNodes] = new Set<string>()
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // Re-confirming correct initialization
   const [showAddSubmodel, setShowAddSubmodel] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -642,7 +642,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
               className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-opacity"
               title="Delete element (optional)"
             >
-              <X className="w-4 h-4 text-red-600" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -836,18 +836,18 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
               </p>
               
               <label className="block">
-                <input
-                  type="file"
-                  accept="image/*,.pdf,.doc,.docx,.txt"
-                  onChange={(e) => handleFileUpload(e, selectedSubmodel.idShort, elementPath)}
-                  className="hidden"
-                />
-                <div className="w-full p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-[#61caf3] cursor-pointer flex flex-col items-center justify-center text-gray-400 hover:text-[#61caf3] bg-white dark:bg-gray-900 transition-all">
-                  <Upload className="w-8 h-8 mb-2" />
-                  <span className="text-sm">Click to upload file</span>
-                  <span className="text-xs text-gray-500 mt-1">Images, PDFs, documents</span>
-                </div>
-              </label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf,.doc,.docx,.txt"
+                    onChange={(e) => handleFileUpload(e, selectedSubmodel.idShort, elementPath)}
+                    className="hidden"
+                  />
+                  <div className="w-full p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-[#61caf3] cursor-pointer flex flex-col items-center justify-center text-gray-400 hover:text-[#61caf3] bg-white dark:bg-gray-900 transition-all">
+                    <Upload className="w-8 h-8 mb-2" />
+                    <span className="text-sm">Click to upload file</span>
+                    <span className="text-xs text-gray-500 mt-1">Images, PDFs, documents</span>
+                  </div>
+                </label>
               
               {selectedElement.fileData && (
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 space-y-2">
