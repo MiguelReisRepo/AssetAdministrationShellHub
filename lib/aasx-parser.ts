@@ -139,56 +139,65 @@ function parseElement(element: Element): AASXElement | null {
   const semanticIdEl = element.querySelector("semanticId key")
   if (semanticIdEl) {
     parsed.semanticId = semanticIdEl.textContent?.trim() || ""
+    console.log(`[v0] PARSER V2: Extracted semanticId for ${idShort}: ${parsed.semanticId}`)
+  } else {
+    console.log(`[v0] PARSER V2: No semanticId found for ${idShort}`)
   }
 
   // Handle different element types
   if (modelType === "Property") {
     parsed.valueType = getTextContent(element, "valueType")
     parsed.value = getTextContent(element, "value")
-    console.log(`[v0] PARSER V2: Property ${idShort} = ${parsed.value}`)
+    console.log(`[v0] PARSER V2: Property ${idShort} = '${parsed.value}' (valueType: ${parsed.valueType})`)
   } else if (modelType === "MultiLanguageProperty") {
     // CRITICAL FIX: Target langStringTextType specifically within the 'value' tag
     const langStrings = element.querySelectorAll("value langStringTextType")
-    const values: any[] = []
+    const values: { language: string; text: string }[] = []
     langStrings.forEach((ls) => {
       const lang = getTextContent(ls, "language")
       const text = getTextContent(ls, "text")
-      values.push({ language: lang, text })
+      if (lang && text) { // Only add if both language and text are present
+        values.push({ language: lang, text })
+      }
     })
     parsed.value = values
-    console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} with ${values.length} translations`)
+    console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} with ${values.length} translations:`, values)
   } else if (modelType === "File") {
     parsed.contentType = getTextContent(element, "contentType")
     parsed.value = getTextContent(element, "value")
-    console.log(`[v0] PARSER V2: File ${idShort} = ${parsed.value}`)
+    console.log(`[v0] PARSER V2: File ${idShort} = '${parsed.value}' (contentType: ${parsed.contentType})`)
   } else if (modelType === "SubmodelElementCollection" || modelType === "SubmodelElementList") {
-    // CRITICAL: Extract children from <value> container and assign to 'children' property
+    console.log(`[v0] PARSER V2: Processing collection/list: ${idShort}`)
+    console.log(`[v0] PARSER V2: Outer HTML for ${idShort}:`, element.outerHTML)
+
     const valueContainer = element.querySelector("value")
     if (valueContainer) {
-      console.log(`[v0] PARSER V2: Found value container for ${idShort}`)
-      const children = Array.from(valueContainer.children)
-      console.log(`[v0] PARSER V2: Value container has ${children.length} child elements`)
+      console.log(`[v0] PARSER V2: Found <value> container for ${idShort}. Outer HTML:`, valueContainer.outerHTML)
+      const childrenElements = Array.from(valueContainer.children)
+      console.log(`[v0] PARSER V2: <value> container has ${childrenElements.length} direct children. Tags:`, childrenElements.map(c => c.tagName))
 
       const parsedChildren: AASXElement[] = []
-      children.forEach((child, index) => {
-        console.log(`[v0] PARSER V2: Parsing child ${index + 1}/${children.length} tag: ${child.tagName}`)
-        const parsedChild = parseElement(child)
+      childrenElements.forEach((childEl, index) => {
+        console.log(`[v0] PARSER V2: Parsing child ${index + 1}/${childrenElements.length} tag: ${childEl.tagName} for ${idShort}`)
+        const parsedChild = parseElement(childEl)
         if (parsedChild) {
           parsedChildren.push(parsedChild)
-          console.log(`[v0] PARSER V2: Successfully parsed child: ${parsedChild.idShort}`)
+          console.log(`[v0] PARSER V2: Successfully parsed child: ${parsedChild.idShort} for ${idShort}`)
+        } else {
+          console.log(`[v0] PARSER V2: Failed to parse child element: ${childEl.tagName} for ${idShort}`)
         }
       })
 
-      parsed.children = parsedChildren // Assign to children, not value
-      console.log(`[v0] PARSER V2: Collection ${idShort} has ${parsedChildren.length} children`)
+      parsed.children = parsedChildren
+      console.log(`[v0] PARSER V2: Collection ${idShort} has ${parsedChildren.length} parsed children.`)
     } else {
-      console.log(`[v0] PARSER V2: WARNING - No value container found for ${idShort}`)
-      parsed.children = [] // Ensure children is an empty array if no value container
+      console.log(`[v0] PARSER V2: WARNING - No <value> container found for collection/list ${idShort}. Assuming no children or non-standard structure.`)
+      parsed.children = []
     }
-    // Ensure 'value' is not set for collections/lists
-    delete parsed.value;
+    delete parsed.value; // Collections/lists don't have a direct 'value' property
   } else if (modelType === "BasicEventElement") {
-    parsed.value = "Event"
+    parsed.value = "Event" // Placeholder value for event elements
+    console.log(`[v0] PARSER V2: BasicEventElement ${idShort} = '${parsed.value}'`)
   }
 
   return parsed
