@@ -148,10 +148,13 @@ function parseElement(element: Element): AASXElement | null {
   if (modelType === "Property") {
     console.log(`[v0] PARSER V2: Processing Property element: ${element.outerHTML}`); // NEW LOG
     parsed.valueType = getTextContent(element, "valueType")
-    const valueElement = element.querySelector("value"); // Get the actual <value> element
-    const extractedValue = valueElement ? valueElement.textContent?.trim() || "" : ""; // Get its text content
+    
+    // CRITICAL FIX: Ensure we get the direct child <value> of the property element
+    const directValueElement = Array.from(element.children).find(child => child.tagName === "value");
+    const extractedValue = directValueElement ? directValueElement.textContent?.trim() || "" : "";
     parsed.value = extractedValue;
-    console.log(`[v0] PARSER V2: Property ${idShort} - Raw <value> element content: '${valueElement?.textContent}'`); // NEW LOG
+
+    console.log(`[v0] PARSER V2: Property ${idShort} - Raw direct <value> element content: '${directValueElement?.textContent}'`); // NEW LOG
     console.log(`[v0] PARSER V2: Property ${idShort} - Extracted Value: '${extractedValue}' (valueType: ${parsed.valueType})`);
     console.log(`[v0] PARSER V2: Property ${idShort} - Extracted SemanticId: '${parsed.semanticId}'`);
   } else if (modelType === "MultiLanguageProperty") {
