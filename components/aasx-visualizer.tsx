@@ -269,29 +269,22 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       return "aasx-tree-node-header aasx-tree-node-header-default"
     }
 
-    const getDisplayValue = () => {
-      if (hasKids) return null // Collections/Lists don't have a direct display value here
-      
+    const getDisplayValueForTreeNode = () => {
+      if (type === "Property" || type === "File") {
+        return element.value ? String(element.value) : null
+      }
       if (type === "MultiLanguageProperty") {
         if (Array.isArray(element.value)) {
-          // Handle array format: [{language: "en", text: "..."}]
-          const texts = element.value
-            .filter((item: any) => item && typeof item === "object" && item.text)
-            .map((item: any) => `${item.language}: ${item.text}`)
-          return texts.length > 0 ? texts.join(", ") : "N/A"
+          const enText = element.value.find((item: any) => item && item.language === 'en')?.text
+          return enText || element.value[0]?.text || null
         } else if (typeof element.value === "object" && element.value !== null) {
-          // Handle object format: {en: "...", de: "..."}
-          const entries = Object.entries(element.value)
-          if (entries.length === 0) return "N/A"
-          return entries.map(([lang, text]) => `${lang}: ${text}`).join(", ")
+          return element.value.en || Object.values(element.value)[0] || null
         }
-        return "N/A"
       }
-      
-      return element.value ? String(element.value) : null
+      return null
     }
 
-    const displayValue = getDisplayValue()
+    const displayValue = getDisplayValueForTreeNode()
     const indentStyle = { paddingLeft: hasKids ? `${depth * 20}px` : "0px" }
 
     return (
@@ -327,10 +320,10 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 <span className={`aasx-tree-node-label ${element.idShort ? "aasx-tree-node-label-bold" : ""}`}>
                   {element.idShort || "Element"}
                 </span>
-                {displayValue && (type === "Property" || type === "File" || type === "MultiLanguageProperty") && (
+                {displayValue && (
                   <span className="aasx-tree-node-value">
-                    = {displayValue.substring(0, 50)}
-                    {displayValue.length > 50 ? "..." : ""}
+                    = {String(displayValue).substring(0, 50)}
+                    {String(displayValue).length > 50 ? "..." : ""}
                   </span>
                 )}
               </div>
