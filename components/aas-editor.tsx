@@ -59,7 +59,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     aasConfig.selectedSubmodels[0] || null
   )
   const [selectedElement, setSelectedElement] = useState<SubmodelElement | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = new Set<string>()
   const [showAddSubmodel, setShowAddSubmodel] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -1159,6 +1159,18 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}      </key>\n`
           xml += `${indent}    </keys>\n`
           xml += `${indent}  </semanticId>\n`
+        }
+
+        // Add Cardinality as a Qualifier
+        if (element.cardinality) {
+          xml += `${indent}  <qualifiers>\n`
+          xml += `${indent}    <qualifier>\n`
+          xml += `${indent}      <type>Cardinality</type>\n`
+          xml += `${indent}      <valueType>xs:string</valueType>\n`
+          xml += `${indent}      <value>${element.cardinality}</value>\n`
+          xml += `${indent}    </qualifier>\n`
+          xml += `${indent}  </qualifiers>\n`
+          console.log(`[v0] EDITOR XML GEN: ✓ Wrote cardinality for ${element.idShort}`)
         }
         
         const hasMetadata = element.preferredName || element.shortName || element.dataType || 

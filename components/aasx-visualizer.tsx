@@ -814,10 +814,9 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   <FileText className="w-5 h-5" />
                 </div>
                 <span
-                  className={`aasx-submodel-card-text ${selectedSubmodel === submodel ? "" : "aasx-submodel-card-text-default"}`}
-                  style={{
-                    color: selectedSubmodel === submodel ? "#61caf3" : undefined,
-                  }}
+                  className={`text-xs text-center truncate w-full ${
+                    selectedSubmodel === submodel ? "text-[#61caf3] font-medium" : "text-[#adadae]"
+                  }`}
                   title={submodel.idShort || `Submodel ${idx + 1}`}
                 >
                   {submodel.idShort || `Submodel ${idx + 1}`}

@@ -16,6 +16,7 @@ export interface AASXElement {
   unit?: string
   sourceOfDefinition?: string
   category?: string
+  cardinality?: string // Added cardinality property
 }
 
 export interface AASXSubmodel {
@@ -144,6 +145,17 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: No semanticId found for ${idShort}`)
   }
 
+  // Extract Cardinality from Qualifiers
+  const cardinalityQualifier = Array.from(element.querySelectorAll("qualifiers qualifier")).find(
+    (q) => getTextContent(q, "type") === "Cardinality"
+  )
+  if (cardinalityQualifier) {
+    parsed.cardinality = getTextContent(cardinalityQualifier, "value")
+    console.log(`[v0] PARSER V2: Extracted cardinality for ${idShort}: ${parsed.cardinality}`)
+  } else {
+    console.log(`[v0] PARSER V2: No cardinality qualifier found for ${idShort}`)
+  }
+
   console.log(`[v0] PARSER V2: Before value assignment for ${idShort}, parsed object:`, JSON.stringify(parsed, null, 2));
 
   // Handle different element types
@@ -228,6 +240,7 @@ function parseElement(element: Element): AASXElement | null {
     preferredName: parsed.preferredName,
     shortName: parsed.shortName,
     description: parsed.description,
+    cardinality: parsed.cardinality, // Included in final log
   }, null, 2));
 
   return parsed
