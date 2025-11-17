@@ -25,19 +25,19 @@ interface AASConfig {
 interface SubmodelElement {
   idShort: string
   modelType: "Property" | "MultiLanguageProperty" | "SubmodelElementCollection" | "SubmodelElementList" | "File"
-  valueType?: string
-  value: string | Record<string, string>
+  valueType?: string // For Property, Range
+  value?: string | Record<string, string> // For Property, MultiLanguageProperty, File
   cardinality: "One" | "ZeroToOne" | "ZeroToMany" | "OneToMany"
   description?: string
   semanticId?: string
-  children?: SubmodelElement[]
+  children?: SubmodelElement[] // For SubmodelElementCollection, SubmodelElementList
   preferredName?: string | Record<string, string>
   shortName?: string | Record<string, string>
   dataType?: string
   unit?: string
   category?: string
   sourceOfDefinition?: string
-  fileData?: { content: string; mimeType: string; fileName: string }
+  fileData?: { content: string; mimeType: string; fileName: string } // For File
 }
 
 interface AASEditorProps {
@@ -59,7 +59,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     aasConfig.selectedSubmodels[0] || null
   )
   const [selectedElement, setSelectedElement] = useState<SubmodelElement | null>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = new Set<string>()
   const [showAddSubmodel, setShowAddSubmodel] = useState(false)
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
@@ -136,7 +136,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         idShort: el.idShort || "UnknownElement",
         modelType: el.modelType || "Property",
         valueType: el.valueType,
-        value: el.modelType === "MultiLanguageProperty" ? { en: "" } : "",
+        value: el.modelType === "MultiLanguageProperty" ? { en: "" } : (el.modelType === "Property" || el.modelType === "File" ? "" : undefined), // Only set value for Property, MLP, File
         cardinality: determineCardinality(el),
         description: getDescription(el),
         semanticId: getSemanticId(el),
@@ -242,7 +242,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         { 
           idShort: "AddressInformation", 
           modelType: "SubmodelElementCollection", 
-          value: "", 
           cardinality: "ZeroToOne", 
           description: "Address information of a business partner",
           semanticId: "0173-1#02-AAQ832#005",
@@ -269,7 +268,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         {
           idShort: "Markings",
           modelType: "SubmodelElementList",
-          value: "",
           cardinality: "ZeroToOne",
           description: "Collection of product markings",
           semanticId: "0173-1#01-AHD492#001",
@@ -277,7 +275,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             {
               idShort: "Marking",
               modelType: "SubmodelElementCollection",
-              value: "",
               cardinality: "ZeroToMany",
               description: "Contains information about the marking labelled on the device",
               semanticId: "0173-1#01-AHD492#001",
@@ -292,14 +289,12 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         {
           idShort: "AssetSpecificProperties",
           modelType: "SubmodelElementCollection",
-          value: "",
           cardinality: "ZeroToOne",
           description: "Group of properties that are listed on the asset's nameplate and have to be reported to a authority",
           children: [
             {
               idShort: "GuidelineSpecificProperties",
               modelType: "SubmodelElementCollection",
-              value: "",
               cardinality: "ZeroToOne",
               description: "Properties specific to the guideline",
               children: [
@@ -326,7 +321,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     
     if (templateName.includes("Technical") || templateName.includes("Data")) {
       return [
-        { idShort: "GeneralInformation", modelType: "SubmodelElementCollection", value: "", cardinality: "One", description: "General technical information",
+        { idShort: "GeneralInformation", modelType: "SubmodelElementCollection", cardinality: "One", description: "General technical information",
           semanticId: "https://admin-shell.io/zvei/technicaldatacollection/1/0/TechnicalDataCollection/GeneralInformation",
           children: [
             { idShort: "ManufacturerName", modelType: "MultiLanguageProperty", value: { en: "" }, cardinality: "One", description: "Manufacturer name", semanticId: "https://admin-shell.io/zvei/technicaldatacollection/1/0/TechnicalDataCollection/ManufacturerName" },
@@ -334,7 +329,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             { idShort: "ManufacturerPartNumber", modelType: "Property", valueType: "string", value: "", cardinality: "ZeroToOne", description: "Part number", semanticId: "https://admin-shell.io/zvei/technicaldatacollection/1/0/TechnicalDataCollection/ManufacturerPartNumber" },
           ]
         },
-        { idShort: "TechnicalProperties", modelType: "SubmodelElementCollection", value: "", cardinality: "ZeroToOne", description: "Technical properties",
+        { idShort: "TechnicalProperties", modelType: "SubmodelElementCollection", cardinality: "ZeroToOne", description: "Technical properties",
           semanticId: "https://admin-shell.io/zvei/technicaldatacollection/1/0/TechnicalDataCollection/TechnicalProperties",
           children: [
             { idShort: "NominalVoltage", modelType: "Property", valueType: "float", value: "", cardinality: "ZeroToOne", description: "Nominal voltage", semanticId: "https://admin-shell.io/zvei/technicaldatacollection/1/0/TechnicalDataCollection/NominalVoltage" },
@@ -346,7 +341,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     
     if (templateName.includes("Carbon") || templateName.includes("Footprint")) {
       return [
-        { idShort: "PCF", modelType: "SubmodelElementCollection", value: "", cardinality: "One", description: "Product Carbon Footprint",
+        { idShort: "PCF", modelType: "SubmodelElementCollection", cardinality: "One", description: "Product Carbon Footprint",
           semanticId: "https://admin-shell.io/zvei/carbonfootprint/1/0/ProductCarbonFootprint/PCF",
           children: [
             { idShort: "PCFCalculationMethod", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "Calculation method", semanticId: "https://admin-shell.io/zvei/carbonfootprint/1/0/ProductCarbonFootprint/PCFCalculationMethod" },
@@ -359,7 +354,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     
     if (templateName.includes("Handover")) {
       return [
-        { idShort: "HandoverDocumentation", modelType: "SubmodelElementCollection", value: "", cardinality: "One", description: "Handover documentation",
+        { idShort: "HandoverDocumentation", modelType: "SubmodelElementCollection", cardinality: "One", description: "Handover documentation",
           semanticId: "https://admin-shell.io/zvei/handover/1/0/HandoverDocumentation/HandoverDocumentation",
           children: [
             { idShort: "DocumentClassification", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "Document classification", semanticId: "https://admin-shell.io/zvei/handover/1/0/HandoverDocumentation/DocumentClassification" },
@@ -529,7 +524,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       if (element.modelType === "Property") {
         return typeof element.value === 'string' && element.value ? element.value : ''
       } else if (element.modelType === "MultiLanguageProperty") {
-        if (typeof element.value === 'object') {
+        if (typeof element.value === 'object' && element.value !== null) {
           const entries = Object.entries(element.value).filter(([_, text]) => text)
           if (entries.length > 0) {
             return entries.map(([lang, text]) => `${lang}: ${text}`).join(', ')
@@ -713,7 +708,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     const addLanguageToMLP = (newLang: string) => {
       if (selectedElement.modelType !== "MultiLanguageProperty") return
       
-      const currentValue = typeof selectedElement.value === 'object' ? selectedElement.value : { en: '' }
+      const currentValue = typeof selectedElement.value === 'object' && selectedElement.value !== null ? selectedElement.value : { en: '' }
       if (!currentValue[newLang]) {
         const updatedValue = { ...currentValue, [newLang]: '' }
         updateElementValue(selectedSubmodel.idShort, elementPath, updatedValue)
@@ -724,7 +719,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       if (selectedElement.modelType !== "MultiLanguageProperty") return
       if (lang === 'en') return // Always keep English
       
-      const currentValue = typeof selectedElement.value === 'object' ? { ...selectedElement.value } : { en: '' }
+      const currentValue = typeof selectedElement.value === 'object' && selectedElement.value !== null ? { ...selectedElement.value } : { en: '' }
       delete currentValue[lang]
       updateElementValue(selectedSubmodel.idShort, elementPath, currentValue)
     }
@@ -732,7 +727,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     const updateMLPLanguageValue = (lang: string, text: string) => {
       if (selectedElement.modelType !== "MultiLanguageProperty") return
       
-      const currentValue = typeof selectedElement.value === 'object' ? { ...selectedElement.value } : { en: '' }
+      const currentValue = typeof selectedElement.value === 'object' && selectedElement.value !== null ? { ...selectedElement.value } : { en: '' }
       currentValue[lang] = text
       updateElementValue(selectedSubmodel.idShort, elementPath, currentValue)
     }
@@ -768,7 +763,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
 
           {selectedElement.modelType === "MultiLanguageProperty" && (
             <div className="space-y-3">
-              {typeof selectedElement.value === 'object' && Object.entries(selectedElement.value).map(([lang, text]) => (
+              {typeof selectedElement.value === 'object' && selectedElement.value !== null && Object.entries(selectedElement.value).map(([lang, text]) => (
                 <div key={lang} className="flex gap-2 items-start">
                   <div className="flex-1">
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -913,7 +908,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
 
         {/* Metadata sections below value */}
         <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 space-y-3">
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
             <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase">
               Property Metadata
             </h4>
@@ -1050,7 +1045,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             </div>
           </div>
 
-          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 space-y-2">
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3">
             <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase">
               Semantic ID (ECLASS/IEC61360)
             </h4>
@@ -1075,7 +1070,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             )}
           </div>
 
-          <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 space-y-2">
+          <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
             <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
               Definition/Description
             </h4>
@@ -1090,7 +1085,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             />
           </div>
           
-          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 space-y-2">
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3">
             <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase">
               Source of Definition
             </h4>
@@ -1178,7 +1173,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}          <langStringTextType>\n`
                 xml += `${indent}            <language>${lang}</language>\n`
                 xml += `${indent}            <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n`
               }
             })
             xml += `${indent}        </preferredName>\n`
@@ -1197,7 +1191,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}          <langStringTextType>\n`
                 xml += `${indent}            <language>${lang}</language>\n`
                 xml += `${indent}            <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n`
               }
             })
             xml += `${indent}        </shortName>\n`
@@ -1256,14 +1249,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             xml += `${indent}  <value>${element.value}</value>\n`
           }
         } else if (element.modelType === "MultiLanguageProperty") {
-          if (typeof element.value === 'object') {
+          if (typeof element.value === 'object' && element.value !== null) {
             xml += `${indent}  <value>\n`
             Object.entries(element.value).forEach(([lang, text]) => {
               if (text) { // Only include if text is not empty
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
-                xml += `${indent}    </langStringTextType>\n`
               }
             })
             xml += `${indent}  </value>\n`
@@ -1454,16 +1446,16 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
           if (element.modelType === "Property") {
             hasValue = typeof element.value === 'string' && element.value.trim() !== ''
           } else if (element.modelType === "MultiLanguageProperty") {
-            if (typeof element.value === 'object') {
+            if (typeof element.value === 'object' && element.value !== null) {
               const values = Object.values(element.value).filter(v => v && v.trim() !== '')
               hasValue = values.length > 0
             }
           } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
             // For collections, check if they have children (structure requirement)
-            hasValue = true // Collections are considered valid by structure
+            hasValue = (element.children && element.children.length > 0)
           }
           
-          if (!hasValue && (element.modelType === "Property" || element.modelType === "MultiLanguageProperty")) {
+          if (!hasValue && (element.modelType === "Property" || element.modelType === "MultiLanguageProperty" || element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList")) {
             missingFields.push(`${submodelId} > ${currentPath.join(' > ')}`)
             errors.add(nodeId)
             
