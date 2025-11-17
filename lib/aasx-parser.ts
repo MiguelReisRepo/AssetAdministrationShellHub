@@ -135,10 +135,10 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: Extracted category for ${idShort}:`, category)
   }
 
-  // Extract semantic ID
-  const semanticIdEl = element.querySelector("semanticId key")
-  if (semanticIdEl) {
-    parsed.semanticId = semanticIdEl.textContent?.trim() || ""
+  // Extract semantic ID - Corrected to target the 'value' within 'keys'
+  const semanticIdValueEl = element.querySelector("semanticId keys key value")
+  if (semanticIdValueEl) {
+    parsed.semanticId = semanticIdValueEl.textContent?.trim() || ""
     console.log(`[v0] PARSER V2: Extracted semanticId for ${idShort}: ${parsed.semanticId}`)
   } else {
     console.log(`[v0] PARSER V2: No semanticId found for ${idShort}`)

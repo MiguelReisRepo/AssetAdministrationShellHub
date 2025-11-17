@@ -279,10 +279,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         return element.value ? String(element.value) : null
       }
       if (type === "MultiLanguageProperty") {
+        console.log(`[v0] VISUALIZER DEBUG: MLP ${element.idShort} element.value:`, element.value);
         if (Array.isArray(element.value)) {
           const enText = element.value.find((item: any) => item && item.language === 'en')?.text
           return enText || element.value[0]?.text || null
         } else if (typeof element.value === "object" && element.value !== null) {
+          // This branch might be deprecated if parser always returns array
           return element.value.en || Object.values(element.value)[0] || null
         }
       }
