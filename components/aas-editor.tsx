@@ -65,7 +65,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
   const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set())
   const [thumbnail, setThumbnail] = useState<string | null>(null)
-  const [templateSearchQuery, setTemplateSearchQuery] = useState("")
+  const [templateSearchQuery, setSearchQuery] = useState("")
   const [draggedItem, setDraggedItem] = useState<{ path: string[]; element: SubmodelElement } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<string | null>(null)
 
@@ -80,6 +80,11 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       const response = await fetch(
         "https://api.github.com/repos/admin-shell-io/submodel-templates/contents/published"
       )
+      
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`)
+      }
+
       const data = await response.json()
       
       if (Array.isArray(data)) {
@@ -1176,6 +1181,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}          <langStringTextType>\n`
                 xml += `${indent}            <language>${lang}</language>\n`
                 xml += `${indent}            <text>${text}</text>\n`
+                xml += `${indent}          </langStringTextType>\n` // ADDED CLOSING TAG
               }
             })
             xml += `${indent}        </preferredName>\n`
@@ -1194,6 +1200,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}          <langStringTextType>\n`
                 xml += `${indent}            <language>${lang}</language>\n`
                 xml += `${indent}            <text>${text}</text>\n`
+                xml += `${indent}          </langStringTextType>\n` // ADDED CLOSING TAG
               }
             })
             xml += `${indent}        </shortName>\n`
@@ -1259,6 +1266,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
+                xml += `${indent}    </langStringTextType>\n` // ADDED CLOSING TAG
               }
             })
             xml += `${indent}  </value>\n`
@@ -1773,7 +1781,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
               <button
                 onClick={() => {
                   setShowAddSubmodel(false)
-                  setTemplateSearchQuery("")
+                  setSearchQuery("")
                 }}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
               >
@@ -1785,7 +1793,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
                 type="text"
                 placeholder="Search submodels..."
                 value={templateSearchQuery}
-                onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 focus:ring-2 focus:ring-[#61caf3] focus:border-transparent"
               />
             </div>
@@ -1801,7 +1809,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
                       key={idx}
                       onClick={() => {
                         addSubmodel(template)
-                        setTemplateSearchQuery("")
+                        setSearchQuery("")
                       }}
                       className="w-full p-3 text-left border rounded-lg hover:border-[#61caf3] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
                     >
