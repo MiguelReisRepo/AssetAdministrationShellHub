@@ -43,8 +43,10 @@ function parseElement(element: Element): AASXElement | null {
     return null
   }
 
-  const modelType = element.tagName
-  console.log(`[v0] PARSER V2: Element ${idShort} type: ${modelType}`)
+  // Convert tagName to PascalCase to match the expected modelType format
+  const rawModelType = element.tagName
+  const modelType = rawModelType.charAt(0).toUpperCase() + rawModelType.slice(1)
+  console.log(`[v0] PARSER V2: Element ${idShort} type: ${modelType} (from ${rawModelType})`)
 
   const parsed: AASXElement = {
     idShort,
@@ -140,11 +142,11 @@ function parseElement(element: Element): AASXElement | null {
   }
 
   // Handle different element types
-  if (modelType === "property") {
+  if (modelType === "Property") {
     parsed.valueType = getTextContent(element, "valueType")
     parsed.value = getTextContent(element, "value")
     console.log(`[v0] PARSER V2: Property ${idShort} = ${parsed.value}`)
-  } else if (modelType === "multiLanguageProperty") {
+  } else if (modelType === "MultiLanguageProperty") {
     const langStrings = element.querySelectorAll("langStringTextType")
     const values: any[] = []
     langStrings.forEach((ls) => {
@@ -154,11 +156,11 @@ function parseElement(element: Element): AASXElement | null {
     })
     parsed.value = values
     console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} with ${values.length} translations`)
-  } else if (modelType === "file") {
+  } else if (modelType === "File") {
     parsed.contentType = getTextContent(element, "contentType")
     parsed.value = getTextContent(element, "value")
     console.log(`[v0] PARSER V2: File ${idShort} = ${parsed.value}`)
-  } else if (modelType === "submodelElementCollection" || modelType === "submodelElementList") {
+  } else if (modelType === "SubmodelElementCollection" || modelType === "SubmodelElementList") {
     // CRITICAL: Extract children from <value> container and assign to 'children' property
     const valueContainer = element.querySelector("value")
     if (valueContainer) {
@@ -184,7 +186,7 @@ function parseElement(element: Element): AASXElement | null {
     }
     // Ensure 'value' is not set for collections/lists
     delete parsed.value;
-  } else if (modelType === "basicEventElement") {
+  } else if (modelType === "BasicEventElement") {
     parsed.value = "Event"
   }
 
