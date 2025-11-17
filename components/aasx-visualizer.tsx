@@ -243,6 +243,10 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const renderTreeNode = (element: any, depth = 0, path = ""): React.ReactNode => {
     if (!element || typeof element !== "object") return null
     
+    if (element.idShort === "Zipcode") {
+      console.log(`[v0] VISUALIZER DEBUG: Zipcode element at renderTreeNode:`, JSON.stringify(element, null, 2));
+    }
+
     if (!shouldShowElement(element)) {
       return null
     }
@@ -276,23 +280,31 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     }
 
     const getDisplayValueForTreeNode = () => {
-      console.log(`[v0] VISUALIZER DEBUG: getDisplayValueForTreeNode for ${element.idShort}. Element object:`, element); // NEW LOG
+      const type = getElementType(element); // Ensure type is correctly determined here
+      console.log(`[v0] VISUALIZER DEBUG: getDisplayValueForTreeNode for ${element.idShort} (Type: ${type})`);
+      console.log(`[v0] VISUALIZER DEBUG:   element.value:`, element.value);
+      console.log(`[v0] VISUALIZER DEBUG:   element.description:`, element.description);
+
       if (type === "Property" || type === "File") {
-        return element.value ? String(element.value) : null
+        return element.value ? String(element.value) : null;
       }
       if (type === "MultiLanguageProperty") {
         if (Array.isArray(element.value)) {
-          const enText = element.value.find((item: any) => item && item.language === 'en')?.text
-          return enText || element.value[0]?.text || null
+          const enText = element.value.find((item: any) => item && item.language === 'en')?.text;
+          const firstText = element.value[0]?.text;
+          console.log(`[v0] VISUALIZER DEBUG:   MLP Array - enText: '${enText}', firstText: '${firstText}'`);
+          return enText || firstText || null;
         } else if (typeof element.value === "object" && element.value !== null) {
           // Fallback for older parsing or different structures, convert to array for consistency
           const valuesArray = Object.entries(element.value).map(([language, text]) => ({ language, text: String(text) }));
-          const enText = valuesArray.find((item: any) => item && item.language === 'en')?.text
-          return enText || valuesArray[0]?.text || null
+          const enText = valuesArray.find((item: any) => item && item.language === 'en')?.text;
+          const firstText = valuesArray[0]?.text;
+          console.log(`[v0] VISUALIZER DEBUG:   MLP Object - enText: '${enText}', firstText: '${firstText}'`);
+          return enText || firstText || null;
         }
       }
-      return null
-    }
+      return null;
+    };
 
     const displayValue = getDisplayValueForTreeNode()
     const indentStyle = { paddingLeft: hasKids ? `${depth * 20}px` : "0px" }
@@ -749,7 +761,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   className={`text-xs text-center truncate w-full ${
                     selectedFile === file ? "text-[#61caf3] font-medium" : "text-[#adadae]"
                   }`}
-                  title={file.name}
+                  title={file.idShort || file.name}
                 >
                   {file.idShort || file.name}
                 </span>

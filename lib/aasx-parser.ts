@@ -144,36 +144,40 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: No semanticId found for ${idShort}`)
   }
 
+  console.log(`[v0] PARSER V2: Before value assignment for ${idShort}, parsed object:`, JSON.stringify(parsed, null, 2));
+
   // Handle different element types
   if (modelType === "Property") {
-    console.log(`[v0] PARSER V2: Processing Property element: ${element.outerHTML}`); // NEW LOG
     parsed.valueType = getTextContent(element, "valueType")
-    
     // CRITICAL FIX: Ensure we get the direct child <value> of the property element
-    const directValueElement = Array.from(element.children).find(child => child.tagName === "value");
+    const directValueElement = Array.from(element.children).find(child => child.tagName === "value" && child.parentElement === element);
     const extractedValue = directValueElement ? directValueElement.textContent?.trim() || "" : "";
     parsed.value = extractedValue;
-
-    console.log(`[v0] PARSER V2: Property ${idShort} - Raw direct <value> element content: '${directValueElement?.textContent}'`); // NEW LOG
     console.log(`[v0] PARSER V2: Property ${idShort} - Extracted Value: '${extractedValue}' (valueType: ${parsed.valueType})`);
-    console.log(`[v0] PARSER V2: Property ${idShort} - Extracted SemanticId: '${parsed.semanticId}'`);
   } else if (modelType === "MultiLanguageProperty") {
-    // CRITICAL FIX: Target langStringTextType specifically within the 'value' tag
-    const langStrings = element.querySelectorAll("value langStringTextType")
-    const values: { language: string; text: string }[] = [];
-    langStrings.forEach((ls) => {
-      const lang = getTextContent(ls, "language")
-      const text = getTextContent(ls, "text")
-      if (lang && text) {
-        values.push({ language: lang, text })
-      }
-    })
-    parsed.value = values;
-    console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} - Extracted Values Array:`, values);
+    // CRITICAL FIX: Target langStringTextType specifically within the direct 'value' tag
+    const valueElement = Array.from(element.children).find(child => child.tagName === "value" && child.parentElement === element);
+    if (valueElement) {
+      const langStrings = valueElement.querySelectorAll("langStringTextType"); // Query within the specific <value> element
+      console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} - Found ${langStrings.length} langStringTextType elements within its direct <value> tag.`);
+      const values: { language: string; text: string }[] = [];
+      langStrings.forEach((ls) => {
+        const lang = getTextContent(ls, "language")
+        const text = getTextContent(ls, "text")
+        if (lang && text) {
+          values.push({ language: lang, text })
+        }
+      })
+      parsed.value = values;
+      console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} - Extracted Values Array:`, values);
+    } else {
+      console.log(`[v0] PARSER V2: MultiLangProperty ${idShort} - No direct <value> element found.`);
+      parsed.value = [];
+    }
   } else if (modelType === "File") {
     parsed.contentType = getTextContent(element, "contentType")
     // CRITICAL FIX: Ensure we get the direct child <value> of the file element
-    const directValueElement = Array.from(element.children).find(child => child.tagName === "value");
+    const directValueElement = Array.from(element.children).find(child => child.tagName === "value" && child.parentElement === element);
     const extractedValue = directValueElement ? directValueElement.textContent?.trim() || "" : "";
     parsed.value = extractedValue;
     console.log(`[v0] PARSER V2: File ${idShort} = '${parsed.value}' (contentType: ${parsed.contentType})`)
@@ -182,7 +186,7 @@ function parseElement(element: Element): AASXElement | null {
     console.log(`[v0] PARSER V2: Outer HTML for ${idShort}:`, element.outerHTML)
 
     // CRITICAL FIX: Find the direct child <value> element for collections
-    const valueContainer = Array.from(element.children).find(child => child.tagName === "value");
+    const valueContainer = Array.from(element.children).find(child => child.tagName === "value" && child.parentElement === element);
 
     if (valueContainer) {
       console.log(`[v0] PARSER V2: Found DIRECT <value> container for ${idShort}. Outer HTML:`, valueContainer.outerHTML)
