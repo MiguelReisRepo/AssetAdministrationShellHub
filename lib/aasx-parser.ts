@@ -146,10 +146,14 @@ function parseElement(element: Element): AASXElement | null {
 
   // Handle different element types
   if (modelType === "Property") {
+    console.log(`[v0] PARSER V2: Processing Property element: ${element.outerHTML}`); // NEW LOG
     parsed.valueType = getTextContent(element, "valueType")
-    const extractedValue = getTextContent(element, "value"); // Capture direct result
+    const valueElement = element.querySelector("value"); // Get the actual <value> element
+    const extractedValue = valueElement ? valueElement.textContent?.trim() || "" : ""; // Get its text content
     parsed.value = extractedValue;
+    console.log(`[v0] PARSER V2: Property ${idShort} - Raw <value> element content: '${valueElement?.textContent}'`); // NEW LOG
     console.log(`[v0] PARSER V2: Property ${idShort} - Extracted Value: '${extractedValue}' (valueType: ${parsed.valueType})`);
+    console.log(`[v0] PARSER V2: Property ${idShort} - Extracted SemanticId: '${parsed.semanticId}'`);
   } else if (modelType === "MultiLanguageProperty") {
     // CRITICAL FIX: Target langStringTextType specifically within the 'value' tag
     const langStrings = element.querySelectorAll("value langStringTextType")

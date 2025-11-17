@@ -276,7 +276,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     }
 
     const getDisplayValueForTreeNode = () => {
-      console.log(`[v0] VISUALIZER DEBUG: getDisplayValueForTreeNode for ${element.idShort}. element.value received:`, element.value);
+      console.log(`[v0] VISUALIZER DEBUG: getDisplayValueForTreeNode for ${element.idShort}. Element object:`, element); // NEW LOG
       if (type === "Property" || type === "File") {
         return element.value ? String(element.value) : null
       }
@@ -360,21 +360,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     }
 
     console.log(`[v0] VISUALIZER: Selected element:`, selectedElement.idShort)
-    console.log(`[v0] VISUALIZER: Full element data:`, {
-      idShort: selectedElement.idShort,
-      modelType: selectedElement.modelType,
-      value: selectedElement.value,
-      preferredName: selectedElement.preferredName,
-      shortName: selectedElement.shortName,
-      dataType: selectedElement.dataType,
-      valueType: selectedElement.valueType,
-      unit: selectedElement.unit,
-      category: selectedElement.category,
-      cardinality: selectedElement.cardinality,
-      semanticId: selectedElement.semanticId,
-      description: selectedElement.description,
-      sourceOfDefinition: selectedElement.sourceOfDefinition
-    })
+    console.log(`[v0] VISUALIZER: Full selectedElement data:`, JSON.stringify(selectedElement, null, 2)); // NEW LOG, stringify for full object
 
     const type = getElementType(selectedElement)
     const isCollection = type === "SubmodelElementCollection" || type === "SubmodelElementList"
@@ -765,7 +751,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   }`}
                   title={file.name}
                 >
-                  {file.name}
+                  {file.idShort || file.name}
                 </span>
               </div>
             ))}
