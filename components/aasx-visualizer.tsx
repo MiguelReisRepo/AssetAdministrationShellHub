@@ -1,0 +1,870 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+
+interface UploadedFile {
+  name: string
+  content: any
+  fileType: "aasx" | "xml" | "json"
+  thumbnail?: string
+  isValid?: boolean
+  validationErrors?: string[]
+}
+
+interface AASXVisualizerProps {
+  uploadedFiles: UploadedFile[]
+  newFileIndex?: number | null
+  onFileSelected?: () => void
+}
+
+// Mock AASX data structure for demonstration
+const mockAASXData = {
+  idShort: "ExampleAAS",
+  submodels: [
+    {
+      idShort: "TechnicalData",
+      id: "http://example.com/ids/sm/technical",
+      submodelElements: [
+        {
+          idShort: "MaxRotationSpeed",
+          modelType: "Property",
+          valueType: "integer",
+          value: "5000",
+          semanticId: { keys: [{ type: "GlobalReference", value: "0173-1#02-AAA732#007" }] },
+        },
+        {
+          idShort: "GeneralInformation",
+          modelType: "SubmodelElementCollection",
+          value: [
+            { idShort: "ManufacturerName", modelType: "Property", valueType: "string", value: "Example Corp" },
+            { idShort: "ProductCode", modelType: "Property", valueType: "string", value: "ABC-123" },
+          ],
+        },
+      ],
+    },
+    {
+      idShort: "Documentation",
+      id: "http://example.com/ids/sm/documentation",
+      submodelElements: [
+        {
+          idShort: "OperatingManual",
+          modelType: "File",
+          value: "/aasx/files/manual.pdf",
+          contentType: "application/pdf",
+        },
+      ],
+    },
+    {
+      idShort: "OperationalData",
+      id: "http://example.com/ids/sm/operational",
+      submodelElements: [
+        { idShort: "Temperature", modelType: "Property", valueType: "float", value: "72.5" },
+        { idShort: "Pressure", modelType: "Property", valueType: "float", value: "101.3" },
+      ],
+    },
+  ],
+}
+
+export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: AASXVisualizerProps) {
+  const [aasxData, setAasxData] = useState<any>(null)
+  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null)
+  const [selectedSubmodel, setSelectedSubmodel] = useState<any>(null)
+  const [selectedElement, setSelectedElement] = useState<any>(null)
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [hideEmptyElements, setHideEmptyElements] = useState(false)
+
+  useEffect(() => {
+    if (newFileIndex !== null && newFileIndex >= 0 && uploadedFiles[newFileIndex]) {
+      setSelectedFile(uploadedFiles[newFileIndex])
+      onFileSelected?.()
+    } else if (uploadedFiles.length > 0 && !selectedFile) {
+      setSelectedFile(uploadedFiles[0])
+    }
+  }, [uploadedFiles, selectedFile, newFileIndex, onFileSelected])
+
+  useEffect(() => {
+    if (!selectedFile) return
+
+    if (selectedFile.content && selectedFile.content.submodels) {
+      setAasxData(selectedFile.content)
+      setSelectedSubmodel(selectedFile.content.submodels[0])
+    } else {
+      setAasxData({ idShort: selectedFile.name, submodels: [] })
+      setSelectedSubmodel(null)
+    }
+  }, [selectedFile])
+
+  const toggleNode = (nodeId: string) => {
+    const newExpanded = new Set(expandedNodes)
+    if (newExpanded.has(nodeId)) {
+      newExpanded.delete(nodeId)
+    } else {
+      newExpanded.add(nodeId)
+    }
+    setExpandedNodes(newExpanded)
+  }
+
+  const getElementType = (element: any): string => {
+    if (!element?.modelType) return "Property"
+    return element.modelType
+  }
+
+  const getTypeBadge = (type: string, inverted = false) => {
+    const badgeMap: Record<string, { label: string; classes: string }> = {
+      SubmodelElementCollection: {
+        label: "SMC",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-smc" : "aasx-badge aasx-badge-smc",
+      },
+      Property: {
+        label: "Prop",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-prop" : "aasx-badge aasx-badge-prop",
+      },
+      MultiLanguageProperty: {
+        label: "MLP",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-mlp" : "aasx-badge aasx-badge-mlp",
+      },
+      File: {
+        label: "File",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-file" : "aasx-badge aasx-badge-file",
+      },
+      Operation: {
+        label: "Op",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-op" : "aasx-badge aasx-badge-op",
+      },
+      SubmodelElementList: {
+        label: "SML",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-smc" : "aasx-badge aasx-badge-smc",
+      },
+      BasicEventElement: {
+        label: "Evt",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-evt" : "aasx-badge aasx-badge-evt",
+      },
+      Blob: {
+        label: "Blob",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-blob" : "aasx-badge aasx-badge-blob",
+      },
+      Range: {
+        label: "Range",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-range" : "aasx-badge aasx-badge-range",
+      },
+      ReferenceElement: {
+        label: "Ref",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-ref" : "aasx-badge aasx-badge-ref",
+      },
+      Entity: {
+        label: "Entity",
+        classes: inverted
+          ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-entity"
+          : "aasx-badge aasx-badge-entity",
+      },
+      Capability: {
+        label: "Cap",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-cap" : "aasx-badge aasx-badge-cap",
+      },
+      RelationshipElement: {
+        label: "Rel",
+        classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-rel" : "aasx-badge aasx-badge-rel",
+      },
+      AnnotatedRelationshipElement: {
+        label: "AnnRel",
+        classes: inverted
+          ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-annrel"
+          : "aasx-badge aasx-badge-annrel",
+      },
+    }
+    const badge = badgeMap[type] || {
+      label: "Node",
+      classes: inverted ? "aasx-badge aasx-badge-inverted aasx-badge-inverted-node" : "aasx-badge aasx-badge-node",
+    }
+    return <span className={badge.classes}>{badge.label}</span>
+  }
+
+  const hasChildren = (element: any): boolean => {
+    // MultiLanguageProperty values are objects with language keys, but shouldn't show as children
+    if (element?.modelType === 'MultiLanguageProperty') {
+      return false
+    }
+    return Array.isArray(element?.value) && element.value.length > 0
+  }
+
+  const hasValue = (element: any): boolean => {
+    if (!element) return false
+    
+    const type = getElementType(element)
+    
+    // Collections and Lists are considered to have value if they have children
+    if (type === "SubmodelElementCollection" || type === "SubmodelElementList") {
+      return hasChildren(element)
+    }
+    
+    // MultiLanguageProperty
+    if (type === "MultiLanguageProperty") {
+      if (Array.isArray(element.value) && element.value.length > 0) {
+        return element.value.some((item: any) => item && item.text)
+      }
+      if (typeof element.value === "object" && element.value !== null) {
+        return Object.keys(element.value).length > 0
+      }
+    }
+    
+    // Other types: check if value exists and is not empty
+    return element.value !== undefined && element.value !== null && element.value !== ""
+  }
+
+  const hasVisibleChildren = (element: any): boolean => {
+    if (!hasChildren(element)) return false
+    
+    const children = element.value || []
+    return children.some((child: any) => shouldShowElement(child))
+  }
+
+  const shouldShowElement = (element: any): boolean => {
+    if (!element || typeof element !== "object") return false
+    if (!hideEmptyElements) return true
+
+    const type = getElementType(element)
+    
+    // For collections and lists, check if they have visible children after filtering
+    if (type === "SubmodelElementCollection" || type === "SubmodelElementList") {
+      return hasVisibleChildren(element)
+    }
+    
+    // For other elements, check if they have a value
+    return hasValue(element)
+  }
+
+  const renderTreeNode = (element: any, depth = 0, path = ""): React.ReactNode => {
+    if (!element || typeof element !== "object") return null
+    
+    if (!shouldShowElement(element)) {
+      return null
+    }
+
+    const nodeId = `${path}-${element.idShort || "node"}`
+    const isExpanded = expandedNodes.has(nodeId)
+    const isSelected = selectedElement === element
+    const type = getElementType(element)
+    const children = hasChildren(element) ? element.value : []
+    const hasKids = children.length > 0
+
+    const getNodeHeaderClass = () => {
+      if (isSelected) {
+        if (depth === 0 && hasKids && isExpanded) {
+          return "aasx-tree-node-header aasx-tree-node-header-selected-root-expanded"
+        }
+        if (depth > 0 && hasKids && isExpanded) {
+          return "aasx-tree-node-header aasx-tree-node-header-selected-child-expanded"
+        }
+        return "aasx-tree-node-header aasx-tree-node-header-selected"
+      }
+      if (hasKids && isExpanded) {
+        return "aasx-tree-node-header aasx-tree-node-header-expanded-top"
+      }
+      return "aasx-tree-node-header aasx-tree-node-header-default"
+    }
+
+    const getDisplayValue = () => {
+      if (hasKids) return null
+      
+      if (type === "MultiLanguageProperty") {
+        if (Array.isArray(element.value)) {
+          // Handle array format: [{language: "en", text: "..."}]
+          const texts = element.value
+            .filter((item: any) => item && typeof item === "object" && item.text)
+            .map((item: any) => `${item.language}: ${item.text}`)
+          return texts.length > 0 ? texts.join(", ") : "N/A"
+        } else if (typeof element.value === "object" && element.value !== null) {
+          // Handle object format: {en: "...", de: "..."}
+          const entries = Object.entries(element.value)
+          if (entries.length === 0) return "N/A"
+          return entries.map(([lang, text]) => `${lang}: ${text}`).join(", ")
+        }
+        return "N/A"
+      }
+      
+      return element.value ? String(element.value) : null
+    }
+
+    const displayValue = getDisplayValue()
+    const indentStyle = { paddingLeft: hasKids ? `${depth * 20}px` : "0px" }
+
+    return (
+      <div key={nodeId} style={{ marginLeft: depth > 0 ? "0px" : "0" }}>
+        <div
+          className={getNodeHeaderClass()}
+          style={indentStyle}
+          onClick={() => {
+            setSelectedElement(element)
+            if (hasKids) toggleNode(nodeId)
+          }}
+        >
+          <div className="aasx-tree-node-expand-icon">
+            {hasKids && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation()
+                  toggleNode(nodeId)
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-4 h-4 text-green-600" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-green-600" />
+                )}
+              </span>
+            )}
+          </div>
+          <div className="aasx-tree-node-content">
+            {getTypeBadge(type)}
+            <div className="aasx-tree-node-info">
+              <div className="aasx-tree-node-label-container">
+                <span className={`aasx-tree-node-label ${element.idShort ? "aasx-tree-node-label-bold" : ""}`}>
+                  {element.idShort || "Element"}
+                </span>
+                {displayValue && (type === "Property" || type === "File" || type === "MultiLanguageProperty") && (
+                  <span className="aasx-tree-node-value">
+                    = {displayValue.substring(0, 50)}
+                    {displayValue.length > 50 ? "..." : ""}
+                  </span>
+                )}
+              </div>
+              {hasKids && (
+                <span className="aasx-tree-node-element-count">
+                  {children.length} element{children.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        {isExpanded && hasKids && (
+          <div className="aasx-tree-children-wrapper" style={indentStyle}>
+            {children.map((child: any, idx: number) => renderTreeNode(child, depth + 1, `${nodeId}-${idx}`))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderDetails = () => {
+    if (!selectedElement) {
+      return <div className="aasx-no-selection-message">Select an element to view details</div>
+    }
+
+    console.log(`[v0] VISUALIZER: Selected element:`, selectedElement.idShort)
+    console.log(`[v0] VISUALIZER: Full element data:`, {
+      idShort: selectedElement.idShort,
+      modelType: selectedElement.modelType,
+      value: selectedElement.value,
+      preferredName: selectedElement.preferredName,
+      shortName: selectedElement.shortName,
+      dataType: selectedElement.dataType,
+      valueType: selectedElement.valueType,
+      unit: selectedElement.unit,
+      category: selectedElement.category,
+      cardinality: selectedElement.cardinality,
+      semanticId: selectedElement.semanticId,
+      description: selectedElement.description,
+      sourceOfDefinition: selectedElement.sourceOfDefinition
+    })
+
+    const type = getElementType(selectedElement)
+    const isCollection = type === "SubmodelElementCollection"
+
+    const typeColorMap: Record<string, string> = {
+      SubmodelElementCollection: "#61caf3",
+      Property: "#6662b4",
+      MultiLanguageProperty: "#ffa500",
+      File: "#10b981",
+      SubmodelElementList: "#10b981",
+      BasicEventElement: "#9e005d",
+      Blob: "#8b5cf6",
+      Operation: "#f59e0b",
+      Range: "#ec4899",
+      ReferenceElement: "#14b8a6",
+      Entity: "#f97316",
+      Capability: "#a855f7",
+      RelationshipElement: "#06b6d4",
+      AnnotatedRelationshipElement: "#0891b2",
+    }
+    const typeColor = typeColorMap[type] || "#1793b8"
+
+    const hexToRgba = (hex: string, opacity: number) => {
+      const r = Number.parseInt(hex.slice(1, 3), 16)
+      const g = Number.parseInt(hex.slice(3, 5), 16)
+      const b = Number.parseInt(hex.slice(5, 7), 16)
+      return `rgba(${r}, ${g}, ${b}, ${opacity})`
+    }
+
+    const getSemanticIdValue = (): string => {
+      if (!selectedElement.semanticId) {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} has NO semanticId`)
+        return "N/A"
+      }
+      
+      // Handle string semanticId
+      if (typeof selectedElement.semanticId === 'string') {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId (string):`, selectedElement.semanticId)
+        return selectedElement.semanticId
+      }
+      
+      // Handle object with keys array
+      if (selectedElement.semanticId.keys && Array.isArray(selectedElement.semanticId.keys)) {
+        const key = selectedElement.semanticId.keys[0]
+        if (key && key.value) {
+          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId (keys array):`, key.value)
+          return String(key.value)
+        }
+      }
+      
+      // Handle object with direct value property
+      if (selectedElement.semanticId.value) {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId (value property):`, selectedElement.semanticId.value)
+        return String(selectedElement.semanticId.value)
+      }
+      
+      console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId could not be extracted from:`, selectedElement.semanticId)
+      return "N/A"
+    }
+
+    const getDetailValue = () => {
+      if (type === "MultiLanguageProperty") {
+        if (Array.isArray(selectedElement.value)) {
+          // Return the array to display individual language entries
+          return selectedElement.value
+        } else if (typeof selectedElement.value === "object" && selectedElement.value !== null) {
+          // Convert object to array format for consistent display
+          return Object.entries(selectedElement.value).map(([language, text]) => ({ language, text }))
+        }
+        return []
+      }
+      
+      if (Array.isArray(selectedElement.value)) {
+        return isCollection ? "N/A" : `Collection (${selectedElement.value.length} items)`
+      }
+      
+      if (type === "BasicEventElement") {
+        return "Event Element"
+      }
+      return selectedElement.value || "N/A"
+    }
+
+    const getDescriptionText = (): string => {
+      if (!selectedElement.description) {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} has NO description`)
+        return "N/A"
+      }
+      
+      if (typeof selectedElement.description === "string") {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (string):`, selectedElement.description)
+        return selectedElement.description
+      }
+      
+      if (Array.isArray(selectedElement.description)) {
+        const enDesc = selectedElement.description.find((d: any) => d.language === 'en')
+        const result = enDesc?.text || selectedElement.description[0]?.text || "N/A"
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (array):`, result)
+        return result
+      }
+      
+      if (typeof selectedElement.description === "object") {
+        const entries = Object.entries(selectedElement.description)
+        if (entries.length > 0) {
+          const enValue = (selectedElement.description as any).en
+          if (enValue) {
+            console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (object.en):`, enValue)
+            return String(enValue)
+          }
+          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (object first):`, entries[0][1])
+          return String(entries[0][1])
+        }
+      }
+      
+      console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description could not be extracted from:`, selectedElement.description)
+      return "N/A"
+    }
+
+    const getStringValue = (field: any, fieldName: string, preferredLang: string = 'en'): string => {
+      if (!field) {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} is null/undefined`)
+        return ""
+      }
+      if (typeof field === 'string') {
+        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} (string):`, field)
+        return field
+      }
+      if (typeof field === 'object') {
+        if (field[preferredLang]) {
+          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} (object.${preferredLang}):`, field[preferredLang])
+          return String(field[preferredLang])
+        }
+        const entries = Object.entries(field)
+        if (entries.length > 0) {
+          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} (object first):`, entries[0][1])
+          return String(entries[0][1])
+        }
+      }
+      console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} could not be extracted from:`, field)
+      return ""
+    }
+
+    const semanticIdValue = getSemanticIdValue()
+    const descriptionText = getDescriptionText()
+    
+    const preferredNameValue = getStringValue(selectedElement.preferredName, 'preferredName')
+    const shortNameValue = getStringValue(selectedElement.shortName, 'shortName')
+    
+    console.log(`[v0] VISUALIZER: ${selectedElement.idShort} DISPLAY VALUES:`, {
+      preferredName: preferredNameValue,
+      shortName: shortNameValue,
+      dataType: selectedElement.dataType,
+      valueType: selectedElement.valueType,
+      unit: selectedElement.unit,
+      category: selectedElement.category,
+      cardinality: selectedElement.cardinality,
+      semanticId: semanticIdValue,
+      description: descriptionText,
+      sourceOfDefinition: selectedElement.sourceOfDefinition
+    })
+
+    return (
+      <div>
+        {/* Header matching editor style */}
+        <div className="aasx-details-header" style={{ backgroundColor: hexToRgba(typeColor, 0.2) }}>
+          {getTypeBadge(type, true)}
+          <div className="aasx-details-header-title" style={{ color: typeColor }}>
+            Submodel Element ({type})
+          </div>
+        </div>
+
+        {/* VALUE section - always show */}
+        <div className="p-4 space-y-3 bg-green-50 dark:bg-green-900/20 border-b">
+          <h4 className="text-sm font-semibold text-green-800 dark:text-green-300 uppercase">
+            Value
+          </h4>
+          {type === "MultiLanguageProperty" ? (
+            <div className="space-y-2">
+              {getDetailValue().length > 0 ? (
+                getDetailValue().map((item: any, idx: number) => (
+                  <div key={idx} className="text-sm">
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Language: {item.language || 'en'} ({item.language === 'en' ? 'en' : item.language})
+                    </span>
+                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-mono break-all">
+                      {item.text || ''}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-gray-500 italic">Collection (0 items)</div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
+              {typeof getDetailValue() === 'string' ? getDetailValue() : ''}
+            </div>
+          )}
+        </div>
+
+        {/* PROPERTY METADATA section - always show all fields */}
+        <div className="p-4 space-y-3 bg-blue-50 dark:bg-blue-900/20 border-b">
+          <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase">
+            Property Metadata
+          </h4>
+          
+          <div className="space-y-3 text-sm">
+            {/* Type - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Type:
+              </span>
+              <span className="font-mono text-gray-900 dark:text-gray-100">
+                {type}
+              </span>
+            </div>
+
+            {/* Preferred Name - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Preferred Name (English):
+              </span>
+              <span className="text-gray-900 dark:text-gray-100">
+                {preferredNameValue || <span className="text-gray-400 italic">Not specified</span>}
+              </span>
+            </div>
+
+            {/* Short Name - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Short Name (English):
+              </span>
+              <span className="text-gray-900 dark:text-gray-100">
+                {shortNameValue || <span className="text-gray-400 italic">Not specified</span>}
+              </span>
+            </div>
+
+            {/* Data Type - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Data Type:
+              </span>
+              <span className="font-mono text-gray-900 dark:text-gray-100">
+                {selectedElement.dataType || <span className="text-gray-400 italic">Not specified</span>}
+              </span>
+            </div>
+
+            {/* Value Type - always show for Property */}
+            {(type === "Property" || selectedElement.valueType) && (
+              <div>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                  Value Type:
+                </span>
+                <span className="font-mono text-gray-900 dark:text-gray-100">
+                  {selectedElement.valueType || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+              </div>
+            )}
+
+            {/* Unit - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Unit:
+              </span>
+              <span className="text-gray-900 dark:text-gray-100">
+                {selectedElement.unit || <span className="text-gray-400 italic">Not specified</span>}
+              </span>
+            </div>
+
+            {/* Category - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Category:
+              </span>
+              <span className="text-gray-900 dark:text-gray-100">
+                {selectedElement.category || <span className="text-gray-400 italic">Not specified</span>}
+              </span>
+            </div>
+
+            {/* Cardinality - always show */}
+            <div>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+                Cardinality:
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-gray-900 dark:text-gray-100">
+                  {selectedElement.cardinality || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+                {selectedElement.cardinality && (
+                  <span className="text-xs text-gray-500">
+                    {selectedElement.cardinality === 'One' && '(Required)'}
+                    {selectedElement.cardinality === 'ZeroToOne' && '(Optional)'}
+                    {selectedElement.cardinality === 'ZeroToMany' && '(Multiple Optional)'}
+                    {selectedElement.cardinality === 'OneToMany' && '(Multiple Required)'}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SEMANTIC ID section - always show */}
+        <div className="p-4 space-y-2 bg-purple-50 dark:bg-purple-900/20 border-b">
+          <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase">
+            Semantic ID (ECLASS/IEC61360)
+          </h4>
+          <div className="text-xs font-mono text-gray-900 dark:text-gray-100 break-all">
+            {semanticIdValue === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : semanticIdValue}
+          </div>
+          {semanticIdValue !== "N/A" && semanticIdValue.startsWith('http') && (
+            <a
+              href={semanticIdValue}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline inline-block mt-1"
+            >
+              View specification →
+            </a>
+          )}
+        </div>
+
+        {/* DEFINITION/DESCRIPTION section - always show */}
+        <div className="p-4 space-y-2 bg-gray-100 dark:bg-gray-700 border-b">
+          <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
+            Definition/Description
+          </h4>
+          <div className="text-sm text-gray-900 dark:text-gray-100">
+            {descriptionText === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : descriptionText}
+          </div>
+        </div>
+
+        {/* SOURCE OF DEFINITION section - always show */}
+        <div className="p-4 space-y-2 bg-amber-50 dark:bg-amber-900/20 border-b">
+          <h4 className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase">
+            Source of Definition
+          </h4>
+          <div className="text-xs text-gray-900 dark:text-gray-100">
+            {selectedElement.sourceOfDefinition || <span className="text-gray-400 italic">Not specified</span>}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* File selector row at top */}
+      <div className="w-full px-5 py-3 overflow-x-auto" style={{ backgroundColor: "rgba(97, 202, 243, 0.1)" }}>
+        <div className="flex gap-3 items-center">
+          <div className="text-sm font-medium text-gray-700 shrink-0">Uploaded Files:</div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {uploadedFiles.map((file, idx) => (
+              <div
+                key={idx}
+                className={`h-[90px] w-[140px] min-w-[140px] rounded-lg flex flex-col items-center justify-between p-3 cursor-pointer transition-all relative ${
+                  selectedFile === file ? "border-2" : "border border-[#adadae]"
+                }`}
+                style={{
+                  borderColor: selectedFile === file ? "#61caf3" : undefined,
+                }}
+                onClick={() => {
+                  setSelectedFile(file)
+                  setSelectedElement(null)
+                  setExpandedNodes(new Set())
+                }}
+              >
+                {file.isValid !== undefined && (
+                  <div className="absolute top-1 right-1">
+                    {file.isValid ? (
+                      <div className="flex flex-col items-center gap-0.5">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="text-[8px] font-semibold text-green-600 uppercase tracking-tight">IDTA</span>
+                      </div>
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                    )}
+                  </div>
+                )}
+
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white"
+                  style={{ backgroundColor: selectedFile === file ? "#61caf3" : "#adadae" }}
+                >
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span
+                  className={`text-xs text-center truncate w-full ${
+                    selectedFile === file ? "text-[#61caf3] font-medium" : "text-[#adadae]"
+                  }`}
+                  title={file.name}
+                >
+                  {file.name}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Three-panel layout */}
+      <div className="aasx-overlay-container">
+        {/* Left Panel - Submodels */}
+        <div className="aasx-left-panel" style={{ backgroundColor: "rgba(97, 202, 243, 0.1)" }}>
+          {selectedFile?.thumbnail ? (
+            <div className="mb-4 px-2">
+              <div className="w-full h-[150px] rounded-lg border-2 border-[#61caf3] shadow-md overflow-hidden flex items-center justify-center bg-white">
+                <img
+                  src={selectedFile.thumbnail || "/placeholder.svg"}
+                  alt="AASX Thumbnail"
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4 px-2">
+              <div className="w-full h-[150px] rounded-lg border-2 border-dashed border-[#adadae] flex items-center justify-center text-gray-400 text-sm bg-white">
+                No thumbnail
+              </div>
+            </div>
+          )}
+
+          {aasxData?.submodels?.length > 0 ? (
+            aasxData.submodels.map((submodel: any, idx: number) => (
+              <div
+                key={submodel.id || idx}
+                className={`aasx-submodel-card ${selectedSubmodel === submodel ? "" : "aasx-submodel-card-default"}`}
+                style={{
+                  border: selectedSubmodel === submodel ? "1px solid #61caf3" : undefined,
+                }}
+                onClick={() => {
+                  setSelectedSubmodel(submodel)
+                  setSelectedElement(null)
+                  setExpandedNodes(new Set())
+                }}
+              >
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white"
+                  style={{ backgroundColor: selectedSubmodel === submodel ? "#61caf3" : "#adadae" }}
+                >
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span
+                  className={`aasx-submodel-card-text ${selectedSubmodel === submodel ? "" : "aasx-submodel-card-text-default"}`}
+                  style={{
+                    color: selectedSubmodel === submodel ? "#61caf3" : undefined,
+                  }}
+                  title={submodel.idShort || `Submodel ${idx + 1}`}
+                >
+                  {submodel.idShort || `Submodel ${idx + 1}`}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="aasx-no-selection-message">No submodels found</div>
+          )}
+        </div>
+
+        {/* Middle Panel - Tree View */}
+        <div className="aasx-middle-panel">
+          <div className="aasx-middle-panel-scroll">
+            <div className="aasx-middle-panel-content">
+              {selectedSubmodel ? (
+                <>
+                  <div className="aasx-submodel-header">
+                    <div className="aasx-submodel-header-left">
+                      <span className="aasx-submodel-badge">SM</span>
+                      <span>{selectedSubmodel.idShort}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={hideEmptyElements}
+                          onChange={(e) => setHideEmptyElements(e.target.checked)}
+                          className="w-4 h-4 text-[#61caf3] border-gray-300 rounded focus:ring-[#61caf3]"
+                        />
+                        <span>Hide empty</span>
+                      </label>
+                      <span className="aasx-submodel-element-count">
+                        {selectedSubmodel.submodelElements?.length || 0} elements
+                      </span>
+                    </div>
+                  </div>
+                  {selectedSubmodel.submodelElements?.map((element: any, idx: number) =>
+                    renderTreeNode(element, 0, `submodel-${idx}`),
+                  )}
+                </>
+              ) : (
+                <div className="aasx-no-selection-message">Select a submodel to view its elements</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Details */}
+        <div className="aasx-right-panel">{renderDetails()}</div>
+      </div>
+    </div>
+  )
+}
