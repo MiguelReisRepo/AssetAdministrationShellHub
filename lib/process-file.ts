@@ -1,4 +1,4 @@
-import type { ValidationResult } from "./types"
+import type { ValidationResult, ValidationError } from "./types"
 import JSZip from "jszip"
 import { validateAASXXml } from "./xml-validator"
 import { validateAASXJson } from "./json-validator" // Import validateAASXJson
@@ -151,7 +151,7 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       }
 
       // Consolidate AASX results
-      results.push({
+      const aasxResult: ValidationResult = {
         file: file.name,
         type: "AASX",
         valid: overallValid,
@@ -160,26 +160,50 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         thumbnail: thumbnail || undefined,
         aasData: aasData,
         parsed: parsedContent,
-      })
+      }
+      results.push(aasxResult)
+
+      if (!aasxResult.valid && aasxResult.errors) {
+        console.groupCollapsed(`[v0] AASX Validation Errors for ${file.name}`)
+        console.table(aasxResult.errors)
+        console.groupEnd()
+      }
 
     } else if (file.name.toLowerCase().endsWith(".xml")) {
       const xmlContent = await file.text()
       const xmlResult = await validateXML(xmlContent, file.name)
       results.push(xmlResult)
+
+      if (!xmlResult.valid && xmlResult.errors) {
+        console.groupCollapsed(`[v0] XML Validation Errors for ${file.name}`)
+        console.table(xmlResult.errors)
+        console.groupEnd()
+      }
+
     } else if (file.name.toLowerCase().endsWith(".json")) {
       const jsonContent = await file.text()
       const jsonResult = await validateJSON(jsonContent, file.name)
       results.push(jsonResult)
+
+      if (!jsonResult.valid && jsonResult.errors) {
+        console.groupCollapsed(`[v0] JSON Validation Errors for ${file.name}`)
+        console.table(jsonResult.errors)
+        console.groupEnd()
+      }
     }
   } catch (error) {
     console.error(`[v0] File processing error:`, error)
-    results.push({
+    const errorResult: ValidationResult = {
       file: file.name,
       type: "AASX", // Default to AASX type for general file processing errors
       valid: false,
       errors: [`Failed to process file: ${error instanceof Error ? error.message : "Unknown error"}`],
       processingTime: 0,
-    })
+    }
+    results.push(errorResult)
+    console.groupCollapsed(`[v0] General File Processing Error for ${file.name}`)
+    console.table(errorResult.errors)
+    console.groupEnd()
   }
 
   onProgress(100)
@@ -210,7 +234,7 @@ async function validateXML(xmlContent: string, fileName: string): Promise<Valida
       type: "XML",
       valid: false,
       errors: [`XML validation failed: ${error instanceof Error ? error.message : "Unknown error"}`],
-      processingTime: Date.now() - startTime,
+      processingTime: Date.Now() - startTime,
     }
   }
 }
