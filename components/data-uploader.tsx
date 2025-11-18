@@ -6,8 +6,7 @@ import { useState, useCallback } from "react"
 import { Upload, FileText, AlertCircle, CheckCircle } from 'lucide-react'
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { validateAASXXml } from "@/lib/validate-aasx-xml"
-import { parseAASXML } from "@/lib/aasx-parser" // Import the new parser
+import { validateAASXXml } from "@/lib/validate-aasx-xml" // Import the new parser
 
 interface UploadedFile {
   name: string
@@ -150,13 +149,24 @@ export function DataUploader({ onDataUploaded }: DataUploaderProps) {
 
     if (fileExtension === "json") {
       const text = await file.text()
-      const parsed = JSON.parse(text)
-      return {
-        name: file.name,
-        content: parsed,
-        fileType: "json",
-        isValid: true,
-        validationErrors: [],
+      try {
+        const parsed = JSON.parse(text)
+        return {
+          name: file.name,
+          content: parsed,
+          fileType: "json",
+          isValid: true,
+          validationErrors: [],
+        }
+      } catch (error: any) {
+        console.error("[v0] JSON parsing error:", error)
+        return {
+          name: file.name,
+          content: null,
+          fileType: "json",
+          isValid: false,
+          validationErrors: [`Invalid JSON file: ${error.message}`],
+        }
       }
     } else if (fileExtension === "xml") {
       const text = await file.text()
