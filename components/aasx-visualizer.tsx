@@ -4,73 +4,17 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle } from 'lucide-react'
-
-interface UploadedFile {
-  name: string
-  content: any
-  fileType: "aasx" | "xml" | "json"
-  thumbnail?: string
-  isValid?: boolean
-  validationErrors?: string[]
-}
+import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 
 interface AASXVisualizerProps {
-  uploadedFiles: UploadedFile[]
+  uploadedFiles: ValidationResult[] // Use ValidationResult type
   newFileIndex?: number | null
   onFileSelected?: () => void
 }
 
-// Mock AASX data structure for demonstration
-const mockAASXData = {
-  idShort: "ExampleAAS",
-  submodels: [
-    {
-      idShort: "TechnicalData",
-      id: "http://example.com/ids/sm/technical",
-      submodelElements: [
-        {
-          idShort: "MaxRotationSpeed",
-          modelType: "Property",
-          valueType: "integer",
-          value: "5000",
-          semanticId: { keys: [{ type: "GlobalReference", value: "0173-1#02-AAA732#007" }] },
-        },
-        {
-          idShort: "GeneralInformation",
-          modelType: "SubmodelElementCollection",
-          children: [ // Changed from value to children
-            { idShort: "ManufacturerName", modelType: "Property", valueType: "string", value: "Example Corp" },
-            { idShort: "ProductCode", modelType: "Property", valueType: "string", value: "ABC-123" },
-          ],
-        },
-      ],
-    },
-    {
-      idShort: "Documentation",
-      id: "http://example.com/ids/sm/documentation",
-      submodelElements: [
-        {
-          idShort: "OperatingManual",
-          modelType: "File",
-          value: "/aasx/files/manual.pdf",
-          contentType: "application/pdf",
-        },
-      ],
-    },
-    {
-      idShort: "OperationalData",
-      id: "http://example.com/ids/sm/operational",
-      submodelElements: [
-        { idShort: "Temperature", modelType: "Property", valueType: "float", value: "72.5" },
-        { idShort: "Pressure", modelType: "Property", valueType: "float", value: "101.3" },
-      ],
-    },
-  ],
-}
-
 export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: AASXVisualizerProps) {
   const [aasxData, setAasxData] = useState<any>(null)
-  const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(null)
+  const [selectedFile, setSelectedFile] = useState<ValidationResult | null>(null) // Use ValidationResult type
   const [selectedSubmodel, setSelectedSubmodel] = useState<any>(null)
   const [selectedElement, setSelectedElement] = useState<any>(null)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
@@ -89,12 +33,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     if (!selectedFile) return
 
     // Ensure content is parsed AASXData structure
-    if (selectedFile.content && selectedFile.content.submodels) {
-      setAasxData(selectedFile.content)
-      setSelectedSubmodel(selectedFile.content.submodels[0])
+    if (selectedFile.aasData && selectedFile.aasData.submodels) { // Use aasData from ValidationResult
+      setAasxData(selectedFile.aasData)
+      setSelectedSubmodel(selectedFile.aasData.submodels[0])
     } else {
       // Fallback if content is not in expected AASXData format
-      setAasxData({ idShort: selectedFile.name, submodels: [] })
+      setAasxData({ idShort: selectedFile.file, submodels: [] }) // Use file.name for idShort
       setSelectedSubmodel(null)
     }
   }, [selectedFile])
@@ -189,8 +133,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     if (element?.modelType === 'MultiLanguageProperty') {
       return false
     }
-    // Check for the 'children' property for collections/lists
-    return Array.isArray(element?.children) && element.children.length > 0
+    // Check for the 'value' property for collections/lists in the parsed structure
+    return Array.isArray(element?.value) && element.value.length > 0
   }
 
   const hasValue = (element: any): boolean => {
@@ -221,7 +165,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const hasVisibleChildren = (element: any): boolean => {
     if (!hasChildren(element)) return false
     
-    const children = element.children || [] // Use element.children
+    const children = element.value || [] // Use element.value for children
     return children.some((child: any) => shouldShowElement(child))
   }
 
@@ -243,10 +187,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const renderTreeNode = (element: any, depth = 0, path = ""): React.ReactNode => {
     if (!element || typeof element !== "object") return null
     
-    if (element.idShort === "Zipcode") {
-      console.log(`[v0] VISUALIZER DEBUG: Zipcode element at renderTreeNode:`, JSON.stringify(element, null, 2));
-    }
-
     if (!shouldShowElement(element)) {
       return null
     }
@@ -255,13 +195,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     const isExpanded = expandedNodes.has(nodeId)
     const isSelected = selectedElement === element
     const type = getElementType(element)
-    const children = hasChildren(element) ? element.children : [] // Use element.children
+    const children = hasChildren(element) ? element.value : [] // Use element.value for children
     const hasKids = children.length > 0
-
-    // Debug log for collections
-    if (type === "SubmodelElementCollection" || type === "SubmodelElementList") {
-      console.log(`[v0] VISUALIZER DEBUG: Collection ${element.idShort} at depth ${depth}. Children count: ${children.length}`, children);
-    }
 
     const getNodeHeaderClass = () => {
       if (isSelected) {
@@ -280,11 +215,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     }
 
     const getDisplayValueForTreeNode = () => {
-      const type = getElementType(element); // Ensure type is correctly determined here
-      console.log(`[v0] VISUALIZER DEBUG: getDisplayValueForTreeNode for ${element.idShort} (Type: ${type})`);
-      console.log(`[v0] VISUALIZER DEBUG:   element.value:`, element.value);
-      console.log(`[v0] VISUALIZER DEBUG:   element.description:`, element.description);
-
+      const type = getElementType(element);
       if (type === "Property" || type === "File") {
         return element.value ? String(element.value) : null;
       }
@@ -292,14 +223,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         if (Array.isArray(element.value)) {
           const enText = element.value.find((item: any) => item && item.language === 'en')?.text;
           const firstText = element.value[0]?.text;
-          console.log(`[v0] VISUALIZER DEBUG:   MLP Array - enText: '${enText}', firstText: '${firstText}'`);
-          return enText || firstText || null;
-        } else if (typeof element.value === "object" && element.value !== null) {
-          // Fallback for older parsing or different structures, convert to array for consistency
-          const valuesArray = Object.entries(element.value).map(([language, text]) => ({ language, text: String(text) }));
-          const enText = valuesArray.find((item: any) => item && item.language === 'en')?.text;
-          const firstText = valuesArray[0]?.text;
-          console.log(`[v0] VISUALIZER DEBUG:   MLP Object - enText: '${enText}', firstText: '${firstText}'`);
           return enText || firstText || null;
         }
       }
@@ -371,9 +294,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       return <div className="aasx-no-selection-message">Select an element to view details</div>
     }
 
-    console.log(`[v0] VISUALIZER: Selected element:`, selectedElement.idShort)
-    console.log(`[v0] VISUALIZER: Full selectedElement data:`, JSON.stringify(selectedElement, null, 2)); // NEW LOG, stringify for full object
-
     const type = getElementType(selectedElement)
     const isCollection = type === "SubmodelElementCollection" || type === "SubmodelElementList"
 
@@ -404,13 +324,11 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
 
     const getSemanticIdValue = (): string => {
       if (!selectedElement.semanticId) {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} has NO semanticId`)
         return "N/A"
       }
       
       // Handle string semanticId
       if (typeof selectedElement.semanticId === 'string') {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId (string):`, selectedElement.semanticId)
         return selectedElement.semanticId
       }
       
@@ -418,18 +336,15 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       if (selectedElement.semanticId.keys && Array.isArray(selectedElement.semanticId.keys)) {
         const key = selectedElement.semanticId.keys[0]
         if (key && key.value) {
-          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId (keys array):`, key.value)
           return String(key.value)
         }
       }
       
       // Handle object with direct value property
       if (selectedElement.semanticId.value) {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId (value property):`, selectedElement.semanticId.value)
         return String(selectedElement.semanticId.value)
       }
       
-      console.log(`[v0] VISUALIZER: ${selectedElement.idShort} semanticId could not be extracted from:`, selectedElement.semanticId)
       return "N/A"
     }
 
@@ -438,15 +353,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         if (Array.isArray(selectedElement.value)) {
           // Return the array to display individual language entries
           return selectedElement.value
-        } else if (typeof selectedElement.value === "object" && selectedElement.value !== null) {
-          // Convert object to array format for consistent display
-          return Object.entries(selectedElement.value).map(([language, text]) => ({ language, text: String(text) }))
         }
         return []
       }
       
       if (isCollection) { // Check if it's a collection or list
-        return `Collection (${selectedElement.children?.length || 0} items)`
+        return `Collection (${selectedElement.value?.length || 0} items)`
       }
       
       if (type === "BasicEventElement") {
@@ -457,19 +369,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
 
     const getDescriptionText = (): string => {
       if (!selectedElement.description) {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} has NO description`)
         return "N/A"
       }
       
       if (typeof selectedElement.description === "string") {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (string):`, selectedElement.description)
         return selectedElement.description
       }
       
       if (Array.isArray(selectedElement.description)) {
         const enDesc = selectedElement.description.find((d: any) => d.language === 'en')
         const result = enDesc?.text || selectedElement.description[0]?.text || "N/A"
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (array):`, result)
         return result
       }
       
@@ -478,60 +387,51 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         if (entries.length > 0) {
           const enValue = (selectedElement.description as any).en
           if (enValue) {
-            console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (object.en):`, enValue)
             return String(enValue)
           }
-          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description (object first):`, entries[0][1])
           return String(entries[0][1])
         }
       }
       
-      console.log(`[v0] VISUALIZER: ${selectedElement.idShort} description could not be extracted from:`, selectedElement.description)
       return "N/A"
     }
 
-    const getStringValue = (field: any, fieldName: string, preferredLang: string = 'en'): string => {
+    const getStringValue = (field: any, preferredLang: string = 'en'): string => {
       if (!field) {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} is null/undefined`)
         return ""
       }
       if (typeof field === 'string') {
-        console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} (string):`, field)
         return field
       }
       if (typeof field === 'object') {
         if (field[preferredLang]) {
-          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} (object.${preferredLang}):`, field[preferredLang])
           return String(field[preferredLang])
         }
         const entries = Object.entries(field)
         if (entries.length > 0) {
-          console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} (object first):`, entries[0][1])
           return String(entries[0][1])
         }
       }
-      console.log(`[v0] VISUALIZER: ${selectedElement.idShort} ${fieldName} could not be extracted from:`, field)
       return ""
     }
 
     const semanticIdValue = getSemanticIdValue()
     const descriptionText = getDescriptionText()
     
-    const preferredNameValue = getStringValue(selectedElement.preferredName, 'preferredName')
-    const shortNameValue = getStringValue(selectedElement.shortName, 'shortName')
-    
-    console.log(`[v0] VISUALIZER: ${selectedElement.idShort} DISPLAY VALUES:`, {
-      preferredName: preferredNameValue,
-      shortName: shortNameValue,
-      dataType: selectedElement.dataType,
-      valueType: selectedElement.valueType,
-      unit: selectedElement.unit,
-      category: selectedElement.category,
-      cardinality: selectedElement.cardinality,
-      semanticId: semanticIdValue,
-      description: descriptionText,
-      // Removed sourceOfDefinition from log
-    })
+    const preferredNameValue = getStringValue(selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.preferredName?.langStringPreferredNameTypeIec61360?.[0]?.text || selectedElement.preferredName)
+    const shortNameValue = getStringValue(selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.shortName?.langStringShortNameTypeIec61360?.[0]?.text || selectedElement.shortName)
+    const dataTypeValue = selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.dataType || selectedElement.dataType
+    const unitValue = selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.unit || selectedElement.unit
+    const categoryValue = selectedElement.category
+
+    // Determine cardinality from qualifiers if available, otherwise default
+    let cardinalityValue = "N/A";
+    const cardinalityQualifier = selectedElement.qualifiers?.find((q: any) => q.type === "Cardinality");
+    if (cardinalityQualifier && cardinalityQualifier.value) {
+      cardinalityValue = cardinalityQualifier.value;
+    } else if (selectedElement.cardinality) { // Fallback to direct cardinality property
+      cardinalityValue = selectedElement.cardinality;
+    }
 
     return (
       <div>
@@ -615,7 +515,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Data Type:
               </span>
               <span className="font-mono text-gray-900 dark:text-gray-100">
-                {selectedElement.dataType || <span className="text-gray-400 italic">Not specified</span>}
+                {dataTypeValue || <span className="text-gray-400 italic">Not specified</span>}
               </span>
             </div>
 
@@ -637,7 +537,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Unit:
               </span>
               <span className="text-gray-900 dark:text-gray-100">
-                {selectedElement.unit || <span className="text-gray-400 italic">Not specified</span>}
+                {unitValue || <span className="text-gray-400 italic">Not specified</span>}
               </span>
             </div>
 
@@ -647,7 +547,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Category:
               </span>
               <span className="text-gray-900 dark:text-gray-100">
-                {selectedElement.category || <span className="text-gray-400 italic">Not specified</span>}
+                {categoryValue || <span className="text-gray-400 italic">Not specified</span>}
               </span>
             </div>
 
@@ -658,14 +558,14 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               </span>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-gray-900 dark:text-gray-100">
-                  {selectedElement.cardinality || <span className="text-gray-400 italic">Not specified</span>}
+                  {cardinalityValue}
                 </span>
-                {selectedElement.cardinality && (
+                {cardinalityValue !== "N/A" && (
                   <span className="text-xs text-gray-500">
-                    {selectedElement.cardinality === 'One' && '(Required)'}
-                    {selectedElement.cardinality === 'ZeroToOne' && '(Optional)'}
-                    {selectedElement.cardinality === 'ZeroToMany' && '(Multiple Optional)'}
-                    {selectedElement.cardinality === 'OneToMany' && '(Multiple Required)'}
+                    {cardinalityValue === 'One' && '(Required)'}
+                    {cardinalityValue === 'ZeroToOne' && '(Optional)'}
+                    {cardinalityValue === 'ZeroToMany' && '(Multiple Optional)'}
+                    {cardinalityValue === 'OneToMany' && '(Multiple Required)'}
                   </span>
                 )}
               </div>
@@ -702,8 +602,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             {descriptionText === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : descriptionText}
           </div>
         </div>
-
-        {/* Removed SOURCE OF DEFINITION section */}
       </div>
     )
   }
@@ -730,9 +628,9 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   setExpandedNodes(new Set())
                 }}
               >
-                {file.isValid !== undefined && (
+                {file.valid !== undefined && (
                   <div className="absolute top-1 right-1">
-                    {file.isValid ? (
+                    {file.valid ? (
                       <div className="flex flex-col items-center gap-0.5">
                         <CheckCircle className="w-4 h-4 text-green-600" />
                         <span className="text-[8px] font-semibold text-green-600 uppercase tracking-tight">IDTA</span>
@@ -753,9 +651,9 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   className={`text-xs text-center truncate w-full ${
                     selectedFile === file ? "text-[#61caf3] font-medium" : "text-[#adadae]"
                   }`}
-                  title={file.idShort || file.name}
+                  title={file.file || file.file}
                 >
-                  {file.idShort || file.name}
+                  {file.file || file.file}
                 </span>
               </div>
             ))}

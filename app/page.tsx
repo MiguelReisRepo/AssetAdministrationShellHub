@@ -6,25 +6,17 @@ import { DataUploader } from "@/components/data-uploader"
 import { AASXVisualizer } from "@/components/aasx-visualizer"
 import { AASCreator } from "@/components/aas-creator"
 import { AASEditor } from "@/components/aas-editor"
+import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 
 type ViewMode = "upload" | "visualizer" | "creator" | "editor"
 
-interface UploadedFile {
-  name: string
-  content: any
-  fileType: "aasx" | "xml" | "json"
-  thumbnail?: string
-  isValid?: boolean
-  validationErrors?: string[]
-}
-
 export default function VisualizerPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("upload")
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [uploadedFiles, setUploadedFiles] = useState<ValidationResult[]>([]) // Use ValidationResult type
   const [newFileIndex, setNewFileIndex] = useState<number | null>(null)
   const [currentAASConfig, setCurrentAASConfig] = useState<any>(null) // Renamed from aasConfig
 
-  const handleDataUploaded = (fileData: UploadedFile) => {
+  const handleDataUploaded = (fileData: ValidationResult) => { // Use ValidationResult type
     console.log("[v0] Page received file data:", fileData)
     setUploadedFiles((prev) => {
       const newFiles = [...prev, fileData]
@@ -40,27 +32,14 @@ export default function VisualizerPage() {
     setViewMode("editor")
   }
 
-  const handleFileGenerated = async (fileData: UploadedFile | { name: string; content: File; fileType: "aasx" | "xml"; isValid: boolean }) => {
+  const handleFileGenerated = async (fileData: ValidationResult) => { // Use ValidationResult type
     console.log("[v0] Generated file received:", fileData)
     
-    // If the content is a File object, parse it through the data-uploader's parseFile function
-    if (fileData.content instanceof File) {
-      const { parseAASXFileFromBlob } = await import('@/components/data-uploader')
-      const parsedFile = await parseAASXFileFromBlob(fileData.content)
-      
-      setUploadedFiles((prev) => {
-        const newFiles = [...prev, parsedFile]
-        setNewFileIndex(newFiles.length - 1)
-        return newFiles
-      })
-    } else {
-      // Normal file data structure
-      setUploadedFiles((prev) => {
-        const newFiles = [...prev, fileData as UploadedFile]
-        setNewFileIndex(newFiles.length - 1)
-        return newFiles
-      })
-    }
+    setUploadedFiles((prev) => {
+      const newFiles = [...prev, fileData]
+      setNewFileIndex(newFiles.length - 1)
+      return newFiles
+    })
     
     // Automatically switch to visualizer to show the new file
     setViewMode("visualizer")

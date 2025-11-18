@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical } from 'lucide-react'
 import JSZip from 'jszip'
-import { validateAASXXml } from "@/lib/validate-aasx-xml" // Import the XML validation function
+import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validation function
+import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 
 interface SubmodelTemplate {
   name: string
@@ -45,7 +46,7 @@ interface SubmodelElement {
 interface AASEditorProps {
   aasConfig: AASConfig
   onBack: () => void
-  onFileGenerated?: (file: { name: string; content: any; fileType: "aasx" | "xml"; isValid: boolean }) => void
+  onFileGenerated?: (file: ValidationResult) => void // Use ValidationResult type
   onUpdateAASConfig: (newConfig: AASConfig) => void // New prop for updating AASConfig
 }
 
@@ -1456,10 +1457,13 @@ ${indent}</conceptDescription>`
           
           // Pass the File object which will be properly parsed by data-uploader
           onFileGenerated({
-            name: aasxFile.name,
-            content: aasxFile, // Pass the actual File object for proper parsing
-            fileType: "aasx",
-            isValid: true
+            file: aasxFile.name, // Use file.name for consistency with ValidationResult
+            type: "AASX",
+            valid: true,
+            processingTime: 0, // Placeholder
+            parsed: null, // No direct parsed content for AASX blob
+            aasData: null, // No direct AASData for AASX blob
+            thumbnail: thumbnail || undefined,
           })
         }
         
@@ -1572,7 +1576,7 @@ ${indent}</conceptDescription>`
     if (index !== -1) {
       // Create a new AASConfig object without the removed submodel
       const updatedSelectedSubmodels = aasConfig.selectedSubmodels.filter(sm => sm.idShort !== idShort);
-      const newAASConfig = { ...aasConfig, selectedSubmodels: updatedSelectedSubmodels };
+      const newAASConfig = { ...aasConfig, selectedSubmodels: updatedSelectedSelectedSubmodels };
       
       onUpdateAASConfig(newAASConfig); // Call the callback to update parent state
 
