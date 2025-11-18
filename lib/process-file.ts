@@ -1,7 +1,7 @@
 import type { ValidationResult } from "./types"
 import JSZip from "jszip"
 import { validateAASXXml } from "./xml-validator"
-import { validateAASXJson, validateAASStructure } from "./json-validator" // Import validateAASStructure
+import { validateAASXJson } from "./json-validator" // Import validateAASXJson
 import type { File } from "formdata-node"
 
 async function extractThumbnail(zipContent: JSZip): Promise<string | null> {
@@ -88,39 +88,36 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       console.log(`[v0] Found ${xmlFiles.length} XML files and ${jsonFiles.length} JSON files`)
       onProgress(50)
 
+      let overallValid = true
+      let allErrors: (string | ValidationError)[] = []
+      let aasData: any = null
+      let parsedContent: any = null
+
       // Validate the main XML file (prefer .aas.xml files)
       if (xmlFiles.length > 0) {
         const mainXmlFile = xmlFiles.find((f) => f.includes(".aas.xml")) || xmlFiles[0]
         try {
           const xmlContent = await zipContent.files[mainXmlFile].async("text")
           const xmlResult = await validateXML(xmlContent, file.name)
-          if (thumbnail) {
-            xmlResult.thumbnail = thumbnail
+          
+          if (!xmlResult.valid) {
+            overallValid = false
+            allErrors = allErrors.concat(xmlResult.errors || [])
           }
-          results.push(xmlResult)
+          if (xmlResult.aasData) aasData = xmlResult.aasData
+          if (xmlResult.parsed) parsedContent = xmlResult.parsed
+
           console.log(`[v0] XML validation result for ${mainXmlFile}: ${xmlResult.valid}`)
         } catch (error) {
+          overallValid = false
+          allErrors.push(
+            `Failed to validate XML file ${mainXmlFile}: ${error instanceof Error ? error.message : "Unknown error"}`,
+          )
           console.error(`[v0] XML validation error for ${mainXmlFile}:`, error)
-          results.push({
-            file: file.name,
-            type: "XML",
-            valid: false,
-            errors: [
-              `Failed to validate XML file ${mainXmlFile}: ${error instanceof Error ? error.message : "Unknown error"}`,
-            ],
-            processingTime: 0,
-            thumbnail: thumbnail || undefined,
-          })
         }
       } else {
-        results.push({
-          file: file.name,
-          type: "XML",
-          valid: false,
-          errors: ["No AAS XML files found in AASX archive"],
-          processingTime: 0,
-          thumbnail: thumbnail || undefined,
-        })
+        overallValid = false
+        allErrors.push("No AAS XML files found in AASX archive")
       }
 
       onProgress(75)
@@ -131,34 +128,40 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         try {
           const jsonContent = await zipContent.files[mainJsonFile].async("text")
           const jsonResult = await validateJSON(jsonContent, file.name)
-          if (thumbnail) {
-            jsonResult.thumbnail = thumbnail
+          
+          if (!jsonResult.valid) {
+            overallValid = false
+            allErrors = allErrors.concat(jsonResult.errors || [])
           }
-          results.push(jsonResult)
+          // Prioritize XML's aasData, but if not available, use JSON's
+          if (!aasData && jsonResult.aasData) aasData = jsonResult.aasData
+          if (!parsedContent && jsonResult.parsed) parsedContent = jsonResult.parsed
+
           console.log(`[v0] JSON validation result for ${mainJsonFile}: ${jsonResult.valid}`)
         } catch (error) {
+          overallValid = false
+          allErrors.push(
+            `Failed to validate JSON file ${mainJsonFile}: ${error instanceof Error ? error.message : "Unknown error"}`,
+          )
           console.error(`[v0] JSON validation error for ${mainJsonFile}:`, error)
-          results.push({
-            file: file.name,
-            type: "JSON",
-            valid: false,
-            errors: [
-              `Failed to validate JSON file ${mainJsonFile}: ${error instanceof Error ? error.message : "Unknown error"}`,
-            ],
-            processingTime: 0,
-            thumbnail: thumbnail || undefined,
-          })
         }
       } else {
-        results.push({
-          file: file.name,
-          type: "JSON",
-          valid: false,
-          errors: ["No AAS JSON files found in AASX archive"],
-          processingTime: 0,
-          thumbnail: thumbnail || undefined,
-        })
+        overallValid = false
+        allErrors.push("No AAS JSON files found in AASX archive")
       }
+
+      // Consolidate AASX results
+      results.push({
+        file: file.name,
+        type: "AASX",
+        valid: overallValid,
+        errors: allErrors.length > 0 ? allErrors : undefined,
+        processingTime: Date.now() - onProgress(0), // Reset progress for accurate time
+        thumbnail: thumbnail || undefined,
+        aasData: aasData,
+        parsed: parsedContent,
+      })
+
     } else if (file.name.toLowerCase().endsWith(".xml")) {
       const xmlContent = await file.text()
       const xmlResult = await validateXML(xmlContent, file.name)
@@ -172,7 +175,7 @@ export async function processFile(file: File, onProgress: (progress: number) => 
     console.error(`[v0] File processing error:`, error)
     results.push({
       file: file.name,
-      type: "AASX",
+      type: "AASX", // Default to AASX type for general file processing errors
       valid: false,
       errors: [`Failed to process file: ${error instanceof Error ? error.message : "Unknown error"}`],
       processingTime: 0,
@@ -217,9 +220,6 @@ async function validateJSON(jsonContent: string, fileName: string): Promise<Vali
 
   try {
     console.log(`[v0] Starting comprehensive JSON validation for: ${fileName}`)
-    // Parse JSON
-    const jsonData = JSON.parse(jsonContent)
-
     // Use the comprehensive JSON validation
     const result = await validateAASXJson(jsonContent) // Use validateAASXJson which includes parsing and structure validation
 
