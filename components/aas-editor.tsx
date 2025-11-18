@@ -1228,11 +1228,10 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             console.log(`[v0] EDITOR XML GEN: ✗ No shortName for ${element.idShort}`)
           }
           
-          // Data Type - FIX: Prefix with xs:
-          const prefixedDataType = prefixXs(element.dataType);
-          if (prefixedDataType) {
-            xml += `${indent}        <dataType>${prefixedDataType}</dataType>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${prefixedDataType}`)
+          // Data Type - Use raw dataType for DataSpecificationIec61360
+          if (element.dataType) {
+            xml += `${indent}        <dataType>${element.dataType}</dataType>\n`
+            console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
           }
           
           // Definition
@@ -1258,8 +1257,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           // Removed Source of Definition from XML generation
           
           xml += `${indent}      </dataSpecificationContent>\n`
-          // FIX: Close dataSpecification wrapper
-          xml += `${indent}    </dataSpecification>\n`
+          // FIX: Close embeddedDataSpecification wrapper
+          xml += `${indent}    </embeddedDataSpecification>\n`
           xml += `${indent}  </embeddedDataSpecifications>\n`
         } else {
           console.log(`[v0] EDITOR XML GEN: ${element.idShort} has NO metadata to write`)
@@ -1279,7 +1278,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           }
         } else if (element.modelType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
-          if (hasLangValues) { // FIX: Only generate <value> if there are actual language entries
+          if (hasLangValues) { // Only generate <value> if there are actual language entries
             xml += `${indent}  <value>\n`
             Object.entries(element.value!).forEach(([lang, text]) => {
               if (text && String(text).trim() !== '') { // Only include if text is not empty
