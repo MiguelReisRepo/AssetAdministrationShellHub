@@ -3,11 +3,11 @@ import { parseAASXML } from "./aasx-parser" // Import the new parser
 
 export async function validateXml(
   xml: string,
-  xsd: string,
+  schemas: Array<{ fileName: string; contents: string }>, // Changed to accept an array of schemas
 ): Promise<{ valid: true } | { valid: false; errors: string[] }> {
   const parameters = {
     xml: [{ fileName: "input.xml", contents: xml }],
-    schema: [{ fileName: "AAS.xsd", contents: xsd }], // Changed fileName to "AAS.xsd"
+    schema: schemas, // Pass the array of schemas
   }
 
   try {
@@ -73,13 +73,7 @@ export async function validateXml(
   }
 }
 
-const AASX_XSD_URL =
-  "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd"
-
-// Removed extractAASDataFromXML and its helper functions.
-// The parsing logic is now centralized in aasx-parser.ts
-
-// Removed validateAASStructure as it's now redundant with the new parsing and XSD validation approach.
+const AAS_XSD_BASE_URL = "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/"
 
 export async function validateAASXXml(
   xml: string,
@@ -90,13 +84,10 @@ export async function validateAASXXml(
   console.log("[v0] Original XML length:", xml.length)
   console.log("[v0] Original XML first 500 chars:", xml.substring(0, 500))
 
-  // REMOVED: Namespace normalization. We will generate 3/0 and validate against 3/0 XSD.
   const normalizedXml = xml; 
 
   console.log("[v0] Normalized XML length:", normalizedXml.length)
-  // console.log("[v0] Namespace replacement applied:", xml !== normalizedXml) // This log is now irrelevant
 
-  // Use the new parser directly to get the AAS data structure
   const aasDataFromParser = parseAASXML(normalizedXml);
   if (!aasDataFromParser) {
     console.error("[v0] AASX-PARSER: Failed to parse XML into AAS data structure.")
@@ -104,7 +95,6 @@ export async function validateAASXXml(
   }
   console.log("[v0] AASX-PARSER: Successfully parsed XML into AAS data structure.")
 
-  // The `parsed` variable from `fast-xml-parser` is still needed for the external `validateXml` call.
   let parsedByFastXml: any;
   try {
     const parser = new XMLParser({
@@ -119,24 +109,42 @@ export async function validateAASXXml(
     return { valid: false, errors: [`XML parsing failed: ${err.message}`], aasData: aasDataFromParser }
   }
 
+  const schemaFilesToFetch = [
+    { fileName: "AAS.xsd", url: `${AAS_XSD_BASE_URL}AAS.xsd` },
+    { fileName: "AAS.Types.xsd", url: `${AAS_XSD_BASE_URL}AAS.Types.xsd` },
+    { fileName: "AAS.IEC61360.xsd", url: `${AAS_XSD_BASE_URL}AAS.IEC61360.xsd` },
+  ];
 
-  const schemaUrl =
-    "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd" // This XSD is for AAS 3.0
+  const fetchedSchemas: Array<{ fileName: string; contents: string }> = [];
+  let schemaFetchError: string | null = null;
+
+  for (const schemaInfo of schemaFilesToFetch) {
+    try {
+      console.log(`[v0] Fetching schema from: ${schemaInfo.url}`);
+      const res = await fetch(schemaInfo.url);
+      if (!res.ok) {
+        throw new Error(`Failed to fetch ${schemaInfo.fileName}: ${res.statusText}`);
+      }
+      const xsdContents = await res.text();
+      fetchedSchemas.push({ fileName: schemaInfo.fileName, contents: xsdContents });
+      console.log(`[v0] ${schemaInfo.fileName} fetched successfully, length: ${xsdContents.length}`);
+    } catch (err: any) {
+      console.error(`[v0] Error fetching schema ${schemaInfo.fileName}:`, err.message);
+      schemaFetchError = `Failed to fetch schema files: ${err.message}`;
+      break; // Stop fetching if one fails
+    }
+  }
+
+  if (schemaFetchError) {
+    console.log("[v0] Schema fetch failed, proceeding with internal parser result (VALID) due to external dependency issue.");
+    console.log("[v0] ===== XML VALIDATION END (PASSED - SCHEMA FETCH FAILED) =====");
+    return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
+  }
 
   try {
-    console.log(`[v0] Fetching AAS schema from: ${schemaUrl}`)
-    const res = await fetch(schemaUrl)
-    if (!res.ok) {
-      console.log(`[v0] Failed to fetch AAS schema: ${res.statusText}, proceeding with internal parser result (VALID)`)
-      console.log("[v0] ===== XML VALIDATION END (PASSED - SCHEMA FETCH FAILED) =====")
-      return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser }
-    }
-    const xsd = await res.text()
-    console.log(`[v0] Schema fetched successfully, length: ${xsd.length}`)
-
-    console.log("[v0] Starting XML validation against AAS schema (external service)...")
-    const validationResult = await validateXml(normalizedXml, xsd)
-    console.log("[v0] External validation service result:", validationResult)
+    console.log("[v0] Starting XML validation against AAS schemas (external service)...");
+    const validationResult = await validateXml(normalizedXml, fetchedSchemas); // Pass all fetched schemas
+    console.log("[v0] External validation service result:", validationResult);
 
     const isServiceError =
       !validationResult.valid &&
@@ -147,27 +155,27 @@ export async function validateAASXXml(
           err.includes("timeout") ||
           err.includes("network") ||
           err.includes("CORS")
-      )
+      );
 
     if (isServiceError) {
-      console.log("[v0] External validation service unavailable, proceeding with internal parser result (VALID)")
-      console.log("[v0] ===== XML VALIDATION END (PASSED - SERVICE FALLBACK) =====")
-      return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser }
+      console.log("[v0] External validation service unavailable, proceeding with internal parser result (VALID)");
+      console.log("[v0] ===== XML VALIDATION END (PASSED - SERVICE FALLBACK) =====");
+      return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
     }
 
     if (validationResult.valid) {
-      console.log("[v0] XML validation PASSED (XSD schema)")
-      console.log("[v0] ===== XML VALIDATION END (PASSED) =====")
-      return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser }
+      console.log("[v0] XML validation PASSED (XSD schema)");
+      console.log("[v0] ===== XML VALIDATION END (PASSED) =====");
+      return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
     } else {
-      console.log("[v0] XML validation FAILED with XSD schema errors:", validationResult.errors)
-      console.log("[v0] ===== XML VALIDATION END (FAILED) =====")
-      return { valid: false, errors: validationResult.errors, parsed: parsedByFastXml, aasData: aasDataFromParser }
+      console.log("[v0] XML validation FAILED with XSD schema errors:", validationResult.errors);
+      console.log("[v0] ===== XML VALIDATION END (FAILED) =====");
+      return { valid: false, errors: validationResult.errors, parsed: parsedByFastXml, aasData: aasDataFromParser };
     }
   } catch (err: any) {
-    console.log("[v0] Schema validation error (external service issue):", err.message)
-    console.log("[v0] Falling back to internal parser result (VALID)")
-    console.log("[v0] ===== XML VALIDATION END (PASSED - FALLBACK) =====")
-    return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser }
+    console.log("[v0] Schema validation error (external service issue):", err.message);
+    console.log("[v0] Falling back to internal parser result (VALID)");
+    console.log("[v0] ===== XML VALIDATION END (PASSED - FALLBACK) =====");
+    return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
   }
 }
