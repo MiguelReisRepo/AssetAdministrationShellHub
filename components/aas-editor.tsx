@@ -1135,6 +1135,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const generateFinalAAS = async () => {
     setIsGenerating(true)
     
+    // Helper to prefix XML schema types for valueType
+    const prefixXs = (type: string | undefined) => {
+      if (!type) return undefined;
+      const commonTypes = ['string', 'integer', 'boolean', 'float', 'double', 'date', 'dateTime', 'time', 'anyURI', 'base64Binary', 'hexBinary', 'decimal', 'byte', 'short', 'int', 'long', 'unsignedByte', 'unsignedShort', 'unsignedInt', 'unsignedLong', 'duration', 'gDay', 'gMonth', 'gMonthDay', 'gYear', 'gYearMonth'];
+      return commonTypes.includes(type) && !type.startsWith('xs:') ? `xs:${type}` : type;
+    };
+
     try {
       // Validate before generating
       const internalValidation = validateAAS()
@@ -1191,13 +1198,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         
         console.log(`[v0] XML_GEN_DEBUG: Processing element: ${element.idShort}, modelType: ${element.modelType}, tagName: ${tagName}`);
 
-        // Helper to prefix XML schema types for valueType
-        const prefixXs = (type: string | undefined) => {
-          if (!type) return undefined;
-          const commonTypes = ['string', 'integer', 'boolean', 'float', 'double', 'date', 'dateTime', 'time', 'anyURI', 'base64Binary', 'hexBinary', 'decimal', 'byte', 'short', 'int', 'long', 'unsignedByte', 'unsignedShort', 'unsignedInt', 'unsignedLong', 'duration', 'gDay', 'gMonth', 'gMonthDay', 'gYear', 'gYearMonth'];
-          return commonTypes.includes(type) && !type.startsWith('xs:') ? `xs:${type}` : type;
-        };
-        
         let xml = `${indent}<${tagName}>\n`
         xml += `${indent}  <idShort>${element.idShort}</idShort>\n`
         
@@ -1213,10 +1213,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </semanticId>\n`
         }
 
-        // Removed Cardinality as a Qualifier to match SPLMeterAAS.aas.xml
-        // Removed embeddedDataSpecifications block to match SPLMeterAAS.aas.xml
-        // Removed Category to match SPLMeterAAS.aas.xml (it's in ConceptDescription now)
-        
         // Value generation logic - ensure no <value> for collections/lists
         if (element.modelType === "Property") {
           const prefixedValueType = prefixXs(element.valueType || 'string');
@@ -1359,9 +1355,9 @@ ${concept.unit ? `${indent}          <unit>${concept.unit}</unit>\n` : ''}
 ${concept.dataType ? `${indent}          <dataType>${concept.dataType}</dataType>\n` : ''}
 ${concept.description ? `${indent}          <definition>
 ${indent}            <langStringDefinitionTypeIec61360>
-${indent}              <language>en</language>
-${indent}              <text>${concept.description}</text>
-${indent}            </langStringDefinitionTypeIec61360>
+${indent}              <language>en</language>\n` : ''}
+${concept.description ? `${indent}              <text>${concept.description}</text>\n` : ''}
+${concept.description ? `${indent}            </langStringDefinitionTypeIec61360>
 ${indent}          </definition>\n` : ''}
 ${concept.category ? `${indent}          <value>${concept.category}</value>\n` : ''}
 ${prefixedValueType ? `${indent}          <valueType>${prefixedValueType}</valueType>\n` : ''}
