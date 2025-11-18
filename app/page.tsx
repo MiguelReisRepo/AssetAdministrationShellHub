@@ -35,6 +35,7 @@ export default function VisualizerPage() {
   }
 
   const handleProceedToEditor = (config: any) => {
+    // Now receiving assetKind and globalAssetId from AASCreator
     setAasConfig(config)
     setViewMode("editor")
   }

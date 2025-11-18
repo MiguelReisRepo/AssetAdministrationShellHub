@@ -21,6 +21,8 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
   const [selectedSubmodels, setSelectedSubmodels] = useState<SelectedSubmodel[]>([])
   const [aasIdShort, setAasIdShort] = useState("MyAssetAdministrationShell")
   const [aasId, setAasId] = useState("https://example.com/aas/1")
+  const [assetKind, setAssetKind] = useState<"Instance" | "Type">("Instance") // New state for Asset Kind
+  const [globalAssetId, setGlobalAssetId] = useState("https://example.com/asset/1") // New state for Global Asset ID
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
@@ -128,6 +130,8 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
     onProceedToEditor({
       idShort: aasIdShort,
       id: aasId,
+      assetKind: assetKind, // Pass new assetKind
+      globalAssetId: globalAssetId, // Pass new globalAssetId
       selectedSubmodels: selectedSubmodels,
     })
   }
@@ -236,6 +240,31 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
                   onChange={(e) => setAasId(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                   placeholder="https://example.com/aas/1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Asset Kind
+                </label>
+                <select
+                  value={assetKind}
+                  onChange={(e) => setAssetKind(e.target.value as "Instance" | "Type")}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                >
+                  <option value="Instance">Instance</option>
+                  <option value="Type">Type</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Global Asset ID
+                </label>
+                <input
+                  type="text"
+                  value={globalAssetId}
+                  onChange={(e) => setGlobalAssetId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  placeholder="https://example.com/asset/1"
                 />
               </div>
             </div>

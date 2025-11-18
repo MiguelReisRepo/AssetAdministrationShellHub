@@ -19,6 +19,8 @@ interface SelectedSubmodel {
 interface AASConfig {
   idShort: string
   id: string
+  assetKind: "Instance" | "Type" // Added assetKind
+  globalAssetId: string // Added globalAssetId
   selectedSubmodels: SelectedSubmodel[]
 }
 
@@ -1282,6 +1284,23 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         return xml
       }
 
+      let defaultThumbnailXml = '';
+      let thumbnailFileName = '';
+      let thumbnailMimeType = '';
+
+      if (thumbnail) {
+        const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/)
+        if (mimeTypeMatch) {
+          thumbnailMimeType = mimeTypeMatch[1];
+          const extension = mimeTypeMatch[2] === 'svg+xml' ? 'svg' : mimeTypeMatch[2];
+          thumbnailFileName = `thumbnail.${extension}`;
+          defaultThumbnailXml = `        <defaultThumbnail>
+          <path>${thumbnailFileName}</path>
+          <contentType>${thumbnailMimeType}</contentType>
+        </defaultThumbnail>\n`;
+        }
+      }
+
       const aasXml = `<?xml version="1.0" encoding="UTF-8"?>
 <environment xmlns="https://admin-shell.io/aas/3/0">
   <assetAdministrationShells>
@@ -1289,9 +1308,9 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       <idShort>${aasConfig.idShort}</idShort>
       <id>${aasConfig.id}</id>
       <assetInformation>
-        <assetKind>Instance</assetKind>
-        <globalAssetId>${aasConfig.id}/asset</globalAssetId>
-      </assetInformation>
+        <assetKind>${aasConfig.assetKind}</assetKind>
+        <globalAssetId>${aasConfig.globalAssetId}</globalAssetId>
+${defaultThumbnailXml}      </assetInformation>
       <submodels>
 ${aasConfig.selectedSubmodels.map(sm => `        <reference>
           <type>ModelReference</type>
@@ -1365,7 +1384,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
           addFilesFromElements(elements)
         })
         
-        if (thumbnail) {
+        if (thumbnail && thumbnailFileName) {
           // Convert base64 data URL to blob
           const base64Data = thumbnail.split(',')[1]
           const binaryData = atob(base64Data)
@@ -1375,11 +1394,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
             uint8Array[i] = binaryData.charCodeAt(i)
           }
           
-          // Determine file extension from data URL
-          const mimeType = thumbnail.split(':')[1].split(';')[0]
-          const extension = mimeType.split('/')[1] || 'png'
-          
-          zip.file(`thumbnail.${extension}`, uint8Array)
+          zip.file(thumbnailFileName, uint8Array) // Add thumbnail to root of AASX
         }
         
         // Add aasx-origin file (required for AASX structure)
