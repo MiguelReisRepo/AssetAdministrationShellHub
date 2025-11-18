@@ -75,6 +75,262 @@ export async function validateXml(
   }
 }
 
+// Helper functions for XML parsing and data extraction
+function extractSubmodelRefs(submodels: any): string[] {
+  if (!submodels) return []
+
+  const refs = submodels.reference || submodels
+  const refArray = Array.isArray(refs) ? refs : [refs]
+
+  return refArray
+    .map((ref: any) => {
+      if (ref.keys?.key) {
+        const keys = Array.isArray(ref.keys.key) ? ref.keys.key : [ref.keys.key]
+        return keys.find((k: any) => k.type === "Submodel")?.value
+      }
+      return null
+    })
+    .filter(Boolean)
+}
+
+function parseXMLSubmodelElements(elementsContainer: any): any[] {
+  if (!elementsContainer) return []
+
+  const elements: any[] = []
+
+  // Handle different XML element types
+  const elementTypes = [
+    "property",
+    "multiLanguageProperty",
+    "file",
+    "blob",
+    "range",
+    "submodelElementCollection",
+    "submodelElementList",
+    "referenceElement",
+    "basicEventElement",
+    "operation",
+    "capability",
+    "entity",
+  ]
+
+  elementTypes.forEach((type) => {
+    if (elementsContainer[type]) {
+      const typeElements = Array.isArray(elementsContainer[type]) ? elementsContainer[type] : [elementsContainer[type]]
+
+      typeElements.forEach((element: any) => {
+        const parsed = parseXMLElement(element, type)
+        if (parsed) elements.push(parsed)
+      })
+    }
+  })
+
+  return elements
+}
+
+function parseXMLElement(element: any, type: string): any {
+  if (!element) return null
+
+  const base = {
+    idShort: element.idShort || element["@_idShort"] || "Unknown",
+    modelType: getModelTypeFromXMLType(type),
+    category: element.category,
+    description: parseXMLDescription(element.description),
+    semanticId: element.semanticId,
+    qualifiers: element.qualifiers || [],
+    embeddedDataSpecifications: element.embeddedDataSpecifications || [],
+  }
+
+  switch (type) {
+    case "property":
+      return {
+        ...base,
+        valueType: element.valueType,
+        value: element.value,
+      }
+
+    case "multiLanguageProperty":
+      return {
+        ...base,
+        value: parseXMLLangStringArray(element.value),
+      }
+
+    case "file":
+      return {
+        ...base,
+        value: element.value,
+        contentType: element.contentType,
+      }
+
+    case "submodelElementCollection":
+      return {
+        ...base,
+        value: parseXMLSubmodelElements(element.value || {}),
+      }
+
+    case "submodelElementList":
+      return {
+        ...base,
+        typeValueListElement: element.typeValueListElement,
+        value: parseXMLSubmodelElements(element.value || {}),
+      }
+
+    case "basicEventElement":
+      return {
+        ...base,
+        observed: element.observed,
+        direction: element.direction,
+        state: element.state,
+      }
+
+    case "range":
+      return {
+        ...base,
+        valueType: element.valueType,
+        min: element.min,
+        max: element.max,
+      }
+
+    case "blob":
+      return {
+        ...base,
+        value: element.value,
+        contentType: element.contentType,
+      }
+
+    case "referenceElement":
+      return {
+        ...base,
+        value: element.value,
+      }
+
+    default:
+      return {
+        ...base,
+        ...element,
+      }
+  }
+}
+
+function getModelTypeFromXMLType(xmlType: string): string {
+  const typeMap: { [key: string]: string } = {
+    property: "Property",
+    multiLanguageProperty: "MultiLanguageProperty",
+    file: "File",
+    blob: "Blob",
+    range: "Range",
+    submodelElementCollection: "SubmodelElementCollection",
+    submodelElementList: "SubmodelElementList",
+    referenceElement: "ReferenceElement",
+    basicEventElement: "BasicEventElement",
+    operation: "Operation",
+    capability: "Capability",
+    entity: "Entity",
+  }
+  return typeMap[xmlType] || "Unknown"
+}
+
+function parseXMLDescription(description: any): any[] {
+  if (!description) return []
+
+  if (description.langStringTextType) {
+    const langStrings = Array.isArray(description.langStringTextType)
+      ? description.langStringTextType
+      : [description.langStringTextType]
+
+    return langStrings.map((ls: any) => ({
+      language: ls.language || ls["@_language"] || "en",
+      text: ls.text || ls["#text"] || "",
+    }))
+  }
+
+  return []
+}
+
+function parseXMLLangStringArray(value: any): any[] {
+  if (!value) return []
+
+  if (value.langStringTextType) {
+    const langStrings = Array.isArray(value.langStringTextType) ? value.langStringTextType : [value.langStringTextType]
+
+    return langStrings.map((ls: any) => ({
+      language: ls.language || ls["@_language"] || "en",
+      text: ls.text || ls["#text"] || "",
+    }))
+  }
+
+  return []
+}
+
+export function extractAASDataFromXML(parsed: any): ParsedAASData | null {
+  if (!parsed) return null
+
+  try {
+    // Handle different XML structures
+    let aasData = parsed
+    if (parsed.environment) {
+      aasData = parsed.environment
+    }
+
+    const result: ParsedAASData = {
+      assetAdministrationShells: [],
+      submodels: [],
+      rawData: aasData,
+    }
+
+    // Extract Asset Administration Shells
+    if (aasData.assetAdministrationShells) {
+      const shellsContainer = aasData.assetAdministrationShells
+      const shells = shellsContainer.assetAdministrationShell
+        ? Array.isArray(shellsContainer.assetAdministrationShell)
+          ? shellsContainer.assetAdministrationShell
+          : [shellsContainer.assetAdministrationShell]
+        : []
+
+      result.assetAdministrationShells = shells.map((shell: any) => ({
+        id: shell.id || shell["@_id"] || "Unknown ID",
+        idShort: shell.idShort || shell["@_idShort"] || "Unknown",
+        assetKind: shell.assetInformation?.assetKind || "Unknown",
+        assetInformation: shell.assetInformation || {},
+        description: shell.description || [],
+        administration: shell.administration || {},
+        derivedFrom: shell.derivedFrom || null,
+        embeddedDataSpecifications: shell.embeddedDataSpecifications || [],
+        submodelRefs: extractSubmodelRefs(shell.submodels),
+        rawData: shell,
+      }))
+    }
+
+    // Extract Submodels
+    if (aasData.submodels) {
+      const submodelsContainer = aasData.submodels
+      const submodels = submodelsContainer.submodel
+        ? Array.isArray(submodelsContainer.submodel)
+          ? submodelsContainer.submodel
+          : [submodelsContainer.submodel]
+        : []
+
+      result.submodels = submodels.map((submodel: any) => ({
+        id: submodel.id || submodel["@_id"] || "Unknown ID",
+        idShort: submodel.idShort || submodel["@_idShort"] || "Unknown",
+        kind: submodel.kind || "Unknown",
+        description: submodel.description || [],
+        administration: submodel.administration || {},
+        semanticId: submodel.semanticId || null,
+        qualifiers: submodel.qualifiers || [],
+        embeddedDataSpecifications: submodel.embeddedDataSpecifications || [],
+        submodelElements: parseXMLSubmodelElements(submodel.submodelElements),
+        rawData: submodel,
+      }))
+    }
+
+    return result
+  } catch (error) {
+    console.error("Error extracting AAS data from XML:", error)
+    return null
+  }
+}
+
 const AASX_XSD_URL =
   "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd"
 
@@ -127,7 +383,7 @@ export async function validateAASXXml(
 
   if (!structureValidation.valid) {
     console.log("[v0] AAS structure validation FAILED with errors:", structureValidation.errors)
-    const aasData = extractAASDataFromXML(parsed)
+    const aasData = extractAASDataFromXML(parsed) // Now defined
     console.log("[v0] ===== XML VALIDATION END (FAILED) =====")
     return { valid: false, errors: structureValidation.errors.map(e => `${e.path}: ${e.message}`), parsed, aasData }
   }
@@ -144,7 +400,7 @@ export async function validateAASXXml(
     if (!res.ok) {
       const errorMsg = `Failed to fetch AAS schema: ${res.status} ${res.statusText}. Cannot perform full schema validation.`
       console.warn(`[v0] ${errorMsg}`)
-      const aasData = extractAASDataFromXML(parsed)
+      const aasData = extractAASDataFromXML(parsed) // Now defined
       console.log("[v0] ===== XML VALIDATION END (FAILED - SCHEMA FETCH FAILED) =====")
       return { valid: false, errors: [errorMsg], parsed, aasData } // Return false on schema fetch failure
     }
@@ -157,18 +413,19 @@ export async function validateAASXXml(
 
     if (validationResult.valid) {
       console.log("[v0] XML validation PASSED (both structure and schema)")
-      const aasData = extractAASDataFromXML(parsed)
+      const aasData = extractAASDataFromXML(parsed) // Now defined
       console.log("[v0] ===== XML VALIDATION END (PASSED) =====")
       return { valid: true, parsed, aasData }
     } else {
       console.log("[v0] XML validation FAILED with errors:", validationResult.errors)
-      const aasData = extractAASDataFromXML(parsed)
+      const aasData = extractAASDataFromXML(parsed) // Now defined
       console.log("[v0] ===== XML VALIDATION END (FAILED) =====")
       return { valid: false, errors: validationResult.errors, parsed, aasData }
     }
   } catch (err: any) {
     const errorMsg = `Schema validation error (external service issue): ${err.message}. Cannot perform full schema validation.`
     console.error("[v0] " + errorMsg, err) // Log full error object
+    const aasData = extractAASDataFromXML(parsed) // Now defined
     console.log("[v0] ===== XML VALIDATION END (FAILED - EXTERNAL SERVICE ERROR) =====")
     return { valid: false, errors: [errorMsg], parsed, aasData } // Return false on external service error
   }
