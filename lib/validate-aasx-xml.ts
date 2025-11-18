@@ -141,10 +141,11 @@ export async function validateAASXXml(
   }
 
   if (schemaFetchError) {
-    console.log("[v0] Schema fetch failed, proceeding with internal parser result (VALID) due to external dependency issue.");
+    console.log("[v0] Schema fetch failed, reporting as invalid due to external dependency issue.");
     console.table([schemaFetchError]); // Use console.table here
-    console.log("[v0] ===== XML VALIDATION END (PASSED - SCHEMA FETCH FAILED) =====");
-    return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
+    console.log("[v0] ===== XML VALIDATION END (FAILED - SCHEMA FETCH FAILED) =====");
+    // IMPORTANT: Change to valid: false here
+    return { valid: false, errors: [schemaFetchError], parsed: parsedByFastXml, aasData: aasDataFromParser };
   }
 
   try {
@@ -164,10 +165,11 @@ export async function validateAASXXml(
       );
 
     if (isServiceError) {
-      console.log("[v0] External validation service unavailable, proceeding with internal parser result (VALID)");
+      console.log("[v0] External validation service unavailable, reporting as invalid due to service error.");
       console.table(validationResult.errors); // Use console.table here
-      console.log("[v0] ===== XML VALIDATION END (PASSED - SERVICE FALLBACK) =====");
-      return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
+      console.log("[v0] ===== XML VALIDATION END (FAILED - SERVICE FALLBACK) =====");
+      // IMPORTANT: Change to valid: false here
+      return { valid: false, errors: validationResult.errors, parsed: parsedByFastXml, aasData: aasDataFromParser };
     }
 
     if (validationResult.valid) {
@@ -183,8 +185,9 @@ export async function validateAASXXml(
   } catch (err: any) {
     console.log("[v0] Schema validation error (external service issue):", err.message);
     console.table([`Schema validation error (external service issue): ${err.message}`]); // Use console.table here
-    console.log("[v0] Falling back to internal parser result (VALID)");
-    console.log("[v0] ===== XML VALIDATION END (PASSED - FALLBACK) =====");
-    return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
+    console.log("[v0] Reporting as invalid due to schema validation service error.");
+    console.log("[v0] ===== XML VALIDATION END (FAILED - FALLBACK) =====");
+    // IMPORTANT: Change to valid: false here
+    return { valid: false, errors: [`Schema validation error (external service issue): ${err.message}`], parsed: parsedByFastXml, aasData: aasDataFromParser };
   }
 }
