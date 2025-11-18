@@ -1307,7 +1307,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
-                xml += `${indent}            </langStringTextType>\n`
+                xml += `${indent}    </langStringTextType>\n`
               }
             })
             xml += `${indent}  </value>\n`
@@ -1348,7 +1348,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       }
 
       const aasXml = `<?xml version="1.0" encoding="UTF-8"?>
-<environment xmlns="https://admin-shell.io/aas/3/0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://admin-shell.io/aas/3/0 AAS.xsd">
+<environment xmlns="https://admin-shell.io/aas/3/0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://admin-shell.io/aas/3/0 https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd">
   <assetAdministrationShells>
     <assetAdministrationShell>
       <idShort>${aasConfig.idShort}</idShort>
