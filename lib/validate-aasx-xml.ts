@@ -87,6 +87,7 @@ export async function validateAASXXml(
   console.log("[v0] ===== XML VALIDATION START =====")
   console.log("[v0] Original XML length:", xml.length)
   console.log("[v0] Original XML first 500 chars:", xml.substring(0, 500))
+  console.log("[v0] Using AAS_XSD_BASE_URL:", AAS_XSD_BASE_URL); // NEW LOG
 
   const normalizedXml = xml; 
 
@@ -110,7 +111,7 @@ export async function validateAASXXml(
     parsedByFastXml = parser.parse(normalizedXml)
   } catch (err: any) {
     console.error("[v0] XML Parsing Error (fast-xml-parser):", err.message)
-    console.table([`XML parsing failed: ${err.message}`]) // Use console.table here
+    console.table([`XML parsing failed: ${err.message}`])
     return { valid: false, errors: [`XML parsing failed: ${err.message}`], aasData: aasDataFromParser }
   }
 
@@ -126,9 +127,11 @@ export async function validateAASXXml(
   for (const schemaInfo of schemaFilesToFetch) {
     try {
       console.log(`[v0] Fetching schema from: ${schemaInfo.url}`);
-      const res = await fetch(schemaInfo.url);
+      const res = await fetch(schemaInfo.url, { mode: 'cors' }); // Added mode: 'cors'
       if (!res.ok) {
-        throw new Error(`Failed to fetch ${schemaInfo.fileName}: ${res.status} ${res.statusText}`); // Include status
+        // Log full response details on error
+        console.error(`[v0] Failed to fetch ${schemaInfo.fileName}: HTTP ${res.status} ${res.statusText}`); // MORE DETAIL
+        throw new Error(`Failed to fetch ${schemaInfo.fileName}: HTTP ${res.status} ${res.statusText}`);
       }
       const xsdContents = await res.text();
       fetchedSchemas.push({ fileName: schemaInfo.fileName, contents: xsdContents });
