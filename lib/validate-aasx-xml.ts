@@ -7,7 +7,7 @@ export async function validateXml(
 ): Promise<{ valid: true } | { valid: false; errors: string[] }> {
   const parameters = {
     xml: [{ fileName: "input.xml", contents: xml }],
-    schema: [{ fileName: "schema.xsd", contents: xsd }],
+    schema: [{ fileName: "AAS.xsd", contents: xsd }], // Changed fileName to "AAS.xsd"
   }
 
   try {
