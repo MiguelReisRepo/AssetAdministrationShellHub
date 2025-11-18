@@ -1044,20 +1044,23 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 </div>
               )}
               
-              {/* Category */}
+              {/* Category - Changed to dropdown */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Category:
                 </label>
-                <input
-                  type="text"
+                <select
                   value={selectedElement.category || ''}
                   onChange={(e) => {
-                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'category', e.target.value)
+                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'category', e.target.value || undefined)
                   }}
-                  placeholder="PARAMETER, VARIABLE, etc."
                   className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                />
+                >
+                  <option value="">None</option>
+                  <option value="CONSTANT">CONSTANT</option>
+                  <option value="PARAMETER">PARAMETER</option>
+                  <option value="VARIABLE">VARIABLE</option>
+                </select>
               </div>
               
               {/* Cardinality */}
