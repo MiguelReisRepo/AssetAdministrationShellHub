@@ -257,10 +257,10 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           description: "Address information of a business partner",
           semanticId: "0173-1#02-AAQ832#005",
           children: [
-            { idShort: "Street", modelType: "MultiLanguageProperty", value: { en: "" }, cardinality: "One", description: "Street name and house number", semanticId: "0173-1#02-AAO128#002" },
-            { idShort: "Zipcode", modelType: "MultiLanguageProperty", value: { en: "" }, cardinality: "One", description: "ZIP code of address", semanticId: "0173-1#02-AAO129#002" },
-            { idShort: "CityTown", modelType: "MultiLanguageProperty", value: { en: "" }, cardinality: "One", description: "town or city", semanticId: "0173-1#02-AAO132#002" },
-            { idShort: "Country", modelType: "MultiLanguageProperty", value: { en: "" }, cardinality: "One", description: "country code", semanticId: "0173-1#02-AAO134#002" },
+            { idShort: "Street", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "Street name and house number", semanticId: "0173-1#02-AAO128#002" },
+            { idShort: "Zipcode", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "ZIP code of address", semanticId: "0173-1#02-AAO129#002" },
+            { idShort: "CityTown", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "town or city", semanticId: "0173-1#02-AAO132#002" },
+            { idShort: "Country", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "country code", semanticId: "0173-1#02-AAO134#002" },
           ]
         },
         { idShort: "ManufacturerProductRoot", modelType: "MultiLanguageProperty", value: { en: "" }, cardinality: "ZeroToOne", description: "Top level of a 3 level manufacturer specific product hierarchy", semanticId: "0173-1#02-AAU732#001" },
@@ -278,23 +278,15 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         { idShort: "CompanyLogo", modelType: "File", value: "", cardinality: "ZeroToOne", description: "A graphic mark used to represent a company, an organisation or a product", semanticId: "0173-1#02-AAQ163#002" },
         {
           idShort: "Markings",
-          modelType: "SubmodelElementList",
+          modelType: "SubmodelElementCollection", // Changed from SubmodelElementList
           cardinality: "ZeroToOne",
           description: "Collection of product markings",
           semanticId: "0173-1#01-AHD492#001",
           children: [
-            {
-              idShort: "Marking",
-              modelType: "SubmodelElementCollection",
-              cardinality: "ZeroToMany",
-              description: "Contains information about the marking labelled on the device",
-              semanticId: "0173-1#01-AHD492#001",
-              children: [
-                { idShort: "MarkingName", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "common name of the marking", semanticId: "0173-1#02-AAU734#001" },
-                { idShort: "DesignationOfCertificateOrApproval", modelType: "Property", valueType: "string", value: "", cardinality: "ZeroToOne", description: "alphanumeric character sequence identifying a certificate or approval", semanticId: "0173-1#02-AAO200#002" },
-                { idShort: "MarkingFile", modelType: "File", value: "", cardinality: "ZeroToOne", description: "picture or document of the marking", semanticId: "0173-1#02-AAU733#001" },
-              ]
-            }
+            // Removed nested Marking collection, now direct properties
+            { idShort: "MarkingName", modelType: "Property", valueType: "string", value: "", cardinality: "One", description: "common name of the marking", semanticId: "0173-1#02-AAU734#001" },
+            { idShort: "DesignationOfCertificateOrApproval", modelType: "Property", valueType: "string", value: "", cardinality: "ZeroToOne", description: "alphanumeric character sequence identifying a certificate or approval", semanticId: "0173-1#02-AAO200#002" },
+            { idShort: "MarkingFile", modelType: "File", value: "", cardinality: "ZeroToOne", description: "picture or document of the marking", semanticId: "0173-1#02-AAU733#001" },
           ]
         },
         {
@@ -1127,6 +1119,19 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     )
   }
 
+  // New type to store collected concept descriptions
+  type ConceptDescription = {
+    id: string;
+    idShort: string;
+    preferredName?: Record<string, string>;
+    shortName?: Record<string, string>;
+    description?: string;
+    dataType?: string;
+    unit?: string;
+    category?: string;
+    valueType?: string; // For properties
+  };
+
   const generateFinalAAS = async () => {
     setIsGenerating(true)
     
@@ -1142,6 +1147,40 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
 
       // Clear internal validation errors after successful validation
       setValidationErrors(new Set())
+
+      // Collect all unique concept descriptions
+      const collectedConceptDescriptions: Record<string, ConceptDescription> = {};
+
+      const collectConcepts = (elements: SubmodelElement[]) => {
+        elements.forEach(element => {
+          if (element.semanticId) {
+            const conceptId = element.semanticId;
+            if (!collectedConceptDescriptions[conceptId]) {
+              // Use idShort from the element as a fallback for concept description idShort
+              const conceptIdShort = element.idShort; 
+              collectedConceptDescriptions[conceptId] = {
+                id: conceptId,
+                idShort: conceptIdShort, // Use element's idShort as concept's idShort
+                preferredName: typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName,
+                shortName: typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName,
+                description: element.description,
+                dataType: element.dataType,
+                unit: element.unit,
+                category: element.category,
+                valueType: element.valueType,
+              };
+            }
+          }
+          if (element.children) {
+            collectConcepts(element.children);
+          }
+        });
+      };
+
+      aasConfig.selectedSubmodels.forEach(sm => {
+        const elements = submodelData[sm.idShort] || [];
+        collectConcepts(elements);
+      });
 
       const generateElementXml = (element: SubmodelElement, indent: string): string => {
         const tagName = element.modelType === "Property" ? "property" :
@@ -1174,114 +1213,9 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </semanticId>\n`
         }
 
-        // Add Cardinality as a Qualifier
-        if (element.cardinality) {
-          xml += `${indent}  <qualifiers>\n`
-          xml += `${indent}    <qualifier>\n`
-          xml += `${indent}      <type>Cardinality</type>\n`
-          xml += `${indent}      <valueType>xs:string</valueType>\n`
-          xml += `${indent}      <value>${element.cardinality}</value>\n`
-          xml += `${indent}    </qualifier>\n`
-          xml += `${indent}  </qualifiers>\n`
-          console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote cardinality for ${element.idShort}`)
-        }
-        
-        const hasMetadata = element.preferredName || element.shortName || element.dataType || 
-                           element.unit || element.category || element.description 
-        
-        if (hasMetadata) {
-          console.log(`[v0] XML_GEN_DEBUG: ${element.idShort} HAS metadata, writing embeddedDataSpecifications`)
-          xml += `${indent}  <embeddedDataSpecifications>\n`
-          xml += `${indent}    <embeddedDataSpecification>\n`
-          xml += `${indent}      <dataSpecification>\n`
-          xml += `${indent}        <type>ExternalReference</type>\n`
-          xml += `${indent}        <keys>\n`
-          xml += `${indent}          <key>\n`
-          xml += `${indent}            <type>GlobalReference</type>\n`
-          xml += `${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>\n`
-          xml += `${indent}          </key>\n`
-          xml += `${indent}        </keys>\n`
-          xml += `${indent}      </dataSpecification>\n`
-          xml += `${indent}      <dataSpecificationContent>\n`
-          xml += `${indent}        <dataSpecificationIec61360>\n` 
-          
-          // CORRECTED ORDER and element names: preferredName, shortName, unit, dataType, definition
-          if (element.preferredName) {
-            console.log(`[v0] XML_GEN_DEBUG: Writing preferredName for ${element.idShort}:`, element.preferredName)
-            xml += `${indent}          <preferredName>\n`
-            const prefName = typeof element.preferredName === 'object' ? element.preferredName : { en: element.preferredName }
-            Object.entries(prefName).forEach(([lang, text]) => {
-              if (text) { 
-                console.log(`[v0] XML_GEN_DEBUG:     ${element.idShort} preferredName[${lang}] = ${text}`)
-                xml += `${indent}            <langStringPreferredNameTypeIec61360>\n` // Corrected element name
-                xml += `${indent}              <language>${lang}</language>\n`
-                xml += `${indent}              <text>${text}</text>\n`
-                xml += `${indent}            </langStringPreferredNameTypeIec61360>\n` // Corrected element name
-              }
-            })
-            xml += `${indent}          </preferredName>\n`
-            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote preferredName for ${element.idShort}`)
-          } else {
-            console.log(`[v0] XML_GEN_DEBUG: ✗ No preferredName for ${element.idShort}`)
-          }
-          
-          if (element.shortName) {
-            console.log(`[v0] XML_GEN_DEBUG: Writing shortName for ${element.idShort}:`, element.shortName)
-            xml += `${indent}          <shortName>\n`
-            const shortN = typeof element.shortName === 'object' ? element.shortName : { en: element.shortName }
-            Object.entries(shortN).forEach(([lang, text]) => {
-              if (text) { 
-                console.log(`[v0] XML_GEN_DEBUG:     ${element.idShort} shortName[${lang}] = ${text}`)
-                xml += `${indent}            <langStringPreferredNameTypeIec61360>\n` // Using PreferredNameType for shortName as well, common practice
-                xml += `${indent}              <language>${lang}</language>\n`
-                xml += `${indent}              <text>${text}</text>\n`
-                xml += `${indent}            </langStringPreferredNameTypeIec61360>\n` // Corrected element name
-              }
-            })
-            xml += `${indent}          </shortName>\n`
-            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote shortName for ${element.idShort}`)
-          } else {
-            console.log(`[v0] XML_GEN_DEBUG: ✗ No shortName for ${element.idShort}`)
-          }
-
-          // Unit (moved up)
-          if (element.unit) {
-            xml += `${indent}          <unit>${element.unit}</unit>\n`
-            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote unit for ${element.idShort}`)
-          }
-          
-          // Data Type (moved up)
-          if (element.dataType) {
-            xml += `${indent}          <dataType>${element.dataType}</dataType>\n`
-            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
-          }
-          
-          // Definition (moved down)
-          if (element.description) {
-            const descText = typeof element.description === 'string' ? element.description : String(element.description)
-            if (descText && descText.trim() && descText !== '[object Object]') {
-              xml += `${indent}          <definition>\n`
-              xml += `${indent}            <langStringDefinitionTypeIec61360>\n` // Corrected element name
-              xml += `${indent}              <language>en</language>\n`
-              xml += `${indent}              <text>${descText}</text>\n`
-              xml += `${indent}            </langStringDefinitionTypeIec61360>\n` // Corrected element name
-              xml += `${indent}          </definition>\n`
-              console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote definition for ${element.idShort}`)
-            }
-          }
-          
-          xml += `${indent}        </dataSpecificationIec61360>\n` 
-          xml += `${indent}      </dataSpecificationContent>\n`
-          xml += `${indent}    </embeddedDataSpecification>\n`
-          xml += `${indent}  </embeddedDataSpecifications>\n`
-        } else {
-          console.log(`[v0] XML_GEN_DEBUG: ${element.idShort} has NO metadata to write`)
-        }
-        
-        // Category
-        if (element.category) {
-          xml += `${indent}  <category>${element.category}</category>\n`
-        }
+        // Removed Cardinality as a Qualifier to match SPLMeterAAS.aas.xml
+        // Removed embeddedDataSpecifications block to match SPLMeterAAS.aas.xml
+        // Removed Category to match SPLMeterAAS.aas.xml (it's in ConceptDescription now)
         
         // Value generation logic - ensure no <value> for collections/lists
         if (element.modelType === "Property") {
@@ -1389,7 +1323,56 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
     </submodel>`
       }).join('\n')}
   </submodels>
-</environment>` // Removed <conceptDescriptions/> block entirely
+  <conceptDescriptions>
+${Object.values(collectedConceptDescriptions).map(concept => {
+    const indent = "    ";
+    const prefixedValueType = concept.valueType ? prefixXs(concept.valueType) : undefined;
+    return `${indent}<conceptDescription>
+${indent}  <idShort>${concept.idShort}</idShort>
+${indent}  <id>${concept.id}</id>
+${indent}  <embeddedDataSpecifications>
+${indent}    <embeddedDataSpecification>
+${indent}      <dataSpecification>
+${indent}        <type>ExternalReference</type>
+${indent}        <keys>
+${indent}          <key>
+${indent}            <type>GlobalReference</type>
+${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>
+${indent}          </key>
+${indent}        </keys>
+${indent}      </dataSpecification>
+${indent}      <dataSpecificationContent>
+${indent}        <dataSpecificationIec61360>
+${concept.preferredName ? `${indent}          <preferredName>
+${Object.entries(concept.preferredName).map(([lang, text]) => text ? `${indent}            <langStringPreferredNameTypeIec61360>
+${indent}              <language>${lang}</language>
+${indent}              <text>${text}</text>
+${indent}            </langStringPreferredNameTypeIec61360>` : '').join('\n')}
+${indent}          </preferredName>\n` : ''}
+${concept.shortName ? `${indent}          <shortName>
+${Object.entries(concept.shortName).map(([lang, text]) => text ? `${indent}            <langStringShortNameTypeIec61360>
+${indent}              <language>${lang}</language>
+${indent}              <text>${text}</text>
+${indent}            </langStringShortNameTypeIec61360>` : '').join('\n')}
+${indent}          </shortName>\n` : ''}
+${concept.unit ? `${indent}          <unit>${concept.unit}</unit>\n` : ''}
+${concept.dataType ? `${indent}          <dataType>${concept.dataType}</dataType>\n` : ''}
+${concept.description ? `${indent}          <definition>
+${indent}            <langStringDefinitionTypeIec61360>
+${indent}              <language>en</language>
+${indent}              <text>${concept.description}</text>
+${indent}            </langStringDefinitionTypeIec61360>
+${indent}          </definition>\n` : ''}
+${concept.category ? `${indent}          <value>${concept.category}</value>\n` : ''}
+${prefixedValueType ? `${indent}          <valueType>${prefixedValueType}</valueType>\n` : ''}
+${indent}        </dataSpecificationIec61360>
+${indent}      </dataSpecificationContent>
+${indent}    </embeddedDataSpecification>
+${indent}  </embeddedDataSpecifications>
+${indent}</conceptDescription>`
+  }).join('\n')}
+  </conceptDescriptions>
+</environment>`
 
       // Perform XML schema validation
       console.log("[v0] EDITOR: Starting XML schema validation for generated AAS...")
