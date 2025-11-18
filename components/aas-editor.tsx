@@ -933,6 +933,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 </div>
               </div>
               
+              {/* Reordered elements to match XSD: preferredName, shortName, dataType, definition, unit */}
+              {/* Preferred Name */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Preferred Name (English):
@@ -943,7 +945,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                     ? selectedElement.preferredName 
                     : selectedElement.preferredName?.en || ''}
                   onChange={(e) => {
-                    // Handle potential object update for MultiLanguageProperty
                     const currentPreferredName = selectedElement.preferredName || {};
                     const newValue = typeof currentPreferredName === 'string'
                       ? { en: e.target.value }
@@ -955,6 +956,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 />
               </div>
               
+              {/* Short Name */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Short Name (English):
@@ -965,7 +967,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                     ? selectedElement.shortName 
                     : selectedElement.shortName?.en || ''}
                   onChange={(e) => {
-                     // Handle potential object update for MultiLanguageProperty
                     const currentShortName = selectedElement.shortName || {};
                     const newValue = typeof currentShortName === 'string'
                       ? { en: e.target.value }
@@ -976,7 +977,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                   className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
                 />
               </div>
-              
+
+              {/* Data Type */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Data Type:
@@ -992,7 +994,40 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 />
               </div>
               
-              {selectedElement.valueType !== undefined && ( // Ensure valueType is rendered if it exists
+              {/* Definition/Description (moved here for order) */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Definition/Description:
+                </label>
+                <textarea
+                  value={selectedElement.description || ''}
+                  onChange={(e) => {
+                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'description', e.target.value)
+                  }}
+                  placeholder="Enter property definition/description..."
+                  rows={3}
+                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                />
+              </div>
+
+              {/* Unit */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Unit:
+                </label>
+                <input
+                  type="text"
+                  value={selectedElement.unit || ''}
+                  onChange={(e) => {
+                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'unit', e.target.value)
+                  }}
+                  placeholder="mm, kg, °C, etc."
+                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                />
+              </div>
+              
+              {/* Value Type (for Property) */}
+              {(selectedElement.modelType === "Property" || selectedElement.valueType) && ( 
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                     Value Type:
@@ -1009,21 +1044,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 </div>
               )}
               
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Unit:
-                </label>
-                <input
-                  type="text"
-                  value={selectedElement.unit || ''}
-                  onChange={(e) => {
-                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'unit', e.target.value)
-                  }}
-                  placeholder="mm, kg, °C, etc."
-                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                />
-              </div>
-              
+              {/* Category */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Category:
@@ -1039,6 +1060,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 />
               </div>
               
+              {/* Cardinality */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Cardinality:
@@ -1079,23 +1101,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
               </a>
             )}
           </div>
-
-          <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
-            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-              Definition/Description
-            </h4>
-            <textarea
-              value={selectedElement.description || ''}
-              onChange={(e) => {
-                updateElementMetadata(selectedSubmodel.idShort, elementPath, 'description', e.target.value)
-              }}
-              placeholder="Enter property definition/description..."
-              rows={3}
-              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-            />
-          </div>
           
-          {/* Removed Source of Definition input */}
+          {/* Removed Definition/Description from here as it's now in Property Metadata */}
         </div>
       </div>
     )
@@ -1187,8 +1194,9 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}        </keys>\n`
           xml += `${indent}      </dataSpecification>\n`
           xml += `${indent}      <dataSpecificationContent>\n`
-          xml += `${indent}        <dataSpecificationIec61360>\n` // FIX: Wrap IEC61360 specific metadata
+          xml += `${indent}        <dataSpecificationIec61360>\n` 
           
+          // Reordered elements to match XSD: preferredName, shortName, dataType, definition, unit
           if (element.preferredName) {
             console.log(`[v0] EDITOR XML GEN: Writing preferredName for ${element.idShort}:`, element.preferredName)
             xml += `${indent}          <preferredName>\n`
@@ -1255,7 +1263,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           
           // Removed Source of Definition from XML generation
           
-          xml += `${indent}        </dataSpecificationIec61360>\n` // FIX: Close IEC61360 specific metadata
+          xml += `${indent}        </dataSpecificationIec61360>\n` 
           xml += `${indent}      </dataSpecificationContent>\n`
           xml += `${indent}    </embeddedDataSpecification>\n`
           xml += `${indent}  </embeddedDataSpecifications>\n`
@@ -1295,7 +1303,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             xml += `${indent}  <contentType>application/octet-stream</contentType>\n`
           }
         } else if ((element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") && element.children && element.children.length > 0) {
-          // FIX: Re-add the <value> wrapper for collections/lists
+          // Re-add the <value> wrapper for collections/lists
           xml += `${indent}  <value>\n`
           element.children.forEach(child => {
             xml += generateElementXml(child, indent + "    ") // Indent children directly

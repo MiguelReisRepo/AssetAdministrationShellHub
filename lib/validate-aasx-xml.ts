@@ -90,13 +90,11 @@ export async function validateAASXXml(
   console.log("[v0] Original XML length:", xml.length)
   console.log("[v0] Original XML first 500 chars:", xml.substring(0, 500))
 
-  const normalizedXml = xml.replace(
-    /xmlns="https:\/\/admin-shell\.io\/aas\/3\/0"/,
-    'xmlns="https://admin-shell.io/aas/3/1"',
-  )
+  // REMOVED: Namespace normalization. We will generate 3/0 and validate against 3/0 XSD.
+  const normalizedXml = xml; 
 
   console.log("[v0] Normalized XML length:", normalizedXml.length)
-  console.log("[v0] Namespace replacement applied:", xml !== normalizedXml)
+  // console.log("[v0] Namespace replacement applied:", xml !== normalizedXml) // This log is now irrelevant
 
   // Use the new parser directly to get the AAS data structure
   const aasDataFromParser = parseAASXML(normalizedXml);
@@ -123,7 +121,7 @@ export async function validateAASXXml(
 
 
   const schemaUrl =
-    "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd"
+    "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd" // This XSD is for AAS 3.0
 
   try {
     console.log(`[v0] Fetching AAS schema from: ${schemaUrl}`)
