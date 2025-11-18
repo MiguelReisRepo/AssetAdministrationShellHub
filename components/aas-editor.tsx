@@ -1187,22 +1187,22 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}        </keys>\n`
           xml += `${indent}      </dataSpecification>\n`
           xml += `${indent}      <dataSpecificationContent>\n`
-          // REMOVED: <modelType>DataSpecificationIec61360</modelType>
+          xml += `${indent}        <dataSpecificationIec61360>\n` // FIX: Wrap IEC61360 specific metadata
           
           if (element.preferredName) {
             console.log(`[v0] EDITOR XML GEN: Writing preferredName for ${element.idShort}:`, element.preferredName)
-            xml += `${indent}        <preferredName>\n`
+            xml += `${indent}          <preferredName>\n`
             const prefName = typeof element.preferredName === 'object' ? element.preferredName : { en: element.preferredName }
             Object.entries(prefName).forEach(([lang, text]) => {
               if (text) { 
-                console.log(`[v0] EDITOR XML GEN:   ${element.idShort} preferredName[${lang}] = ${text}`)
-                xml += `${indent}          <langStringTextType>\n`
-                xml += `${indent}            <language>${lang}</language>\n`
-                xml += `${indent}            <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n`
+                console.log(`[v0] EDITOR XML GEN:     ${element.idShort} preferredName[${lang}] = ${text}`)
+                xml += `${indent}            <langStringTextType>\n`
+                xml += `${indent}              <language>${lang}</language>\n`
+                xml += `${indent}              <text>${text}</text>\n`
+                xml += `${indent}            </langStringTextType>\n`
               }
             })
-            xml += `${indent}        </preferredName>\n`
+            xml += `${indent}          </preferredName>\n`
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote preferredName for ${element.idShort}`)
           } else {
             console.log(`[v0] EDITOR XML GEN: ✗ No preferredName for ${element.idShort}`)
@@ -1210,18 +1210,18 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           
           if (element.shortName) {
             console.log(`[v0] EDITOR XML GEN: Writing shortName for ${element.idShort}:`, element.shortName)
-            xml += `${indent}        <shortName>\n`
+            xml += `${indent}          <shortName>\n`
             const shortN = typeof element.shortName === 'object' ? element.shortName : { en: element.shortName }
             Object.entries(shortN).forEach(([lang, text]) => {
               if (text) { 
-                console.log(`[v0] EDITOR XML GEN:   ${element.idShort} shortName[${lang}] = ${text}`)
-                xml += `${indent}          <langStringTextType>\n`
-                xml += `${indent}            <language>${lang}</language>\n`
-                xml += `${indent}            <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n`
+                console.log(`[v0] EDITOR XML GEN:     ${element.idShort} shortName[${lang}] = ${text}`)
+                xml += `${indent}            <langStringTextType>\n`
+                xml += `${indent}              <language>${lang}</language>\n`
+                xml += `${indent}              <text>${text}</text>\n`
+                xml += `${indent}            </langStringTextType>\n`
               }
             })
-            xml += `${indent}        </shortName>\n`
+            xml += `${indent}          </shortName>\n`
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote shortName for ${element.idShort}`)
           } else {
             console.log(`[v0] EDITOR XML GEN: ✗ No shortName for ${element.idShort}`)
@@ -1229,7 +1229,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           
           // Data Type - Use raw dataType for DataSpecificationIec61360 (no xs: prefix here)
           if (element.dataType) {
-            xml += `${indent}        <dataType>${element.dataType}</dataType>\n`
+            xml += `${indent}          <dataType>${element.dataType}</dataType>\n`
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
           }
           
@@ -1237,24 +1237,25 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           if (element.description) {
             const descText = typeof element.description === 'string' ? element.description : String(element.description)
             if (descText && descText.trim() && descText !== '[object Object]') {
-              xml += `${indent}        <definition>\n`
-              xml += `${indent}          <langStringTextType>\n`
-              xml += `${indent}            <language>en</language>\n`
-              xml += `${indent}            <text>${descText}</text>\n`
-              xml += `${indent}          </langStringTextType>\n`
-              xml += `${indent}        </definition>\n`
+              xml += `${indent}          <definition>\n`
+              xml += `${indent}            <langStringTextType>\n`
+              xml += `${indent}              <language>en</language>\n`
+              xml += `${indent}              <text>${descText}</text>\n`
+              xml += `${indent}            </langStringTextType>\n`
+              xml += `${indent}          </definition>\n`
               console.log(`[v0] EDITOR XML GEN: ✓ Wrote definition for ${element.idShort}`)
             }
           }
           
           // Unit
           if (element.unit) {
-            xml += `${indent}        <unit>${element.unit}</unit>\n`
+            xml += `${indent}          <unit>${element.unit}</unit>\n`
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote unit for ${element.idShort}`)
           }
           
           // Removed Source of Definition from XML generation
           
+          xml += `${indent}        </dataSpecificationIec61360>\n` // FIX: Close IEC61360 specific metadata
           xml += `${indent}      </dataSpecificationContent>\n`
           xml += `${indent}    </embeddedDataSpecification>\n`
           xml += `${indent}  </embeddedDataSpecifications>\n`
@@ -1294,10 +1295,12 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             xml += `${indent}  <contentType>application/octet-stream</contentType>\n`
           }
         } else if ((element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") && element.children && element.children.length > 0) {
-          // FIX: Removed the <value> wrapper for collections/lists
+          // FIX: Re-add the <value> wrapper for collections/lists
+          xml += `${indent}  <value>\n`
           element.children.forEach(child => {
-            xml += generateElementXml(child, indent + "  ") // Indent children directly
+            xml += generateElementXml(child, indent + "    ") // Indent children directly
           })
+          xml += `${indent}  </value>\n`
         }
         
         xml += `${indent}</${tagName}>\n`
