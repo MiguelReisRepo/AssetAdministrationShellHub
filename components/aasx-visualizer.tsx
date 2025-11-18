@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" // Import Collapsible components
 
 interface AASXVisualizerProps {
   uploadedFiles: ValidationResult[] // Use ValidationResult type
@@ -17,7 +18,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const [selectedFile, setSelectedFile] = useState<ValidationResult | null>(null) // Use ValidationResult type
   const [selectedSubmodel, setSelectedSubmodel] = useState<any>(null)
   const [selectedElement, setSelectedElement] = useState<any>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
+  const [expandedNodes, setExpandedNodes] = new Set<string>()
   const [hideEmptyElements, setHideEmptyElements] = useState(false)
 
   useEffect(() => {
@@ -290,6 +291,36 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   }
 
   const renderDetails = () => {
+    if (!selectedFile) {
+      return <div className="aasx-no-selection-message">Upload a file to view details</div>
+    }
+
+    // Display validation errors if the file is invalid
+    if (!selectedFile.valid && selectedFile.errors && selectedFile.errors.length > 0) {
+      return (
+        <div className="p-4 space-y-4">
+          <Collapsible className="border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg">
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                <span>Validation Errors ({selectedFile.errors.length})</span>
+              </div>
+              <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-4">
+              <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-200 space-y-2">
+                {selectedFile.errors.map((error, index) => (
+                  <li key={index} className="break-words">
+                    {typeof error === 'string' ? error : error.message}
+                  </li>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      )
+    }
+
     if (!selectedElement) {
       return <div className="aasx-no-selection-message">Select an element to view details</div>
     }
