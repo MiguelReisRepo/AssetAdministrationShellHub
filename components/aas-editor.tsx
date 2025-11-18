@@ -1135,6 +1135,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         console.log(`[v0] EDITOR XML GEN: description:`, element.description)
         // Removed sourceOfDefinition from log
         console.log(`[v0] EDITOR XML GEN: cardinality:`, element.cardinality)
+
+        // Helper to prefix XML schema types
+        const prefixXs = (type: string | undefined) => {
+          if (!type) return undefined;
+          const commonTypes = ['string', 'integer', 'boolean', 'float', 'double', 'date', 'dateTime', 'time', 'anyURI', 'base64Binary', 'hexBinary', 'decimal', 'byte', 'short', 'int', 'long', 'unsignedByte', 'unsignedShort', 'unsignedInt', 'unsignedLong', 'duration', 'gDay', 'gMonth', 'gMonthDay', 'gYear', 'gYearMonth'];
+          return commonTypes.includes(type) && !type.startsWith('xs:') ? `xs:${type}` : type;
+        };
         
         let xml = `${indent}<${tagName}>\n`
         xml += `${indent}  <idShort>${element.idShort}</idShort>\n`
@@ -1170,6 +1177,16 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           console.log(`[v0] EDITOR XML GEN: ${element.idShort} HAS metadata, writing embeddedDataSpecifications`)
           xml += `${indent}  <embeddedDataSpecifications>\n`
           xml += `${indent}    <embeddedDataSpecification>\n`
+          // FIX: Add dataSpecification wrapper
+          xml += `${indent}      <dataSpecification>\n`
+          xml += `${indent}        <type>ExternalReference</type>\n`
+          xml += `${indent}        <keys>\n`
+          xml += `${indent}          <key>\n`
+          xml += `${indent}            <type>GlobalReference</type>\n`
+          xml += `${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>\n`
+          xml += `${indent}          </key>\n`
+          xml += `${indent}        </keys>\n`
+          xml += `${indent}      </dataSpecification>\n`
           xml += `${indent}      <dataSpecificationContent>\n`
           xml += `${indent}        <modelType>DataSpecificationIec61360</modelType>\n`
           
@@ -1183,7 +1200,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}          <langStringTextType>\n`
                 xml += `${indent}            <language>${lang}</language>\n`
                 xml += `${indent}            <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n` // ADDED CLOSING TAG
+                xml += `${indent}          </langStringTextType>\n`
               }
             })
             xml += `${indent}        </preferredName>\n`
@@ -1202,7 +1219,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 xml += `${indent}          <langStringTextType>\n`
                 xml += `${indent}            <language>${lang}</language>\n`
                 xml += `${indent}            <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n` // ADDED CLOSING TAG
+                xml += `${indent}          </langStringTextType>\n`
               }
             })
             xml += `${indent}        </shortName>\n`
@@ -1211,10 +1228,11 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             console.log(`[v0] EDITOR XML GEN: ✗ No shortName for ${element.idShort}`)
           }
           
-          // Data Type
-          if (element.dataType) {
-            xml += `${indent}        <dataType>${element.dataType}</dataType>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}`)
+          // Data Type - FIX: Prefix with xs:
+          const prefixedDataType = prefixXs(element.dataType);
+          if (prefixedDataType) {
+            xml += `${indent}        <dataType>${prefixedDataType}</dataType>\n`
+            console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${prefixedDataType}`)
           }
           
           // Definition
@@ -1240,7 +1258,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           // Removed Source of Definition from XML generation
           
           xml += `${indent}      </dataSpecificationContent>\n`
-          xml += `${indent}    </embeddedDataSpecification>\n`
+          // FIX: Close dataSpecification wrapper
+          xml += `${indent}    </dataSpecification>\n`
           xml += `${indent}  </embeddedDataSpecifications>\n`
         } else {
           console.log(`[v0] EDITOR XML GEN: ${element.idShort} has NO metadata to write`)
@@ -1252,19 +1271,22 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         }
         
         if (element.modelType === "Property") {
-          xml += `${indent}  <valueType>${element.valueType || 'xs:string'}</valueType>\n`
+          // FIX: Prefix valueType with xs:
+          const prefixedValueType = prefixXs(element.valueType || 'string'); // Default to 'string' if not set
+          xml += `${indent}  <valueType>${prefixedValueType}</valueType>\n`
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
           }
         } else if (element.modelType === "MultiLanguageProperty") {
-          if (typeof element.value === 'object' && element.value !== null) {
+          const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
+          if (hasLangValues) { // FIX: Only generate <value> if there are actual language entries
             xml += `${indent}  <value>\n`
-            Object.entries(element.value).forEach(([lang, text]) => {
-              if (text) { // Only include if text is not empty
+            Object.entries(element.value!).forEach(([lang, text]) => {
+              if (text && String(text).trim() !== '') { // Only include if text is not empty
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
-                xml += `${indent}          </langStringTextType>\n` // ADDED CLOSING TAG
+                xml += `${indent}    </langStringTextType>\n`
               }
             })
             xml += `${indent}  </value>\n`
