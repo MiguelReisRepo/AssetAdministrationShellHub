@@ -1146,17 +1146,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                         element.modelType === "SubmodelElementList" ? "submodelElementList" :
                         element.modelType === "File" ? "file" : "property"
         
-        console.log(`[v0] EDITOR XML GEN: =====  ${element.idShort} =====`)
-        console.log(`[v0] EDITOR XML GEN: preferredName:`, element.preferredName)
-        console.log(`[v0] EDITOR XML GEN: preferredName type:`, typeof element.preferredName)
-        console.log(`[v0] EDITOR XML GEN: shortName:`, element.shortName)
-        console.log(`[v0] EDITOR XML GEN: shortName type:`, typeof element.shortName)
-        console.log(`[v0] EDITOR XML GEN: dataType:`, element.dataType)
-        console.log(`[v0] EDITOR XML GEN: unit:`, element.unit)
-        console.log(`[v0] EDITOR XML GEN: category:`, element.category)
-        console.log(`[v0] EDITOR XML GEN: description:`, element.description)
-        // Removed sourceOfDefinition from log
-        console.log(`[v0] EDITOR XML GEN: cardinality:`, element.cardinality)
+        console.log(`[v0] XML_GEN_DEBUG: Processing element: ${element.idShort}, modelType: ${element.modelType}, tagName: ${tagName}`);
 
         // Helper to prefix XML schema types for valueType
         const prefixXs = (type: string | undefined) => {
@@ -1189,14 +1179,14 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}      <value>${element.cardinality}</value>\n`
           xml += `${indent}    </qualifier>\n`
           xml += `${indent}  </qualifiers>\n`
-          console.log(`[v0] EDITOR XML GEN: ✓ Wrote cardinality for ${element.idShort}`)
+          console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote cardinality for ${element.idShort}`)
         }
         
         const hasMetadata = element.preferredName || element.shortName || element.dataType || 
                            element.unit || element.category || element.description 
         
         if (hasMetadata) {
-          console.log(`[v0] EDITOR XML GEN: ${element.idShort} HAS metadata, writing embeddedDataSpecifications`)
+          console.log(`[v0] XML_GEN_DEBUG: ${element.idShort} HAS metadata, writing embeddedDataSpecifications`)
           xml += `${indent}  <embeddedDataSpecifications>\n`
           xml += `${indent}    <embeddedDataSpecification>\n`
           xml += `${indent}      <dataSpecification>\n`
@@ -1211,55 +1201,55 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}      <dataSpecificationContent>\n`
           xml += `${indent}        <dataSpecificationIec61360>\n` 
           
-          // CORRECTED ORDER: preferredName, shortName, unit, dataType, definition
+          // CORRECTED ORDER and element names: preferredName, shortName, unit, dataType, definition
           if (element.preferredName) {
-            console.log(`[v0] EDITOR XML GEN: Writing preferredName for ${element.idShort}:`, element.preferredName)
+            console.log(`[v0] XML_GEN_DEBUG: Writing preferredName for ${element.idShort}:`, element.preferredName)
             xml += `${indent}          <preferredName>\n`
             const prefName = typeof element.preferredName === 'object' ? element.preferredName : { en: element.preferredName }
             Object.entries(prefName).forEach(([lang, text]) => {
               if (text) { 
-                console.log(`[v0] EDITOR XML GEN:     ${element.idShort} preferredName[${lang}] = ${text}`)
-                xml += `${indent}            <langStringTextType>\n`
+                console.log(`[v0] XML_GEN_DEBUG:     ${element.idShort} preferredName[${lang}] = ${text}`)
+                xml += `${indent}            <langStringPreferredNameTypeIec61360>\n` // Corrected element name
                 xml += `${indent}              <language>${lang}</language>\n`
                 xml += `${indent}              <text>${text}</text>\n`
-                xml += `${indent}            </langStringTextType>\n`
+                xml += `${indent}            </langStringPreferredNameTypeIec61360>\n` // Corrected element name
               }
             })
             xml += `${indent}          </preferredName>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote preferredName for ${element.idShort}`)
+            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote preferredName for ${element.idShort}`)
           } else {
-            console.log(`[v0] EDITOR XML GEN: ✗ No preferredName for ${element.idShort}`)
+            console.log(`[v0] XML_GEN_DEBUG: ✗ No preferredName for ${element.idShort}`)
           }
           
           if (element.shortName) {
-            console.log(`[v0] EDITOR XML GEN: Writing shortName for ${element.idShort}:`, element.shortName)
+            console.log(`[v0] XML_GEN_DEBUG: Writing shortName for ${element.idShort}:`, element.shortName)
             xml += `${indent}          <shortName>\n`
             const shortN = typeof element.shortName === 'object' ? element.shortName : { en: element.shortName }
             Object.entries(shortN).forEach(([lang, text]) => {
               if (text) { 
-                console.log(`[v0] EDITOR XML GEN:     ${element.idShort} shortName[${lang}] = ${text}`)
-                xml += `${indent}            <langStringTextType>\n`
+                console.log(`[v0] XML_GEN_DEBUG:     ${element.idShort} shortName[${lang}] = ${text}`)
+                xml += `${indent}            <langStringPreferredNameTypeIec61360>\n` // Using PreferredNameType for shortName as well, common practice
                 xml += `${indent}              <language>${lang}</language>\n`
                 xml += `${indent}              <text>${text}</text>\n`
-                xml += `${indent}            </langStringTextType>\n`
+                xml += `${indent}            </langStringPreferredNameTypeIec61360>\n` // Corrected element name
               }
             })
             xml += `${indent}          </shortName>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote shortName for ${element.idShort}`)
+            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote shortName for ${element.idShort}`)
           } else {
-            console.log(`[v0] EDITOR XML GEN: ✗ No shortName for ${element.idShort}`)
+            console.log(`[v0] XML_GEN_DEBUG: ✗ No shortName for ${element.idShort}`)
           }
 
           // Unit (moved up)
           if (element.unit) {
             xml += `${indent}          <unit>${element.unit}</unit>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote unit for ${element.idShort}`)
+            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote unit for ${element.idShort}`)
           }
           
           // Data Type (moved up)
           if (element.dataType) {
             xml += `${indent}          <dataType>${element.dataType}</dataType>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
+            console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
           }
           
           // Definition (moved down)
@@ -1267,23 +1257,21 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             const descText = typeof element.description === 'string' ? element.description : String(element.description)
             if (descText && descText.trim() && descText !== '[object Object]') {
               xml += `${indent}          <definition>\n`
-              xml += `${indent}            <langStringTextType>\n`
+              xml += `${indent}            <langStringDefinitionTypeIec61360>\n` // Corrected element name
               xml += `${indent}              <language>en</language>\n`
               xml += `${indent}              <text>${descText}</text>\n`
-              xml += `${indent}            </langStringTextType>\n`
+              xml += `${indent}            </langStringDefinitionTypeIec61360>\n` // Corrected element name
               xml += `${indent}          </definition>\n`
-              console.log(`[v0] EDITOR XML GEN: ✓ Wrote definition for ${element.idShort}`)
+              console.log(`[v0] XML_GEN_DEBUG: ✓ Wrote definition for ${element.idShort}`)
             }
           }
-          
-          // Removed Source of Definition from XML generation
           
           xml += `${indent}        </dataSpecificationIec61360>\n` 
           xml += `${indent}      </dataSpecificationContent>\n`
           xml += `${indent}    </embeddedDataSpecification>\n`
           xml += `${indent}  </embeddedDataSpecifications>\n`
         } else {
-          console.log(`[v0] EDITOR XML GEN: ${element.idShort} has NO metadata to write`)
+          console.log(`[v0] XML_GEN_DEBUG: ${element.idShort} has NO metadata to write`)
         }
         
         // Category
@@ -1291,19 +1279,20 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}  <category>${element.category}</category>\n`
         }
         
+        // Value generation logic - ensure no <value> for collections/lists
         if (element.modelType === "Property") {
-          // Prefix valueType with xs:
-          const prefixedValueType = prefixXs(element.valueType || 'string'); // Default to 'string' if not set
+          const prefixedValueType = prefixXs(element.valueType || 'string');
           xml += `${indent}  <valueType>${prefixedValueType}</valueType>\n`
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for Property ${element.idShort}`);
           }
         } else if (element.modelType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
-          if (hasLangValues) { // Only generate <value> if there are actual language entries
+          if (hasLangValues) {
             xml += `${indent}  <value>\n`
             Object.entries(element.value!).forEach(([lang, text]) => {
-              if (text && String(text).trim() !== '') { // Only include if text is not empty
+              if (text && String(text).trim() !== '') {
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
@@ -1311,17 +1300,24 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
               }
             })
             xml += `${indent}  </value>\n`
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for MLP ${element.idShort}`);
           }
         } else if (element.modelType === "File") {
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
             xml += `${indent}  <contentType>application/octet-stream</contentType>\n`
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for File ${element.idShort}`);
           }
-        } else if ((element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") && element.children && element.children.length > 0) {
-          // REMOVED <value> wrapper for collections/lists
-          element.children.forEach(child => {
-            xml += generateElementXml(child, indent + "  ") // Indent children directly under the collection/list tag
-          })
+        } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
+          // This block handles children directly, NO <value> tag is generated here.
+          console.log(`[v0] XML_GEN_DEBUG:   Processing children for Collection/List ${element.idShort}`);
+          if (element.children && element.children.length > 0) {
+            element.children.forEach(child => {
+              xml += generateElementXml(child, indent + "  ")
+            })
+          }
+        } else {
+          console.log(`[v0] XML_GEN_DEBUG:   No value/children logic for modelType: ${element.modelType} for ${element.idShort}`);
         }
         
         xml += `${indent}</${tagName}>\n`
@@ -1346,7 +1342,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       }
 
       const aasXml = `<?xml version="1.0" encoding="UTF-8"?>
-<environment xmlns="https://admin-shell.io/aas/3/0">
+<environment xmlns="https://admin-shell.io/aas/3/1"> <!-- Updated namespace to 3/1 -->
   <assetAdministrationShells>
     <assetAdministrationShell>
       <idShort>${aasConfig.idShort}</idShort>
@@ -1389,7 +1385,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
     </submodel>`
       }).join('\n')}
   </submodels>
-</environment>` // REMOVED <conceptDescriptions/>
+</environment>` // Removed <conceptDescriptions/> block entirely
 
       // Perform XML schema validation
       console.log("[v0] EDITOR: Starting XML schema validation for generated AAS...")
