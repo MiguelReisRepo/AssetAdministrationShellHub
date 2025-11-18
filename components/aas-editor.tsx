@@ -1348,7 +1348,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
       }
 
       const aasXml = `<?xml version="1.0" encoding="UTF-8"?>
-<environment xmlns="https://admin-shell.io/aas/3/0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="https://admin-shell.io/aas/3/0 AAS.xsd">
+<environment xmlns="https://admin-shell.io/aas/3/0">
   <assetAdministrationShells>
     <assetAdministrationShell>
       <idShort>${aasConfig.idShort}</idShort>
