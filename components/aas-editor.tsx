@@ -1148,6 +1148,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       
       if (!internalValidation.valid) {
         alert(`Please fill in all required fields before downloading:\n\n${internalValidation.missingFields.join('\n')}`)
+        console.table(internalValidation.missingFields); // Log internal validation errors
         setIsGenerating(false)
         return
       }
@@ -1376,6 +1377,7 @@ ${indent}</conceptDescription>`
 
       if (!xmlValidationResult.valid) {
         alert(`Generated AAS XML is invalid:\n\n${xmlValidationResult.errors.join('\n')}`)
+        console.table(xmlValidationResult.errors); // Log external validation errors
         setIsGenerating(false)
         return
       }

@@ -37,17 +37,20 @@ export async function validateXml(
 
     if (result.errors && result.errors.length > 0) {
       const normalizedErrors = result.errors.map((e: any) => (typeof e === "string" ? e : (e.message ?? String(e))))
-      console.log("[v0] Validation errors found:", normalizedErrors)
+      console.log("[v0] Validation errors found:")
+      console.table(normalizedErrors) // Use console.table here
       return { valid: false, errors: normalizedErrors }
     }
 
     if (result.stderr && result.stderr.length > 0) {
-      console.log("[v0] Validation stderr:", result.stderr)
+      console.log("[v0] Validation stderr:")
+      console.table(Array.isArray(result.stderr) ? result.stderr : [result.stderr]) // Use console.table here
       return { valid: false, errors: Array.isArray(result.stderr) ? result.stderr : [result.stderr] }
     }
 
     if (result.stdout && result.stdout.includes("error")) {
-      console.log("[v0] Validation stdout contains errors:", result.stdout)
+      console.log("[v0] Validation stdout contains errors:")
+      console.table([result.stdout]) // Use console.table here
       return { valid: false, errors: [result.stdout] }
     }
 
@@ -107,6 +110,7 @@ export async function validateAASXXml(
     parsedByFastXml = parser.parse(normalizedXml)
   } catch (err: any) {
     console.error("[v0] XML Parsing Error (fast-xml-parser):", err.message)
+    console.table([`XML parsing failed: ${err.message}`]) // Use console.table here
     return { valid: false, errors: [`XML parsing failed: ${err.message}`], aasData: aasDataFromParser }
   }
 
@@ -138,6 +142,7 @@ export async function validateAASXXml(
 
   if (schemaFetchError) {
     console.log("[v0] Schema fetch failed, proceeding with internal parser result (VALID) due to external dependency issue.");
+    console.table([schemaFetchError]); // Use console.table here
     console.log("[v0] ===== XML VALIDATION END (PASSED - SCHEMA FETCH FAILED) =====");
     return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
   }
@@ -160,6 +165,7 @@ export async function validateAASXXml(
 
     if (isServiceError) {
       console.log("[v0] External validation service unavailable, proceeding with internal parser result (VALID)");
+      console.table(validationResult.errors); // Use console.table here
       console.log("[v0] ===== XML VALIDATION END (PASSED - SERVICE FALLBACK) =====");
       return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
     }
@@ -170,11 +176,13 @@ export async function validateAASXXml(
       return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
     } else {
       console.log("[v0] XML validation FAILED with XSD schema errors:", validationResult.errors);
+      console.table(validationResult.errors); // Use console.table here
       console.log("[v0] ===== XML VALIDATION END (FAILED) =====");
       return { valid: false, errors: validationResult.errors, parsed: parsedByFastXml, aasData: aasDataFromParser };
     }
   } catch (err: any) {
     console.log("[v0] Schema validation error (external service issue):", err.message);
+    console.table([`Schema validation error (external service issue): ${err.message}`]); // Use console.table here
     console.log("[v0] Falling back to internal parser result (VALID)");
     console.log("[v0] ===== XML VALIDATION END (PASSED - FALLBACK) =====");
     return { valid: true, parsed: parsedByFastXml, aasData: aasDataFromParser };
