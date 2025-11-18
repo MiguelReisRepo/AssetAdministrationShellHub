@@ -74,7 +74,7 @@ export async function validateXml(
 }
 
 // Corrected URL to point to AAS 3.1 schemas using jsdelivr CDN
-const AAS_XSD_BASE_URL = "https://cdn.jsdelivr.net/gh/admin-shell-io/aas-specs-metamodel@v3.1/schemas/xml/"
+const AAS_XSD_BASE_URL = "https://cdn.jsdelivr.net/gh/admin-shell-io/aas-specs-metamodel@main/schemas/AAS.3.1/"
 
 export async function validateAASXXml(
   xml: string,
