@@ -76,8 +76,8 @@ export async function validateXml(
   }
 }
 
-// Corrected URL to point to AAS 3.1 schemas using raw.githubusercontent.com
-const AAS_XSD_BASE_URL = "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/main/schemas/AAS.3.1/"
+// Corrected URL to point to AAS 3.1 schemas using the exact path provided by the user
+const AAS_XSD_BASE_URL = "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/"
 
 export async function validateAASXXml(
   xml: string,
