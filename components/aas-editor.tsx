@@ -933,7 +933,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 </div>
               </div>
               
-              {/* Reordered elements to match XSD: preferredName, shortName, dataType, definition, unit */}
+              {/* Reordered elements to match XSD: preferredName, shortName, unit, dataType, definition */}
               {/* Preferred Name */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -978,6 +978,22 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                 />
               </div>
 
+              {/* Unit */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  Unit:
+                </label>
+                <input
+                  type="text"
+                  value={selectedElement.unit || ''}
+                  onChange={(e) => {
+                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'unit', e.target.value)
+                  }}
+                  placeholder="mm, kg, °C, etc."
+                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                />
+              </div>
+
               {/* Data Type */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
@@ -1006,22 +1022,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
                   }}
                   placeholder="Enter property definition/description..."
                   rows={3}
-                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                />
-              </div>
-
-              {/* Unit */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Unit:
-                </label>
-                <input
-                  type="text"
-                  value={selectedElement.unit || ''}
-                  onChange={(e) => {
-                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'unit', e.target.value)
-                  }}
-                  placeholder="mm, kg, °C, etc."
                   className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
                 />
               </div>
@@ -1211,7 +1211,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}      <dataSpecificationContent>\n`
           xml += `${indent}        <dataSpecificationIec61360>\n` 
           
-          // Reordered elements to match XSD: preferredName, shortName, dataType, definition, unit
+          // CORRECTED ORDER: preferredName, shortName, unit, dataType, definition
           if (element.preferredName) {
             console.log(`[v0] EDITOR XML GEN: Writing preferredName for ${element.idShort}:`, element.preferredName)
             xml += `${indent}          <preferredName>\n`
@@ -1249,14 +1249,20 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           } else {
             console.log(`[v0] EDITOR XML GEN: ✗ No shortName for ${element.idShort}`)
           }
+
+          // Unit (moved up)
+          if (element.unit) {
+            xml += `${indent}          <unit>${element.unit}</unit>\n`
+            console.log(`[v0] EDITOR XML GEN: ✓ Wrote unit for ${element.idShort}`)
+          }
           
-          // Data Type - Use raw dataType for DataSpecificationIec61360 (no xs: prefix here)
+          // Data Type (moved up)
           if (element.dataType) {
             xml += `${indent}          <dataType>${element.dataType}</dataType>\n`
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
           }
           
-          // Definition
+          // Definition (moved down)
           if (element.description) {
             const descText = typeof element.description === 'string' ? element.description : String(element.description)
             if (descText && descText.trim() && descText !== '[object Object]') {
@@ -1268,12 +1274,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
               xml += `${indent}          </definition>\n`
               console.log(`[v0] EDITOR XML GEN: ✓ Wrote definition for ${element.idShort}`)
             }
-          }
-          
-          // Unit
-          if (element.unit) {
-            xml += `${indent}          <unit>${element.unit}</unit>\n`
-            console.log(`[v0] EDITOR XML GEN: ✓ Wrote unit for ${element.idShort}`)
           }
           
           // Removed Source of Definition from XML generation
@@ -1318,12 +1318,10 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             xml += `${indent}  <contentType>application/octet-stream</contentType>\n`
           }
         } else if ((element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") && element.children && element.children.length > 0) {
-          // Re-add the <value> wrapper for collections/lists
-          xml += `${indent}  <value>\n`
+          // REMOVED <value> wrapper for collections/lists
           element.children.forEach(child => {
-            xml += generateElementXml(child, indent + "    ") // Indent children directly
+            xml += generateElementXml(child, indent + "  ") // Indent children directly under the collection/list tag
           })
-          xml += `${indent}  </value>\n`
         }
         
         xml += `${indent}</${tagName}>\n`
@@ -1391,8 +1389,7 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
     </submodel>`
       }).join('\n')}
   </submodels>
-  <conceptDescriptions/>
-</environment>`
+</environment>` // REMOVED <conceptDescriptions/>
 
       // Perform XML schema validation
       console.log("[v0] EDITOR: Starting XML schema validation for generated AAS...")
