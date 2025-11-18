@@ -22,7 +22,7 @@ export default function VisualizerPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("upload")
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [newFileIndex, setNewFileIndex] = useState<number | null>(null)
-  const [aasConfig, setAasConfig] = useState<any>(null)
+  const [currentAASConfig, setCurrentAASConfig] = useState<any>(null) // Renamed from aasConfig
 
   const handleDataUploaded = (fileData: UploadedFile) => {
     console.log("[v0] Page received file data:", fileData)
@@ -36,7 +36,7 @@ export default function VisualizerPage() {
 
   const handleProceedToEditor = (config: any) => {
     // Now receiving assetKind and globalAssetId from AASCreator
-    setAasConfig(config)
+    setCurrentAASConfig(config) // Update the new state variable
     setViewMode("editor")
   }
 
@@ -64,6 +64,11 @@ export default function VisualizerPage() {
     
     // Automatically switch to visualizer to show the new file
     setViewMode("visualizer")
+  }
+
+  // Callback to update AASConfig from AASEditor
+  const updateAASConfig = (newConfig: any) => {
+    setCurrentAASConfig(newConfig)
   }
 
   return (
@@ -110,17 +115,17 @@ export default function VisualizerPage() {
             Visualizer {uploadedFiles.length > 0 && `(${uploadedFiles.length})`}
           </button>
           <button
-            onClick={() => aasConfig && setViewMode("editor")}
-            disabled={!aasConfig}
+            onClick={() => currentAASConfig && setViewMode("editor")}
+            disabled={!currentAASConfig}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${
               viewMode === "editor"
                 ? "bg-yellow-600 text-white shadow-md"
-                : aasConfig
+                : currentAASConfig
                   ? "bg-white/70 text-yellow-600 hover:bg-white dark:bg-gray-700 dark:text-yellow-400"
                   : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800"
             }`}
           >
-            Editor {aasConfig && `(${Object.keys(aasConfig).length})`}
+            Editor {currentAASConfig && `(${Object.keys(currentAASConfig).length})`}
           </button>
         </div>
       </div>
@@ -129,11 +134,12 @@ export default function VisualizerPage() {
       <div className="h-[calc(100vh-73px)]">
         {viewMode === "upload" && <DataUploader onDataUploaded={handleDataUploaded} />}
         {viewMode === "creator" && <AASCreator onProceedToEditor={handleProceedToEditor} />}
-        {viewMode === "editor" && aasConfig && (
+        {viewMode === "editor" && currentAASConfig && (
           <AASEditor 
-            aasConfig={aasConfig} 
+            aasConfig={currentAASConfig} 
             onBack={() => setViewMode("creator")} 
             onFileGenerated={handleFileGenerated}
+            onUpdateAASConfig={updateAASConfig} // Pass the update callback
           />
         )}
         {viewMode === "visualizer" && uploadedFiles.length > 0 && (

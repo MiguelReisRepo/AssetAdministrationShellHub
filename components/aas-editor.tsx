@@ -46,9 +46,10 @@ interface AASEditorProps {
   aasConfig: AASConfig
   onBack: () => void
   onFileGenerated?: (file: { name: string; content: any; fileType: "aasx" | "xml"; isValid: boolean }) => void
+  onUpdateAASConfig: (newConfig: AASConfig) => void // New prop for updating AASConfig
 }
 
-export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps) {
+export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig }: AASEditorProps) {
   const [submodelData, setSubmodelData] = useState<Record<string, SubmodelElement[]>>(() => {
     const initial: Record<string, SubmodelElement[]> = {}
     aasConfig.selectedSubmodels.forEach((sm) => {
@@ -1308,7 +1309,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         } else if (element.modelType === "File") {
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
-            xml += `${indent}  <contentType>application/octet-stream</contentType>\n`
+            xml += `${indent}  <contentType>${element.fileData?.mimeType || 'application/octet-stream'}</contentType>\n` // Use actual mimeType
             console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for File ${element.idShort}`);
           }
         } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
@@ -1571,15 +1572,11 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
     const fetchedStructure = await fetchTemplateDetails(template.name)
     const structure = fetchedStructure || generateTemplateStructure(template.name)
     
-    // Ensure selectedSubmodels is treated as mutable within this scope for push
+    // Create a new AASConfig object with the updated selectedSubmodels array
     const updatedSelectedSubmodels = [...aasConfig.selectedSubmodels, newSubmodel];
+    const newAASConfig = { ...aasConfig, selectedSubmodels: updatedSelectedSubmodels };
     
-    // We need to update the top-level state if aasConfig is passed as prop
-    // For simplicity here, assuming we can modify it or it's managed within component state
-    // If it's a prop, a new object should be created for aasConfig with the updated selectedSubmodels
-    // For now, we'll simulate it. In a real scenario, this might involve onUpdate prop.
-    aasConfig.selectedSubmodels.push(newSubmodel); // This modifies the prop directly, which might not be ideal.
-                                                 // Consider passing a callback to update parent state if aasConfig is immutable.
+    onUpdateAASConfig(newAASConfig); // Call the callback to update parent state
 
     setSubmodelData(prev => ({
       ...prev,
@@ -1592,13 +1589,11 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
   const removeSubmodel = (idShort: string) => {
     const index = aasConfig.selectedSubmodels.findIndex(sm => sm.idShort === idShort)
     if (index !== -1) {
-      // Create a new array without the removed submodel to ensure immutability if passed as prop
+      // Create a new AASConfig object without the removed submodel
       const updatedSelectedSubmodels = aasConfig.selectedSubmodels.filter(sm => sm.idShort !== idShort);
+      const newAASConfig = { ...aasConfig, selectedSubmodels: updatedSelectedSubmodels };
       
-      // If aasConfig is a prop, you'd typically call a callback to update the parent state
-      // For this example, we'll directly modify the prop's array for demonstration, 
-      // but this is generally not recommended for props.
-      aasConfig.selectedSubmodels.splice(index, 1); 
+      onUpdateAASConfig(newAASConfig); // Call the callback to update parent state
 
       const newData = { ...submodelData }
       delete newData[idShort]
