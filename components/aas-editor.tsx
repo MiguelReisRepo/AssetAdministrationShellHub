@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical } from 'lucide-react'
 import JSZip from 'jszip'
+import { validateAASXXml } from "@/lib/validate-aasx-xml" // Import the XML validation function
 
 interface SubmodelTemplate {
   name: string
@@ -1105,14 +1106,15 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
     
     try {
       // Validate before generating
-      const validation = validateAAS()
+      const internalValidation = validateAAS()
       
-      if (!validation.valid) {
-        alert(`Please fill in all required fields before downloading:\n\n${validation.missingFields.join('\n')}`)
+      if (!internalValidation.valid) {
+        alert(`Please fill in all required fields before downloading:\n\n${internalValidation.missingFields.join('\n')}`)
+        setIsGenerating(false)
         return
       }
 
-      // Clear validation errors after successful validation
+      // Clear internal validation errors after successful validation
       setValidationErrors(new Set())
 
       const generateElementXml = (element: SubmodelElement, indent: string): string => {
@@ -1346,6 +1348,17 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
       }).join('\n')}
   </submodels>
 </environment>`
+
+      // Perform XML schema validation
+      console.log("[v0] EDITOR: Starting XML schema validation for generated AAS...")
+      const xmlValidationResult = await validateAASXXml(aasXml)
+
+      if (!xmlValidationResult.valid) {
+        alert(`Generated AAS XML is invalid:\n\n${xmlValidationResult.errors.join('\n')}`)
+        setIsGenerating(false)
+        return
+      }
+      console.log("[v0] EDITOR: XML schema validation PASSED.")
 
       // Create AASX file (ZIP format)
       try {
