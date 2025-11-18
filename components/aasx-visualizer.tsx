@@ -18,7 +18,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const [selectedFile, setSelectedFile] = useState<ValidationResult | null>(null) // Use ValidationResult type
   const [selectedSubmodel, setSelectedSubmodel] = useState<any>(null)
   const [selectedElement, setSelectedElement] = useState<any>(null)
-  const [expandedNodes, setExpandedNodes] = new Set<string>()
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // Corrected initialization
   const [hideEmptyElements, setHideEmptyElements] = useState(false)
 
   useEffect(() => {
