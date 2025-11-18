@@ -1136,7 +1136,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         // Removed sourceOfDefinition from log
         console.log(`[v0] EDITOR XML GEN: cardinality:`, element.cardinality)
 
-        // Helper to prefix XML schema types
+        // Helper to prefix XML schema types for valueType
         const prefixXs = (type: string | undefined) => {
           if (!type) return undefined;
           const commonTypes = ['string', 'integer', 'boolean', 'float', 'double', 'date', 'dateTime', 'time', 'anyURI', 'base64Binary', 'hexBinary', 'decimal', 'byte', 'short', 'int', 'long', 'unsignedByte', 'unsignedShort', 'unsignedInt', 'unsignedLong', 'duration', 'gDay', 'gMonth', 'gMonthDay', 'gYear', 'gYearMonth'];
@@ -1177,7 +1177,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           console.log(`[v0] EDITOR XML GEN: ${element.idShort} HAS metadata, writing embeddedDataSpecifications`)
           xml += `${indent}  <embeddedDataSpecifications>\n`
           xml += `${indent}    <embeddedDataSpecification>\n`
-          // FIX: Add dataSpecification wrapper
           xml += `${indent}      <dataSpecification>\n`
           xml += `${indent}        <type>ExternalReference</type>\n`
           xml += `${indent}        <keys>\n`
@@ -1188,7 +1187,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           xml += `${indent}        </keys>\n`
           xml += `${indent}      </dataSpecification>\n`
           xml += `${indent}      <dataSpecificationContent>\n`
-          xml += `${indent}        <modelType>DataSpecificationIec61360</modelType>\n`
+          // REMOVED: <modelType>DataSpecificationIec61360</modelType>
           
           if (element.preferredName) {
             console.log(`[v0] EDITOR XML GEN: Writing preferredName for ${element.idShort}:`, element.preferredName)
@@ -1228,7 +1227,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             console.log(`[v0] EDITOR XML GEN: ✗ No shortName for ${element.idShort}`)
           }
           
-          // Data Type - Use raw dataType for DataSpecificationIec61360
+          // Data Type - Use raw dataType for DataSpecificationIec61360 (no xs: prefix here)
           if (element.dataType) {
             xml += `${indent}        <dataType>${element.dataType}</dataType>\n`
             console.log(`[v0] EDITOR XML GEN: ✓ Wrote dataType for ${element.idShort}: ${element.dataType}`)
@@ -1257,7 +1256,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
           // Removed Source of Definition from XML generation
           
           xml += `${indent}      </dataSpecificationContent>\n`
-          // FIX: Close embeddedDataSpecification wrapper
           xml += `${indent}    </embeddedDataSpecification>\n`
           xml += `${indent}  </embeddedDataSpecifications>\n`
         } else {
@@ -1270,7 +1268,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
         }
         
         if (element.modelType === "Property") {
-          // FIX: Prefix valueType with xs:
+          // Prefix valueType with xs:
           const prefixedValueType = prefixXs(element.valueType || 'string'); // Default to 'string' if not set
           xml += `${indent}  <valueType>${prefixedValueType}</valueType>\n`
           if (typeof element.value === 'string' && element.value) {
@@ -1296,11 +1294,10 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated }: AASEditorProps
             xml += `${indent}  <contentType>application/octet-stream</contentType>\n`
           }
         } else if ((element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") && element.children && element.children.length > 0) {
-          xml += `${indent}  <value>\n`
+          // FIX: Removed the <value> wrapper for collections/lists
           element.children.forEach(child => {
-            xml += generateElementXml(child, indent + "    ")
+            xml += generateElementXml(child, indent + "  ") // Indent children directly
           })
-          xml += `${indent}  </value>\n`
         }
         
         xml += `${indent}</${tagName}>\n`
