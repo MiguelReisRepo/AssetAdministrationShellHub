@@ -73,8 +73,8 @@ export async function validateXml(
   }
 }
 
-// Corrected URL to point to AAS 3.1 schemas with 'v3.1' branch name
-const AAS_XSD_BASE_URL = "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/v3.1/schemas/xml/"
+// Corrected URL to point to AAS 3.1 schemas using jsdelivr CDN
+const AAS_XSD_BASE_URL = "https://cdn.jsdelivr.net/gh/admin-shell-io/aas-specs-metamodel@v3.1/schemas/xml/"
 
 export async function validateAASXXml(
   xml: string,
