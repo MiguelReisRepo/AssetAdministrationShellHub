@@ -135,9 +135,9 @@
 /* === PANELS === */
 .aasx-left-panel {
   flex: 0 0 auto;
-  width: 230px;
-  min-width: 180px;
-  max-width: 280px;
+  width: 300px; /* Increased width */
+  min-width: 250px; /* Increased min-width */
+  max-width: 350px; /* Increased max-width */
   padding: 10px 20px 0px 20px;
   overflow-y: auto;
   position: relative;
@@ -169,9 +169,9 @@
 
 .aasx-right-panel {
   flex: 0 0 auto;
-  width: 400px;
-  min-width: 320px;
-  max-width: 528px;
+  width: 350px; /* Slightly reduced default width */
+  min-width: 280px; /* Adjusted min-width */
+  max-width: 450px; /* Adjusted max-width */
   border-radius: 20px;
   background-color: #f7f7f7;
   overflow-y: auto;
@@ -652,24 +652,24 @@
 /* === RESPONSIVE === */
 @media (max-width: 1600px) {
   .aasx-left-panel {
-    width: 200px;
-    min-width: 160px;
+    width: 250px; /* Adjusted width */
+    min-width: 200px; /* Adjusted min-width */
   }
   .aasx-right-panel {
-    width: 380px;
-    min-width: 300px;
+    width: 350px; /* Adjusted width */
+    min-width: 280px; /* Adjusted min-width */
   }
 }
 
 @media (max-width: 1400px) {
   .aasx-left-panel {
-    width: 180px;
-    min-width: 150px;
+    width: 220px; /* Adjusted width */
+    min-width: 180px; /* Adjusted min-width */
     padding: 10px 15px 0px 15px;
   }
   .aasx-right-panel {
-    width: 350px;
-    min-width: 280px;
+    width: 320px; /* Adjusted width */
+    min-width: 250px; /* Adjusted min-width */
     padding: 15px;
   }
   .aasx-submodel-card {
