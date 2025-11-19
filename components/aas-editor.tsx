@@ -56,6 +56,58 @@ function normalizeValueType(t?: string): string | undefined {
   return canonical || undefined;
 }
 
+// SHARED HELPERS: make these available to both generateFinalAAS and validateAAS
+function deriveValueTypeFromIEC(iec?: string): string | undefined {
+  switch ((iec || '').toUpperCase()) {
+    case 'DATE': return 'xs:date';
+    case 'STRING': return 'xs:string';
+    case 'STRING_TRANSLATABLE': return 'xs:string';
+    case 'INTEGER_MEASURE':
+    case 'INTEGER_COUNT':
+    case 'INTEGER_CURRENCY': return 'xs:integer';
+    case 'REAL_MEASURE':
+    case 'REAL_COUNT':
+    case 'REAL_CURRENCY': return 'xs:decimal';
+    case 'BOOLEAN': return 'xs:boolean';
+    case 'IRI': return 'xs:anyURI';
+    case 'IRDI': return 'xs:string';
+    case 'RATIONAL':
+    case 'RATIONAL_MEASURE': return 'xs:string';
+    case 'TIME': return 'xs:time';
+    case 'TIMESTAMP': return 'xs:dateTime';
+    case 'FILE': return 'xs:string';
+    case 'HTML': return 'xs:string';
+    case 'BLOB': return 'xs:base64Binary';
+    default: return undefined;
+  }
+}
+
+function isValidValueForXsdType(vt: string, val: string): boolean {
+  const v = (val ?? '').trim();
+  if (!v) return true; // empties handled by required checks
+  switch (vt) {
+    case 'xs:boolean':
+      return v === 'true' || v === 'false';
+    case 'xs:integer':
+    case 'xs:int':
+    case 'xs:long':
+    case 'xs:short':
+    case 'xs:byte':
+      return /^-?\d+$/.test(v);
+    case 'xs:unsignedLong':
+    case 'xs:unsignedInt':
+    case 'xs:unsignedShort':
+    case 'xs:unsignedByte':
+      return /^\d+$/.test(v);
+    case 'xs:float':
+    case 'xs:double':
+    case 'xs:decimal':
+      return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v);
+    default:
+      return true;
+  }
+}
+
 interface SubmodelTemplate {
   name: string
   version: string
@@ -1207,59 +1259,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       if (!type) return undefined;
       const commonTypes = ['string', 'integer', 'boolean', 'float', 'double', 'date', 'dateTime', 'time', 'anyURI', 'base64Binary', 'hexBinary', 'decimal', 'byte', 'short', 'int', 'long', 'unsignedByte', 'unsignedShort', 'unsignedInt', 'unsignedLong', 'duration', 'gDay', 'gMonth', 'gMonthDay', 'gYear', 'gYearMonth'];
       return commonTypes.includes(type) && !type.startsWith('xs:') ? `xs:${type}` : type;
-    };
-
-    // NEW: derive xs:* valueType from IEC 61360 dataType when valueType not provided
-    const deriveValueTypeFromIEC = (iec?: string): string | undefined => {
-      switch ((iec || '').toUpperCase()) {
-        case 'DATE': return 'xs:date';
-        case 'STRING': return 'xs:string';
-        case 'STRING_TRANSLATABLE': return 'xs:string';
-        case 'INTEGER_MEASURE':
-        case 'INTEGER_COUNT':
-        case 'INTEGER_CURRENCY': return 'xs:integer';
-        case 'REAL_MEASURE':
-        case 'REAL_COUNT':
-        case 'REAL_CURRENCY': return 'xs:decimal';
-        case 'BOOLEAN': return 'xs:boolean';
-        case 'IRI': return 'xs:anyURI';
-        case 'IRDI': return 'xs:string';
-        case 'RATIONAL':
-        case 'RATIONAL_MEASURE': return 'xs:string';
-        case 'TIME': return 'xs:time';
-        case 'TIMESTAMP': return 'xs:dateTime';
-        case 'FILE': return 'xs:string';
-        case 'HTML': return 'xs:string';
-        case 'BLOB': return 'xs:base64Binary';
-        default: return undefined;
-      }
-    };
-
-    // ADD: basic type validation for property values
-    const isValidValueForXsdType = (vt: string, val: string): boolean => {
-      const v = (val ?? '').trim();
-      if (!v) return true; // empties handled by required checks
-      switch (vt) {
-        case 'xs:boolean':
-          return v === 'true' || v === 'false';
-        case 'xs:integer':
-        case 'xs:int':
-        case 'xs:long':
-        case 'xs:short':
-        case 'xs:byte':
-          return /^-?\d+$/.test(v);
-        case 'xs:unsignedLong':
-        case 'xs:unsignedInt':
-        case 'xs:unsignedShort':
-        case 'xs:unsignedByte':
-          return /^\d+$/.test(v);
-        case 'xs:float':
-        case 'xs:double':
-        case 'xs:decimal':
-          return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v);
-        default:
-          return true; // other types skipped
-      }
     };
 
     try {
