@@ -1409,7 +1409,99 @@ ${indent}</conceptDescription>`
         // Add the main AAS XML file
         const xmlFileName = `${aasConfig.idShort}.xml`
         zip.file(xmlFileName, aasXml)
-        
+
+        // ALSO: create a JSON version and add as model.json for compatibility
+        const mapElementToJson = (element: SubmodelElement): any => {
+          const base: any = {
+            idShort: element.idShort,
+            modelType: element.modelType,
+          };
+          if (element.category) base.category = element.category;
+          if (element.description) {
+            // Use array of lang strings for consistency
+            const descText = typeof element.description === 'string' ? element.description : String(element.description);
+            base.description = [{ language: 'en', text: descText }];
+          }
+          if (element.semanticId) {
+            base.semanticId = {
+              keys: [{ type: "GlobalReference", value: element.semanticId }]
+            };
+          }
+
+          switch (element.modelType) {
+            case "Property":
+              return {
+                ...base,
+                valueType: prefixXs(element.valueType || "string"),
+                value: typeof element.value === 'string' ? element.value : undefined,
+              };
+            case "MultiLanguageProperty": {
+              let valueArr: any[] = [];
+              if (element.value && typeof element.value === 'object') {
+                valueArr = Object.entries(element.value as Record<string, string>)
+                  .filter(([_, text]) => text && String(text).trim() !== '')
+                  .map(([language, text]) => ({ language, text }));
+              }
+              return {
+                ...base,
+                value: valueArr,
+              };
+            }
+            case "File":
+              return {
+                ...base,
+                value: typeof element.value === 'string' ? element.value : '',
+                contentType: element.fileData?.mimeType || 'application/octet-stream',
+              };
+            case "SubmodelElementCollection":
+            case "SubmodelElementList":
+              return {
+                ...base,
+                value: Array.isArray(element.children) ? element.children.map(mapElementToJson) : [],
+              };
+            default:
+              return base;
+          }
+        };
+
+        const jsonSubmodels = aasConfig.selectedSubmodels.map(sm => {
+          const elements = submodelData[sm.idShort] || [];
+          return {
+            idShort: sm.idShort,
+            id: `${aasConfig.id}/submodels/${sm.idShort}`,
+            kind: "Instance",
+            semanticId: {
+              keys: [{
+                type: "GlobalReference",
+                value: sm.template.url || `https://admin-shell.io/submodels/${sm.idShort}`
+              }]
+            },
+            submodelElements: elements.map(mapElementToJson),
+          };
+        });
+
+        const jsonShell = {
+          idShort: aasConfig.idShort,
+          id: aasConfig.id,
+          assetInformation: {
+            assetKind: aasConfig.assetKind,
+            globalAssetId: aasConfig.globalAssetId,
+          },
+          submodels: aasConfig.selectedSubmodels.map(sm => ({
+            keys: [{
+              type: "Submodel",
+              value: `${aasConfig.id}/submodels/${sm.idShort}`
+            }]
+          })),
+        };
+
+        const jsonEnvironment = {
+          assetAdministrationShells: [jsonShell],
+          submodels: jsonSubmodels,
+        };
+
+        zip.file("model.json", JSON.stringify(jsonEnvironment, null, 2));
+
         const addFilesFromElements = (elements: SubmodelElement[]) => {
           elements.forEach(element => {
             if (element.modelType === "File" && element.fileData) {
@@ -1463,12 +1555,12 @@ ${indent}</conceptDescription>`
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="aasx-origin" Type="http://admin-shell.io/aasx/relationships/aasx-origin" Target="/aasx/aasx-origin"/>
 </Relationships>`)
-        
+
         // Generate ZIP file
         const blob = await zip.generateAsync({ type: "blob" })
         
-        console.log("[v0] AASX file generated successfully")
-        
+        console.log("[v0] AASX file (XML + model.json) generated successfully")
+
         // Parse the generated AASX just like the Upload tab does, so Visualizer receives real data
         if (onFileGenerated) {
           const aasxFile = new File([blob], `${aasConfig.idShort}.aasx`, { type: "application/zip" })
@@ -1476,7 +1568,6 @@ ${indent}</conceptDescription>`
           if (results && results.length > 0) {
             onFileGenerated(results[0])
           } else {
-            // Fallback: still emit a simple entry if parsing somehow returns nothing
             onFileGenerated({
               file: aasxFile.name,
               type: "AASX",
