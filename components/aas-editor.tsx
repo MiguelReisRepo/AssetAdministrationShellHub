@@ -10,6 +10,7 @@ import JSZip from 'jszip'
 import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validation function
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { processFile } from "@/lib/process-file"
+import AasEditorDebugXML from "./aas-editor-debug"
 
 // Add IEC 61360 data types list
 const IEC_DATA_TYPES = [
@@ -105,6 +106,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   // ADD: validation issue states
   const [internalIssues, setInternalIssues] = useState<string[]>([])
   const [externalIssues, setExternalIssues] = useState<string[]>([])
+  const [lastGeneratedXml, setLastGeneratedXml] = useState<string | null>(null)
 
   const loadTemplates = async () => {
     if (availableTemplates.length > 0) return
@@ -1563,7 +1565,8 @@ ${indent}</conceptDescription>`
   </conceptDescriptions>
 </environment>`
 
-      // Perform XML schema validation
+      // Store for debugging and perform XML schema validation
+      setLastGeneratedXml(aasXml)
       console.log("[v0] EDITOR: Starting XML schema validation for generated AAS...")
       const xmlValidationResult = await validateAASXXml(aasXml)
 
@@ -2204,6 +2207,8 @@ ${indent}</conceptDescription>`
                     </ul>
                   </CollapsibleContent>
                 </Collapsible>
+                {/* XML preview/analyzer */}
+                <AasEditorDebugXML xml={lastGeneratedXml} />
               </div>
             )}
 
