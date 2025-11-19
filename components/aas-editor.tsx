@@ -1531,22 +1531,22 @@ ${indent}</conceptDescription>`
               keys: [{ type: "GlobalReference", value: element.semanticId }]
             };
           }
-+         // Persist metadata directly for the visualizer
-+         if (element.preferredName) {
-+           base.preferredName = typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName;
-+         }
-+         if (element.shortName) {
-+           base.shortName = typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName;
-+         }
-+         if (element.unit) {
-+           base.unit = element.unit;
-+         }
-+         if (element.dataType) {
-+           base.dataType = element.dataType;
-+         }
-+         if (element.cardinality) {
-+           base.cardinality = element.cardinality;
-+         }
+          // Persist metadata directly for the visualizer
+          if (element.preferredName) {
+            base.preferredName = typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName;
+          }
+          if (element.shortName) {
+            base.shortName = typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName;
+          }
+          if (element.unit) {
+            base.unit = element.unit;
+          }
+          if (element.dataType) {
+            base.dataType = element.dataType;
+          }
+          if (element.cardinality) {
+            base.cardinality = element.cardinality;
+          }
 
           switch (element.modelType) {
             case "Property":
