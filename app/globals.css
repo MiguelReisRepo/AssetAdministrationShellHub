@@ -134,10 +134,9 @@
 
 /* === PANELS === */
 .aasx-left-panel {
-  flex: 0 0 auto;
-  width: 300px; /* Increased width */
-  min-width: 250px; /* Increased min-width */
-  max-width: 350px; /* Increased max-width */
+  flex: 0 0 20%; /* Set to 20% */
+  min-width: 200px; /* Keep a reasonable min-width */
+  max-width: 350px; /* Keep a reasonable max-width */
   padding: 10px 20px 0px 20px;
   overflow-y: auto;
   position: relative;
@@ -145,7 +144,7 @@
 }
 
 .aasx-middle-panel {
-  flex: 1 1 auto;
+  flex: 0 0 60%; /* Set to 60% */
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -168,10 +167,9 @@
 }
 
 .aasx-right-panel {
-  flex: 0 0 auto;
-  width: 350px; /* Slightly reduced default width */
-  min-width: 280px; /* Adjusted min-width */
-  max-width: 450px; /* Adjusted max-width */
+  flex: 0 0 20%; /* Set to 20% */
+  min-width: 250px; /* Keep a reasonable min-width */
+  max-width: 450px; /* Keep a reasonable max-width */
   border-radius: 20px;
   background-color: #f7f7f7;
   overflow-y: auto;
@@ -184,8 +182,8 @@
 /* === SUBMODEL CARDS === */
 .aasx-submodel-card {
   height: 90px;
-  width: 100%;
-  max-width: 190px;
+  width: 100%; /* Allow to fill 100% of parent */
+  /* Removed max-width: 190px; */
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -649,33 +647,4 @@
   color: #1793b8;
 }
 
-/* === RESPONSIVE === */
-@media (max-width: 1600px) {
-  .aasx-left-panel {
-    width: 250px; /* Adjusted width */
-    min-width: 200px; /* Adjusted min-width */
-  }
-  .aasx-right-panel {
-    width: 350px; /* Adjusted width */
-    min-width: 280px; /* Adjusted min-width */
-  }
-}
-
-@media (max-width: 1400px) {
-  .aasx-left-panel {
-    width: 220px; /* Adjusted width */
-    min-width: 180px; /* Adjusted min-width */
-    padding: 10px 15px 0px 15px;
-  }
-  .aasx-right-panel {
-    width: 320px; /* Adjusted width */
-    min-width: 250px; /* Adjusted min-width */
-    padding: 15px;
-  }
-  .aasx-submodel-card {
-    height: 80px;
-  }
-  .aasx-tree-node-value {
-    display: none;
-  }
-}
+/* Removed responsive media queries for panel widths to maintain 20/60/20 split */
