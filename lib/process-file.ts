@@ -144,9 +144,9 @@ export async function processFile(file: File, onProgress: (progress: number) => 
             overallValid = false
             allErrors = allErrors.concat(jsonResult.errors || [])
           }
-          // Prioritize XML's aasData, but if not available, use JSON's
-          if (!aasData && jsonResult.aasData) aasData = jsonResult.aasData
-          if (!parsedContent && jsonResult.parsed) parsedContent = jsonResult.parsed
+          // Prefer JSON aasData to preserve element order and metadata from the editor
+          if (jsonResult.aasData) aasData = jsonResult.aasData
+          if (jsonResult.parsed) parsedContent = jsonResult.parsed
 
           console.log(`[v0] JSON validation result for ${mainJsonFile}: ${jsonResult.valid}`)
         } catch (error) {

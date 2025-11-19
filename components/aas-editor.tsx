@@ -1212,6 +1212,22 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
 
         let xml = `${indent}<${tagName}>\n`
         xml += `${indent}  <idShort>${element.idShort}</idShort>\n`
+
+        // Category (AAS Referable)
+        if (element.category) {
+          xml += `${indent}  <category>${element.category}</category>\n`
+        }
+
+        // Description (AAS Referable)
+        if (element.description && String(element.description).trim() !== "") {
+          const desc = typeof element.description === "string" ? element.description : String(element.description)
+          xml += `${indent}  <description>\n`
+          xml += `${indent}    <langStringTextType>\n`
+          xml += `${indent}      <language>en</language>\n`
+          xml += `${indent}      <text>${desc}</text>\n`
+          xml += `${indent}    </langStringTextType>\n`
+          xml += `${indent}  </description>\n`
+        }
         
         if (element.semanticId) {
           xml += `${indent}  <semanticId>\n`
@@ -1225,7 +1241,80 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </semanticId>\n`
         }
 
-        // Ensure schema-compliant order: for Property, valueType must come before value
+        // Qualifiers -> Cardinality
+        if (element.cardinality) {
+          xml += `${indent}  <qualifiers>\n`
+          xml += `${indent}    <qualifier>\n`
+          xml += `${indent}      <type>Cardinality</type>\n`
+          xml += `${indent}      <value>${element.cardinality}</value>\n`
+          xml += `${indent}    </qualifier>\n`
+          xml += `${indent}  </qualifiers>\n`
+        }
+
+        // Embedded Data Specifications (IEC 61360)
+        const hasIECMeta =
+          (typeof element.preferredName === "string" && element.preferredName.trim() !== "") ||
+          (typeof element.preferredName === "object" && element.preferredName && Object.values(element.preferredName).some(v => v && String(v).trim() !== "")) ||
+          (typeof element.shortName === "string" && element.shortName.trim() !== "") ||
+          (typeof element.shortName === "object" && element.shortName && Object.values(element.shortName).some(v => v && String(v).trim() !== "")) ||
+          (element.unit && element.unit.trim() !== "") ||
+          (element.dataType && element.dataType.trim() !== "") ||
+          (element.description && String(element.description).trim() !== "")
+
+        if (hasIECMeta) {
+          const prefNames = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {})
+          const shortNames = typeof element.shortName === "string" ? { en: element.shortName } : (element.shortName || {})
+          xml += `${indent}  <embeddedDataSpecifications>\n`
+          xml += `${indent}    <embeddedDataSpecification>\n`
+          xml += `${indent}      <dataSpecification>\n`
+          xml += `${indent}        <type>ExternalReference</type>\n`
+          xml += `${indent}        <keys>\n`
+          xml += `${indent}          <key>\n`
+          xml += `${indent}            <type>GlobalReference</type>\n`
+          xml += `${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>\n`
+          xml += `${indent}          </key>\n`
+          xml += `${indent}        </keys>\n`
+          xml += `${indent}      </dataSpecification>\n`
+          xml += `${indent}      <dataSpecificationContent>\n`
+          xml += `${indent}        <dataSpecificationIec61360>\n`
+          // preferredName
+          xml += `${indent}          <preferredName>\n`
+          ${Object.entries(prefNames as Record<string, string>).map(([lang, text]) => {
+            if (!text || String(text).trim() === "") return ""
+            return `${indent}            <langStringPreferredNameTypeIec61360>\n${indent}              <language>${lang}</language>\n${indent}              <text>${text}</text>\n${indent}            </langStringPreferredNameTypeIec61360>\n`
+          }).join("")}
+          xml += `${indent}          </preferredName>\n`
+          // shortName
+          if (shortNames && Object.values(shortNames).some(v => v && String(v).trim() !== "")) {
+            xml += `${indent}          <shortName>\n`
+            ${Object.entries(shortNames as Record<string, string>).map(([lang, text]) => {
+              if (!text || String(text).trim() === "") return ""
+              return `${indent}            <langStringShortNameTypeIec61360>\n${indent}              <language>${lang}</language>\n${indent}              <text>${text}</text>\n${indent}            </langStringShortNameTypeIec61360>\n`
+            }).join("")}
+            xml += `${indent}          </shortName>\n`
+          }
+          if (element.unit && element.unit.trim() !== "") {
+            xml += `${indent}          <unit>${element.unit}</unit>\n`
+          }
+          if (element.dataType && element.dataType.trim() !== "") {
+            xml += `${indent}          <dataType>${element.dataType}</dataType>\n`
+          }
+          if (element.description && String(element.description).trim() !== "") {
+            const desc = typeof element.description === "string" ? element.description : String(element.description)
+            xml += `${indent}          <definition>\n`
+            xml += `${indent}            <langStringDefinitionTypeIec61360>\n`
+            xml += `${indent}              <language>en</language>\n`
+            xml += `${indent}              <text>${desc}</text>\n`
+            xml += `${indent}            </langStringDefinitionTypeIec61360>\n`
+            xml += `${indent}          </definition>\n`
+          }
+          xml += `${indent}        </dataSpecificationIec61360>\n`
+          xml += `${indent}      </dataSpecificationContent>\n`
+          xml += `${indent}    </embeddedDataSpecification>\n`
+          xml += `${indent}  </embeddedDataSpecifications>\n`
+        }
+
+        // Type-specific content
         if (element.modelType === "Property") {
           const vt = prefixXs(element.valueType || "string")
           xml += `${indent}  <valueType>${vt}</valueType>\n`
@@ -1237,7 +1326,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
           if (hasLangValues) {
             xml += `${indent}  <value>\n`
-            Object.entries(element.value!).forEach(([lang, text]) => {
+            Object.entries(element.value as Record<string, string>).forEach(([lang, text]) => {
               if (text && String(text).trim() !== '') {
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
@@ -1249,14 +1338,14 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for MLP ${element.idShort}`);
           }
         } else if (element.modelType === "File") {
+          // Per schema, contentType should appear before value
+          const contentType = element.fileData?.mimeType || 'application/octet-stream'
+          xml += `${indent}  <contentType>${contentType}</contentType>\n`
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
-            xml += `${indent}  <contentType>${element.fileData?.mimeType || 'application/octet-stream'}</contentType>\n`
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for File ${element.idShort}`);
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <contentType> and <value> for File ${element.idShort}`);
           }
         } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
-          // Wrap children in <value>
-          console.log(`[v0] XML_GEN_DEBUG:   Processing children for Collection/List ${element.idShort}`);
           if (element.children && element.children.length > 0) {
             xml += `${indent}  <value>\n`
             element.children.forEach(child => {
@@ -1264,8 +1353,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             })
             xml += `${indent}  </value>\n`
           }
-        } else {
-          console.log(`[v0] XML_GEN_DEBUG:   No value/children logic for modelType: ${element.modelType} for ${element.idShort}`);
         }
         
         xml += `${indent}</${tagName}>\n`
@@ -1418,7 +1505,6 @@ ${indent}</conceptDescription>`
           };
           if (element.category) base.category = element.category;
           if (element.description) {
-            // Use array of lang strings for consistency
             const descText = typeof element.description === 'string' ? element.description : String(element.description);
             base.description = [{ language: 'en', text: descText }];
           }
@@ -1427,6 +1513,22 @@ ${indent}</conceptDescription>`
               keys: [{ type: "GlobalReference", value: element.semanticId }]
             };
           }
++         // Persist metadata directly for the visualizer
++         if (element.preferredName) {
++           base.preferredName = typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName;
++         }
++         if (element.shortName) {
++           base.shortName = typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName;
++         }
++         if (element.unit) {
++           base.unit = element.unit;
++         }
++         if (element.dataType) {
++           base.dataType = element.dataType;
++         }
++         if (element.cardinality) {
++           base.cardinality = element.cardinality;
++         }
 
           switch (element.modelType) {
             case "Property":
