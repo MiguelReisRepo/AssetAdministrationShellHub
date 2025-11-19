@@ -1235,6 +1235,33 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       }
     };
 
+    // ADD: basic type validation for property values
+    const isValidValueForXsdType = (vt: string, val: string): boolean => {
+      const v = (val ?? '').trim();
+      if (!v) return true; // empties handled by required checks
+      switch (vt) {
+        case 'xs:boolean':
+          return v === 'true' || v === 'false';
+        case 'xs:integer':
+        case 'xs:int':
+        case 'xs:long':
+        case 'xs:short':
+        case 'xs:byte':
+          return /^-?\d+$/.test(v);
+        case 'xs:unsignedLong':
+        case 'xs:unsignedInt':
+        case 'xs:unsignedShort':
+        case 'xs:unsignedByte':
+          return /^\d+$/.test(v);
+        case 'xs:float':
+        case 'xs:double':
+        case 'xs:decimal':
+          return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v);
+        default:
+          return true; // other types skipped
+      }
+    };
+
     try {
       // Validate before generating
       const internalValidation = validateAAS()
@@ -1842,6 +1869,19 @@ ${indent}</conceptDescription>`
             for (let i = 0; i < currentPath.length - 1; i++) {
               const parentPath = currentPath.slice(0, i + 1).join('.');
               nodesToExpand.add(parentPath);
+            }
+          }
+
+          // ADD: value must match declared xs:* type
+          const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType);
+          if (vtNorm && typeof element.value === 'string' && element.value.trim() !== '') {
+            if (!isValidValueForXsdType(vtNorm, element.value)) {
+              missingFields.push(`${submodelId} > ${currentPath.join(' > ')} (value "${element.value}" doesn't match ${vtNorm})`);
+              errors.add(nodeId);
+              for (let i = 0; i < currentPath.length - 1; i++) {
+                const parentPath = currentPath.slice(0, i + 1).join('.');
+                nodesToExpand.add(parentPath);
+              }
             }
           }
         }
