@@ -1264,6 +1264,30 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         if (hasIECMeta) {
           const prefNames = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {})
           const shortNames = typeof element.shortName === "string" ? { en: element.shortName } : (element.shortName || {})
+
+          // Build preferredName XML first
+          const preferredNameXml = Object.entries(prefNames as Record<string, string>)
+            .filter(([_, text]) => text && String(text).trim() !== "")
+            .map(([lang, text]) =>
+              `${indent}            <langStringPreferredNameTypeIec61360>
+${indent}              <language>${lang}</language>
+${indent}              <text>${text}</text>
+${indent}            </langStringPreferredNameTypeIec61360>
+`).join("")
+
+          // Build shortName XML if available
+          const hasShortNames = shortNames && Object.values(shortNames as Record<string, string>).some(v => v && String(v).trim() !== "")
+          const shortNameXml = hasShortNames
+            ? Object.entries(shortNames as Record<string, string>)
+                .filter(([_, text]) => text && String(text).trim() !== "")
+                .map(([lang, text]) =>
+                  `${indent}            <langStringShortNameTypeIec61360>
+${indent}              <language>${lang}</language>
+${indent}              <text>${text}</text>
+${indent}            </langStringShortNameTypeIec61360>
+`).join("")
+            : ""
+
           xml += `${indent}  <embeddedDataSpecifications>\n`
           xml += `${indent}    <embeddedDataSpecification>\n`
           xml += `${indent}      <dataSpecification>\n`
@@ -1279,18 +1303,12 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}        <dataSpecificationIec61360>\n`
           // preferredName
           xml += `${indent}          <preferredName>\n`
-          ${Object.entries(prefNames as Record<string, string>).map(([lang, text]) => {
-            if (!text || String(text).trim() === "") return ""
-            return `${indent}            <langStringPreferredNameTypeIec61360>\n${indent}              <language>${lang}</language>\n${indent}              <text>${text}</text>\n${indent}            </langStringPreferredNameTypeIec61360>\n`
-          }).join("")}
+          xml += preferredNameXml
           xml += `${indent}          </preferredName>\n`
           // shortName
-          if (shortNames && Object.values(shortNames).some(v => v && String(v).trim() !== "")) {
+          if (hasShortNames) {
             xml += `${indent}          <shortName>\n`
-            ${Object.entries(shortNames as Record<string, string>).map(([lang, text]) => {
-              if (!text || String(text).trim() === "") return ""
-              return `${indent}            <langStringShortNameTypeIec61360>\n${indent}              <language>${lang}</language>\n${indent}              <text>${text}</text>\n${indent}            </langStringShortNameTypeIec61360>\n`
-            }).join("")}
+            xml += shortNameXml
             xml += `${indent}          </shortName>\n`
           }
           if (element.unit && element.unit.trim() !== "") {
