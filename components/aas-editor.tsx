@@ -1357,6 +1357,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  <qualifiers>\n`
           xml += `${indent}    <qualifier>\n`
           xml += `${indent}      <type>Cardinality</type>\n`
+          xml += `${indent}      <valueType>xs:string</valueType>\n`
           xml += `${indent}      <value>${element.cardinality}</value>\n`
           xml += `${indent}    </qualifier>\n`
           xml += `${indent}  </qualifiers>\n`
