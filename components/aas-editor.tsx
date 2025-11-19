@@ -1224,10 +1224,9 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </semanticId>\n`
         }
 
-        // Value generation logic - ensure no <value> for collections/lists
+        // Value generation logic - ensure schema-compliant structure
         if (element.modelType === "Property") {
-          const prefixedValueType = prefixXs(element.valueType || 'string');
-          xml += `${indent}  <valueType>${prefixedValueType}</valueType>\n`
+          // REMOVED: <valueType> in AAS 3.1 is not allowed here
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
             console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for Property ${element.idShort}`);
@@ -1241,7 +1240,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
                 xml += `${indent}      <text>${text}</text>\n`
-                xml += `${indent}            </langStringTextType>\n`
+                xml += `${indent}    </langStringTextType>\n`
               }
             })
             xml += `${indent}  </value>\n`
@@ -1250,16 +1249,18 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         } else if (element.modelType === "File") {
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
-            xml += `${indent}  <contentType>${element.fileData?.mimeType || 'application/octet-stream'}</contentType>\n` // Use actual mimeType
+            xml += `${indent}  <contentType>${element.fileData?.mimeType || 'application/octet-stream'}</contentType>\n`
             console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for File ${element.idShort}`);
           }
         } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
-          // This block handles children directly, NO <value> tag is generated here.
+          // Wrap children in <value> as required by schema
           console.log(`[v0] XML_GEN_DEBUG:   Processing children for Collection/List ${element.idShort}`);
           if (element.children && element.children.length > 0) {
+            xml += `${indent}  <value>\n`
             element.children.forEach(child => {
-              xml += generateElementXml(child, indent + "  ")
+              xml += generateElementXml(child, indent + "    ")
             })
+            xml += `${indent}  </value>\n`
           }
         } else {
           console.log(`[v0] XML_GEN_DEBUG:   No value/children logic for modelType: ${element.modelType} for ${element.idShort}`);
@@ -1333,7 +1334,11 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
   <conceptDescriptions>
 ${Object.values(collectedConceptDescriptions).map(concept => {
     const indent = "    ";
-    const prefixedValueType = concept.valueType ? prefixXs(concept.valueType) : undefined;
+    // Ensure preferredName is present and ordered first (fallback to idShort)
+    const ensuredPreferredName = (concept.preferredName && Object.values(concept.preferredName).some(v => v && String(v).trim() !== ""))
+      ? concept.preferredName
+      : { en: concept.idShort };
+
     return `${indent}<conceptDescription>
 ${indent}  <idShort>${concept.idShort}</idShort>
 ${indent}  <id>${concept.id}</id>
@@ -1350,12 +1355,12 @@ ${indent}        </keys>
 ${indent}      </dataSpecification>
 ${indent}      <dataSpecificationContent>
 ${indent}        <dataSpecificationIec61360>
-${concept.preferredName ? `${indent}          <preferredName>
-${Object.entries(concept.preferredName).map(([lang, text]) => text ? `${indent}            <langStringPreferredNameTypeIec61360>
+${indent}          <preferredName>
+${Object.entries(ensuredPreferredName).map(([lang, text]) => text ? `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>${lang}</language>
 ${indent}              <text>${text}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>` : '').join('\n')}
-${indent}          </preferredName>\n` : ''}
+${indent}          </preferredName>
 ${concept.shortName ? `${indent}          <shortName>
 ${Object.entries(concept.shortName).map(([lang, text]) => text ? `${indent}            <langStringShortNameTypeIec61360>
 ${indent}              <language>${lang}</language>
@@ -1366,12 +1371,10 @@ ${concept.unit ? `${indent}          <unit>${concept.unit}</unit>\n` : ''}
 ${concept.dataType ? `${indent}          <dataType>${concept.dataType}</dataType>\n` : ''}
 ${concept.description ? `${indent}          <definition>
 ${indent}            <langStringDefinitionTypeIec61360>
-${indent}              <language>en</language>\n` : ''}
-${concept.description ? `${indent}              <text>${concept.description}</text>\n` : ''}
-${concept.description ? `${indent}            </langStringDefinitionTypeIec61360>
+${indent}              <language>en</language>
+${indent}              <text>${concept.description}</text>
+${indent}            </langStringDefinitionTypeIec61360>
 ${indent}          </definition>\n` : ''}
-${concept.category ? `${indent}          <value>${concept.category}</value>\n` : ''}
-${prefixedValueType ? `${indent}          <valueType>${prefixedValueType}</valueType>\n` : ''}
 ${indent}        </dataSpecificationIec61360>
 ${indent}      </dataSpecificationContent>
 ${indent}    </embeddedDataSpecification>
