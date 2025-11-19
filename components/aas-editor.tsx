@@ -49,7 +49,7 @@ function normalizeValueType(t?: string): string | undefined {
   if (!t) return undefined;
   const s = t.trim();
   if (!s) return undefined;
-  // Accept “xs:*” with any case, and plain names like “string”
+  // Accept "xs:*" with any case, and plain names like "string"
   const hasPrefix = s.slice(0,3).toLowerCase() === 'xs:';
   const local = hasPrefix ? s.slice(3) : s;
   const canonical = XSD_CANON_MAP[local.toLowerCase()];
@@ -1490,7 +1490,7 @@ ${indent}            </langStringPreferredNameTypeIec61360>
       }
 
       const aasXml = `<?xml version="1.0" encoding="UTF-8"?>
-<environment xmlns="https://admin-shell.io/aas/3/1"> <!-- Updated namespace to 3/1 -->
+<environment xmlns="https://admin-shell.io/aas/3/1" xmlns:xs="http://www.w3.org/2001/XMLSchema"> <!-- Updated namespace to 3/1 and declared xs prefix -->
   <assetAdministrationShells>
     <assetAdministrationShell>
       <idShort>${aasConfig.idShort}</idShort>
