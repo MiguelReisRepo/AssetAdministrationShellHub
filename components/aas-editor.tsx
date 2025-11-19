@@ -35,6 +35,27 @@ const IEC_DATA_TYPES = [
   'BLOB',
 ];
 
+const XSD_VALUE_TYPES = [
+  'xs:string','xs:boolean','xs:decimal','xs:integer','xs:long','xs:int','xs:short','xs:byte',
+  'xs:double','xs:float','xs:dateTime','xs:date','xs:time','xs:anyURI','xs:duration',
+  'xs:gYearMonth','xs:gYear','xs:gMonthDay','xs:gDay','xs:gMonth',
+  'xs:unsignedLong','xs:unsignedInt','xs:unsignedShort','xs:unsignedByte',
+  'xs:base64Binary','xs:hexBinary'
+];
+const XSD_CANON_MAP: Record<string, string> =
+  Object.fromEntries(XSD_VALUE_TYPES.map(t => [t.slice(3).toLowerCase(), t]));
+
+function normalizeValueType(t?: string): string | undefined {
+  if (!t) return undefined;
+  const s = t.trim();
+  if (!s) return undefined;
+  // Accept “xs:*” with any case, and plain names like “string”
+  const hasPrefix = s.slice(0,3).toLowerCase() === 'xs:';
+  const local = hasPrefix ? s.slice(3) : s;
+  const canonical = XSD_CANON_MAP[local.toLowerCase()];
+  return canonical || undefined;
+}
+
 interface SubmodelTemplate {
   name: string
   version: string
@@ -940,6 +961,27 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
               </div>
             </div>
           )}
+
+          {(selectedElement.modelType === "Property") && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Value Type:
+              </label>
+              <select
+                value={normalizeValueType(selectedElement.valueType) || ''}
+                onChange={(e) => {
+                  const val = e.target.value || undefined;
+                  updateElementMetadata(selectedSubmodel.idShort, elementPath, 'valueType', val);
+                }}
+                className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono"
+              >
+                <option value="">Select xs:* type...</option>
+                {XSD_VALUE_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Metadata sections below value */}
@@ -1061,24 +1103,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
                   className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
                 />
               </div>
-              
-              {/* Value Type (for Property) */}
-              {(selectedElement.modelType === "Property" || selectedElement.valueType) && ( 
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                    Value Type:
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedElement.valueType || ''}
-                    onChange={(e) => {
-                      updateElementMetadata(selectedSubmodel.idShort, elementPath, 'valueType', e.target.value)
-                    }}
-                    placeholder="xs:string, xs:integer, etc."
-                    className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono"
-                  />
-                </div>
-              )}
               
               {/* Category - Changed to dropdown */}
               <div>
@@ -1404,15 +1428,12 @@ ${indent}            </langStringPreferredNameTypeIec61360>
 
         // Type-specific content
         if (element.modelType === "Property") {
-          // Ensure valueType is always present: use provided valueType, else derive from IEC dataType, else default to xs:string
-          const vtRaw = (element.valueType && element.valueType.trim()) ? element.valueType.trim() : undefined;
-          const vtDerived = vtRaw || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
-          const vt = prefixXs(vtDerived) || 'xs:string';
-          xml += `${indent}  <valueType>${vt}</valueType>\n`
-          // Only write value after valueType
+          // Normalize user input or derive from IEC dataType; default to xs:string
+          const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
+          xml += `${indent}  <valueType>${vtNorm}</valueType>\n`;
           if (typeof element.value === 'string' && element.value.trim() !== '') {
-            xml += `${indent}  <value>${element.value}</value>\n`
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType>(${vt}) and <value> for Property ${element.idShort}`);
+            xml += `${indent}  <value>${element.value}</value>\n`;
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType>(${vtNorm}) and <value> for Property ${element.idShort}`);
           }
         } else if (element.modelType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
@@ -1812,12 +1833,16 @@ ${indent}</conceptDescription>`
         const isRequired = element.cardinality === "One" || element.cardinality === "OneToMany"
 
         // NEW: Property must have valueType for schema compliance
-        if (element.modelType === "Property" && (!element.valueType || String(element.valueType).trim() === "")) {
-          missingFields.push(`${submodelId} > ${currentPath.join(' > ')} (set Value Type)`)
-          errors.add(nodeId)
-          for (let i = 0; i < currentPath.length - 1; i++) {
-            const parentPath = currentPath.slice(0, i + 1).join('.')
-            nodesToExpand.add(parentPath)
+        if (element.modelType === "Property") {
+          const hasValueType = !!normalizeValueType(element.valueType);
+          const hasIECType = !!element.dataType && String(element.dataType).trim() !== "";
+          if (!hasValueType && !hasIECType) {
+            missingFields.push(`${submodelId} > ${currentPath.join(' > ')} (set Value Type or IEC Data Type)`);
+            errors.add(nodeId);
+            for (let i = 0; i < currentPath.length - 1; i++) {
+              const parentPath = currentPath.slice(0, i + 1).join('.');
+              nodesToExpand.add(parentPath);
+            }
           }
         }
         
