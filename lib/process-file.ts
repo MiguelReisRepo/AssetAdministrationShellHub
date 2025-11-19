@@ -64,18 +64,25 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       const zip = new JSZip()
       const zipContent = await zip.loadAsync(file)
       onProgress(30)
+      const startedAt = Date.now()
 
       const thumbnail = await extractThumbnail(zipContent)
 
-      // Find XML files in the AASX (exclude system files like [Content_Types].xml)
-      const xmlFiles = Object.keys(zipContent.files).filter(
+      // Find candidate XML files in the AASX (exclude system files), we will try to parse to detect AAS
+      const allXmlFiles = Object.keys(zipContent.files).filter(
         (name) =>
           name.toLowerCase().endsWith(".xml") &&
           !zipContent.files[name].dir &&
           !name.includes("[Content_Types]") &&
-          !name.includes("_rels/") &&
-          (name.includes(".aas.xml") || name.includes("aasenv") || name.includes("environment")),
+          !name.startsWith("_rels/")
       )
+
+      // Prioritize typical names but accept any .xml
+      const score = (n: string) => {
+        const s = n.toLowerCase()
+        return (s.includes(".aas.xml") ? 3 : 0) + (s.includes("aasenv") ? 2 : 0) + (s.includes("environment") ? 1 : 0)
+      }
+      const xmlFiles = [...allXmlFiles].sort((a, b) => score(b) - score(a))
 
       // Find JSON files in the AASX (look for model.json or similar AAS JSON files)
       const jsonFiles = Object.keys(zipContent.files).filter(
@@ -93,27 +100,31 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       let aasData: any = null
       let parsedContent: any = null
 
-      // Validate the main XML file (prefer .aas.xml files)
+      // Try XML candidates until one parses (valid or invalid) so we at least extract data/errors
       if (xmlFiles.length > 0) {
-        const mainXmlFile = xmlFiles.find((f) => f.includes(".aas.xml")) || xmlFiles[0]
-        try {
-          const xmlContent = await zipContent.files[mainXmlFile].async("text")
-          const xmlResult = await validateXML(xmlContent, file.name)
-          
-          if (!xmlResult.valid) {
-            overallValid = false
-            allErrors = allErrors.concat(xmlResult.errors || [])
+        let triedAny = false
+        for (const candidate of xmlFiles) {
+          try {
+            const xmlContent = await zipContent.files[candidate].async("text")
+            triedAny = true
+            const xmlResult = await validateXML(xmlContent, candidate)
+            overallValid = overallValid && xmlResult.valid
+            if (!xmlResult.valid) {
+              allErrors = allErrors.concat(xmlResult.errors || [])
+            }
+            if (xmlResult.aasData && !aasData) aasData = xmlResult.aasData
+            if (xmlResult.parsed && !parsedContent) parsedContent = xmlResult.parsed
+            console.log(`[v0] XML validation result for ${candidate}: ${xmlResult.valid}`)
+            // Stop after first candidate we tried (we already captured pass/fail)
+            break
+          } catch (error) {
+            console.warn(`[v0] XML candidate failed to load/parse ${candidate}:`, error)
+            continue
           }
-          if (xmlResult.aasData) aasData = xmlResult.aasData
-          if (xmlResult.parsed) parsedContent = xmlResult.parsed
-
-          console.log(`[v0] XML validation result for ${mainXmlFile}: ${xmlResult.valid}`)
-        } catch (error) {
+        }
+        if (!triedAny) {
           overallValid = false
-          allErrors.push(
-            `Failed to validate XML file ${mainXmlFile}: ${error instanceof Error ? error.message : "Unknown error"}`,
-          )
-          console.error(`[v0] XML validation error for ${mainXmlFile}:`, error)
+          allErrors.push("No AAS XML files found in AASX archive")
         }
       } else {
         overallValid = false
@@ -156,7 +167,7 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         type: "AASX",
         valid: overallValid,
         errors: allErrors.length > 0 ? allErrors : undefined,
-        processingTime: Date.now() - onProgress(0), // Reset progress for accurate time
+        processingTime: Date.now() - startedAt,
         thumbnail: thumbnail || undefined,
         aasData: aasData,
         parsed: parsedContent,
@@ -234,7 +245,7 @@ async function validateXML(xmlContent: string, fileName: string): Promise<Valida
       type: "XML",
       valid: false,
       errors: [`XML validation failed: ${error instanceof Error ? error.message : "Unknown error"}`],
-      processingTime: Date.Now() - startTime,
+      processingTime: Date.now() - startTime,
     }
   }
 }

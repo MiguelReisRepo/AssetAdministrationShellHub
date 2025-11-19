@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import JSZip from 'jszip'
 import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validation function
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
+import { processFile } from "@/lib/process-file"
 
 interface SubmodelTemplate {
   name: string
@@ -1468,22 +1469,26 @@ ${indent}</conceptDescription>`
         
         console.log("[v0] AASX file generated successfully")
         
+        // Parse the generated AASX just like the Upload tab does, so Visualizer receives real data
         if (onFileGenerated) {
-          // Create a File object from the blob so it can be parsed like a regular upload
-          const aasxFile = new File([blob], `${aasConfig.idShort}.aasx`, { type: "application/octet-stream" })
-          
-          // Pass the File object which will be properly parsed by data-uploader
-          onFileGenerated({
-            file: aasxFile.name, // Use file.name for consistency with ValidationResult
-            type: "AASX",
-            valid: true,
-            processingTime: 0, // Placeholder
-            parsed: null, // No direct parsed content for AASX blob
-            aasData: null, // No direct AASData for AASX blob
-            thumbnail: thumbnail || undefined,
-          })
+          const aasxFile = new File([blob], `${aasConfig.idShort}.aasx`, { type: "application/zip" })
+          const results = await processFile(aasxFile, () => {})
+          if (results && results.length > 0) {
+            onFileGenerated(results[0])
+          } else {
+            // Fallback: still emit a simple entry if parsing somehow returns nothing
+            onFileGenerated({
+              file: aasxFile.name,
+              type: "AASX",
+              valid: true,
+              processingTime: 0,
+              parsed: null,
+              aasData: null,
+              thumbnail: thumbnail || undefined,
+            })
+          }
         }
-        
+
         // Download the AASX file
         const url = URL.createObjectURL(blob)
         const a = document.createElement("a")
