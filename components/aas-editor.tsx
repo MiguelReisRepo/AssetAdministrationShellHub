@@ -1183,6 +1183,32 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       return commonTypes.includes(type) && !type.startsWith('xs:') ? `xs:${type}` : type;
     };
 
+    // NEW: derive xs:* valueType from IEC 61360 dataType when valueType not provided
+    const deriveValueTypeFromIEC = (iec?: string): string | undefined => {
+      switch ((iec || '').toUpperCase()) {
+        case 'DATE': return 'xs:date';
+        case 'STRING': return 'xs:string';
+        case 'STRING_TRANSLATABLE': return 'xs:string';
+        case 'INTEGER_MEASURE':
+        case 'INTEGER_COUNT':
+        case 'INTEGER_CURRENCY': return 'xs:integer';
+        case 'REAL_MEASURE':
+        case 'REAL_COUNT':
+        case 'REAL_CURRENCY': return 'xs:decimal';
+        case 'BOOLEAN': return 'xs:boolean';
+        case 'IRI': return 'xs:anyURI';
+        case 'IRDI': return 'xs:string';
+        case 'RATIONAL':
+        case 'RATIONAL_MEASURE': return 'xs:string';
+        case 'TIME': return 'xs:time';
+        case 'TIMESTAMP': return 'xs:dateTime';
+        case 'FILE': return 'xs:string';
+        case 'HTML': return 'xs:string';
+        case 'BLOB': return 'xs:base64Binary';
+        default: return undefined;
+      }
+    };
+
     try {
       // Validate before generating
       const internalValidation = validateAAS()
@@ -1376,11 +1402,15 @@ ${indent}            </langStringPreferredNameTypeIec61360>
 
         // Type-specific content
         if (element.modelType === "Property") {
-          const vt = prefixXs(element.valueType || "string")
+          // Ensure valueType is always present: use provided valueType, else derive from IEC dataType, else default to xs:string
+          const vtRaw = (element.valueType && element.valueType.trim()) ? element.valueType.trim() : undefined;
+          const vtDerived = vtRaw || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
+          const vt = prefixXs(vtDerived) || 'xs:string';
           xml += `${indent}  <valueType>${vt}</valueType>\n`
-          if (typeof element.value === 'string' && element.value) {
+          // Only write value after valueType
+          if (typeof element.value === 'string' && element.value.trim() !== '') {
             xml += `${indent}  <value>${element.value}</value>\n`
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType> and <value> for Property ${element.idShort}`);
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType>(${vt}) and <value> for Property ${element.idShort}`);
           }
         } else if (element.modelType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
