@@ -1244,12 +1244,11 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         console.log(`[v0] XML_GEN_DEBUG: Processing element: ${element.idShort}, modelType: ${element.modelType}, tagName: ${tagName}`);
 
         let xml = `${indent}<${tagName}>\n`
-        xml += `${indent}  <idShort>${element.idShort}</idShort>\n`
-
-        // Category (AAS Referable)
+        // Category must appear before idShort in AAS 3.1 sequence
         if (element.category) {
           xml += `${indent}  <category>${element.category}</category>\n`
         }
+        xml += `${indent}  <idShort>${element.idShort}</idShort>\n`
 
         // Description (AAS Referable)
         if (element.description && String(element.description).trim() !== "") {
@@ -1298,7 +1297,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           const prefNames = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {})
           const shortNames = typeof element.shortName === "string" ? { en: element.shortName } : (element.shortName || {})
 
-          // Build preferredName XML first
+          // Build preferredName XML entries
           const preferredNameXml = Object.entries(prefNames as Record<string, string>)
             .filter(([_, text]) => text && String(text).trim() !== "")
             .map(([lang, text]) =>
@@ -1334,10 +1333,20 @@ ${indent}            </langStringShortNameTypeIec61360>
           xml += `${indent}      </dataSpecification>\n`
           xml += `${indent}      <dataSpecificationContent>\n`
           xml += `${indent}        <dataSpecificationIec61360>\n`
-          // preferredName
+
+          // preferredName (must contain at least one child). Fallback to idShort if empty.
+          const preferredNameBlock =
+            preferredNameXml && preferredNameXml.trim().length > 0
+              ? preferredNameXml
+              : `${indent}            <langStringPreferredNameTypeIec61360>
+${indent}              <language>en</language>
+${indent}              <text>${element.idShort}</text>
+${indent}            </langStringPreferredNameTypeIec61360>
+`
           xml += `${indent}          <preferredName>\n`
-          xml += preferredNameXml
+          xml += preferredNameBlock
           xml += `${indent}          </preferredName>\n`
+
           // shortName
           if (hasShortNames) {
             xml += `${indent}          <shortName>\n`
