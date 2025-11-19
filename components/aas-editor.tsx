@@ -2,6 +2,10 @@
 
 import { useState } from "react"
 import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical } from 'lucide-react'
+// ADD: extra icons and UI + toast
+import { AlertCircle, CheckCircle } from 'lucide-react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { toast } from "sonner"
 import JSZip from 'jszip'
 import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validation function
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
@@ -74,7 +78,9 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [dragOverItem, setDragOverItem] = useState<string | null>(null)
 
   const [isGenerating, setIsGenerating] = useState(false)
-
+  // ADD: validation issue states
+  const [internalIssues, setInternalIssues] = useState<string[]>([])
+  const [externalIssues, setExternalIssues] = useState<string[]>([])
 
   const loadTemplates = async () => {
     if (availableTemplates.length > 0) return
@@ -1148,14 +1154,17 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       const internalValidation = validateAAS()
       
       if (!internalValidation.valid) {
-        alert(`Please fill in all required fields before downloading:\n\n${internalValidation.missingFields.join('\n')}`)
-        console.table(internalValidation.missingFields); // Log internal validation errors
+        // ADD: store and toast instead of alert
+        setInternalIssues(internalValidation.missingFields)
+        toast.error(`Please fill all required fields (${internalValidation.missingFields.length} missing).`)
+        console.table(internalValidation.missingFields)
         setIsGenerating(false)
         return
       }
 
       // Clear internal validation errors after successful validation
       setValidationErrors(new Set())
+      setInternalIssues([]) // ADD: clear panel
 
       // Collect all unique concept descriptions
       const collectedConceptDescriptions: Record<string, ConceptDescription> = {};
@@ -1377,12 +1386,16 @@ ${indent}</conceptDescription>`
       const xmlValidationResult = await validateAASXXml(aasXml)
 
       if (!xmlValidationResult.valid) {
-        alert(`Generated AAS XML is invalid:\n\n${xmlValidationResult.errors.join('\n')}`)
-        console.table(xmlValidationResult.errors); // Log external validation errors
+        // ADD: surface XML schema errors panel + toast
+        const errs = Array.isArray(xmlValidationResult.errors) ? xmlValidationResult.errors.map((e: any) => (typeof e === 'string' ? e : e.message || String(e))) : ['Unknown XML validation error']
+        setExternalIssues(errs)
+        toast.error(`Generated XML is invalid (${errs.length} errors). See details below.`)
+        console.table(xmlValidationResult.errors)
         setIsGenerating(false)
         return
       }
       console.log("[v0] EDITOR: XML schema validation PASSED.")
+      setExternalIssues([]) // ADD: clear XML errors on success
 
       // Create AASX file (ZIP format)
       try {
@@ -1477,17 +1490,20 @@ ${indent}</conceptDescription>`
         document.body.removeChild(a)
         URL.revokeObjectURL(url)
         
+        // ADD: success toast
+        toast.success("AASX file generated successfully.")
+        
       } catch (error) {
         console.error("[v0] Error generating AASX file:", error)
-        alert("Failed to generate AASX file. Please try again.")
+        toast.error("Failed to generate AASX file. Please try again.")
       }
     } catch (error) {
       console.error("[v0] Error generating AASX file:", error)
-      alert("Failed to generate AASX file. Please try again.")
+      toast.error("Failed to generate AASX file. Please try again.")
     } finally {
       setIsGenerating(false)
     }
-    }
+  }
 
   const validateAAS = (): { valid: boolean; missingFields: string[] } => {
     const missingFields: string[] = []
@@ -1576,7 +1592,8 @@ ${indent}</conceptDescription>`
     if (index !== -1) {
       // Create a new AASConfig object without the removed submodel
       const updatedSelectedSubmodels = aasConfig.selectedSubmodels.filter(sm => sm.idShort !== idShort);
-      const newAASConfig = { ...aasConfig, selectedSubmodels: updatedSelectedSelectedSubmodels };
+      // FIX: corrected variable name
+      const newAASConfig = { ...aasConfig, selectedSubmodels: updatedSelectedSubmodels };
       
       onUpdateAASConfig(newAASConfig); // Call the callback to update parent state
 
@@ -1640,6 +1657,51 @@ ${indent}</conceptDescription>`
     template.description.toLowerCase().includes(templateSearchQuery.toLowerCase())
   )
 
+  // ADD: helper to navigate to a missing field path like "SubmodelId > A > B > C"
+  const goToIssuePath = (issue: string) => {
+    const parts = issue.split('>').map(p => p.trim()).filter(Boolean)
+    if (parts.length < 2) return
+    const submodelId = parts[0]
+    const pathSegments = parts.slice(1)
+
+    const sm = aasConfig.selectedSubmodels.find(s => s.idShort === submodelId)
+    if (!sm) return
+
+    setSelectedSubmodel(sm)
+
+    // Expand nodes along the path
+    const newExpanded = new Set(expandedNodes)
+    const cumulative: string[] = []
+    pathSegments.forEach(seg => {
+      cumulative.push(seg)
+      newExpanded.add(cumulative.join('.'))
+    })
+    setExpandedNodes(newExpanded)
+
+    // Find element by path and select it
+    const elements = submodelData[submodelId] || []
+    const findByPath = (els: SubmodelElement[], path: string[], idx = 0): SubmodelElement | null => {
+      if (idx >= path.length) return null
+      const cur = els.find(e => e.idShort === path[idx])
+      if (!cur) return null
+      if (idx === path.length - 1) return cur
+      return cur.children ? findByPath(cur.children, path, idx + 1) : null
+    }
+    const target = findByPath(elements, pathSegments)
+    if (target) setSelectedElement(target)
+  }
+
+  // ADD: manual validate action (internal)
+  const runInternalValidation = () => {
+    const result = validateAAS()
+    setInternalIssues(result.missingFields)
+    if (result.valid) {
+      toast.success("No missing required fields.")
+    } else {
+      toast.error(`Please fill all required fields (${result.missingFields.length} missing).`)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
@@ -1661,23 +1723,33 @@ ${indent}</conceptDescription>`
             </p>
           </div>
         </div>
-        <button
-          onClick={generateFinalAAS}
-          disabled={isGenerating}
-          className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isGenerating ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Download className="w-5 h-5" />
-              Download AAS
-            </>
-          )}
-        </button>
+
+        {/* ADD: Validate + Download actions */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={runInternalValidation}
+            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            Validate
+          </button>
+          <button
+            onClick={generateFinalAAS}
+            disabled={isGenerating}
+            className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isGenerating ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5" />
+                Download AAS
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
@@ -1784,6 +1856,58 @@ ${indent}</conceptDescription>`
         {/* Middle Panel - Tree Structure */}
         <div className="flex-1 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
           <div className="p-4">
+
+            {/* ADD: Validation Panels */}
+            {(internalIssues.length > 0) && (
+              <div className="mb-4">
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>Missing Required Fields ({internalIssues.length})</span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-x border-b border-red-200 dark:border-red-700 rounded-b-lg p-3">
+                    <ul className="list-disc list-inside text-sm space-y-2 text-red-800 dark:text-red-200">
+                      {internalIssues.map((msg, idx) => (
+                        <li key={idx} className="flex items-start justify-between gap-3">
+                          <span className="break-words">{msg}</span>
+                          <button
+                            onClick={() => goToIssuePath(msg)}
+                            className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-red-300 dark:border-red-600 rounded hover:bg-red-100 dark:hover:bg-red-800/40"
+                          >
+                            Go to
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )}
+
+            {(externalIssues.length > 0) && (
+              <div className="mb-4">
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>XML Schema Errors ({externalIssues.length})</span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-x border-b border-yellow-200 dark:border-yellow-700 rounded-b-lg p-3">
+                    <ul className="list-disc list-inside text-sm space-y-2 text-yellow-800 dark:text-yellow-200">
+                      {externalIssues.map((err, idx) => (
+                        <li key={idx} className="break-words">{err}</li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )}
+
             {selectedSubmodel ? (
               <>
                 <div className="flex items-center justify-between mb-4 pb-3 border-b">
