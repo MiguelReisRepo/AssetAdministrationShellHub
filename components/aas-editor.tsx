@@ -1224,12 +1224,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </semanticId>\n`
         }
 
-        // Value generation logic - ensure schema-compliant structure
+        // Ensure schema-compliant order: for Property, valueType must come before value
         if (element.modelType === "Property") {
-          // REMOVED: <valueType> in AAS 3.1 is not allowed here
+          const vt = prefixXs(element.valueType || "string")
+          xml += `${indent}  <valueType>${vt}</valueType>\n`
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${element.value}</value>\n`
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for Property ${element.idShort}`);
+            console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType> and <value> for Property ${element.idShort}`);
           }
         } else if (element.modelType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
@@ -1253,7 +1254,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for File ${element.idShort}`);
           }
         } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
-          // Wrap children in <value> as required by schema
+          // Wrap children in <value>
           console.log(`[v0] XML_GEN_DEBUG:   Processing children for Collection/List ${element.idShort}`);
           if (element.children && element.children.length > 0) {
             xml += `${indent}  <value>\n`
@@ -1518,6 +1519,16 @@ ${indent}</conceptDescription>`
         const currentPath = [...path, element.idShort]
         const nodeId = currentPath.join('.')
         const isRequired = element.cardinality === "One" || element.cardinality === "OneToMany"
+
+        // NEW: Property must have valueType for schema compliance
+        if (element.modelType === "Property" && (!element.valueType || String(element.valueType).trim() === "")) {
+          missingFields.push(`${submodelId} > ${currentPath.join(' > ')} (set Value Type)`)
+          errors.add(nodeId)
+          for (let i = 0; i < currentPath.length - 1; i++) {
+            const parentPath = currentPath.slice(0, i + 1).join('.')
+            nodesToExpand.add(parentPath)
+          }
+        }
         
         if (isRequired) {
           let hasValue = false
@@ -1530,7 +1541,6 @@ ${indent}</conceptDescription>`
               hasValue = values.length > 0
             }
           } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
-            // For collections, check if they have children (structure requirement)
             hasValue = (element.children && element.children.length > 0)
           }
           
@@ -1545,14 +1555,12 @@ ${indent}</conceptDescription>`
           }
         }
         
-        // Recursively validate children
         if (element.children && element.children.length > 0) {
           validateElements(element.children, submodelId, currentPath)
         }
       })
     }
     
-    // Validate all submodels
     aasConfig.selectedSubmodels.forEach(sm => {
       const elements = submodelData[sm.idShort] || []
       validateElements(elements, sm.idShort)
