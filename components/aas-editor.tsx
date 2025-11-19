@@ -11,6 +11,29 @@ import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validati
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { processFile } from "@/lib/process-file"
 
+// Add IEC 61360 data types list
+const IEC_DATA_TYPES = [
+  'DATE',
+  'STRING',
+  'STRING_TRANSLATABLE',
+  'INTEGER_MEASURE',
+  'INTEGER_COUNT',
+  'INTEGER_CURRENCY',
+  'REAL_MEASURE',
+  'REAL_COUNT',
+  'REAL_CURRENCY',
+  'BOOLEAN',
+  'IRI',
+  'IRDI',
+  'RATIONAL',
+  'RATIONAL_MEASURE',
+  'TIME',
+  'TIMESTAMP',
+  'FILE',
+  'HTML',
+  'BLOB',
+];
+
 interface SubmodelTemplate {
   name: string
   version: string
@@ -1000,15 +1023,25 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                   Data Type:
                 </label>
-                <input
-                  type="text"
+                <select
                   value={selectedElement.dataType || ''}
-                  onChange={(e) => {
-                    updateElementMetadata(selectedSubmodel.idShort, elementPath, 'dataType', e.target.value)
-                  }}
-                  placeholder="STRING, INTEGER, BOOLEAN, etc."
-                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono"
-                />
+                  onChange={(e) =>
+                    updateElementMetadata(
+                      selectedSubmodel.idShort,
+                      elementPath,
+                      'dataType',
+                      e.target.value || undefined
+                    )
+                  }
+                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                >
+                  <option value="">Select data type...</option>
+                  {IEC_DATA_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               {/* Definition/Description (moved here for order) */}
