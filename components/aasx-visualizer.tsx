@@ -267,7 +267,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   {element.idShort || "Element"}
                 </span>
                 {displayValue && (
-                  <span className="text-gray-600 dark:text-gray-400 font-normal ml-2">
+                  <span className="aasx-tree-node-value">
                     = {String(displayValue).substring(0, 50)}
                     {String(displayValue).length > 50 ? "..." : ""}
                   </span>
@@ -611,6 +611,9 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     )
   }
 
+  // Get the first AAS from the selected file's AAS data
+  const currentAAS = selectedFile?.aasData?.assetAdministrationShells?.[0];
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* File selector row at top */}
@@ -670,6 +673,33 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       <div className="aasx-overlay-container">
         {/* Left Panel - Submodels */}
         <div className="aasx-left-panel" style={{ backgroundColor: "rgba(97, 202, 243, 0.1)" }}>
+          {/* AAS Information Section */}
+          {currentAAS && (
+            <div className="mb-4 px-2 py-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-blue-200 dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
+                Asset Administration Shell
+              </h3>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">IdShort:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{currentAAS.idShort || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">ID:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all text-right">{currentAAS.id || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Asset Kind:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{currentAAS.assetKind || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Global Asset ID:</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all text-right">{currentAAS.assetInformation?.globalAssetId || 'N/A'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {selectedFile?.thumbnail ? (
             <div className="mb-4 px-2">
               <div className="w-full h-[150px] rounded-lg border-2 border-[#61caf3] shadow-md overflow-hidden flex items-center justify-center bg-white">
