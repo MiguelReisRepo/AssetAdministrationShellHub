@@ -295,32 +295,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       return <div className="aasx-no-selection-message">Upload a file to view details</div>
     }
 
-    // Display validation errors if the file is invalid
-    if (!selectedFile.valid && selectedFile.errors && selectedFile.errors.length > 0) {
-      return (
-        <div className="p-4 space-y-4">
-          <Collapsible className="border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg">
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-5 h-5" />
-                <span>Validation Errors ({selectedFile.errors.length})</span>
-              </div>
-              <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-4">
-              <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-200 space-y-2">
-                {selectedFile.errors.map((error, index) => (
-                  <li key={index} className="break-words">
-                    {typeof error === 'string' ? error : error.message}
-                  </li>
-                ))}
-              </ul>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      )
-    }
-
+    // This panel now *always* shows element details or a selection message.
+    // Validation errors are handled in the middle panel.
     if (!selectedElement) {
       return <div className="aasx-no-selection-message">Select an element to view details</div>
     }
@@ -749,7 +725,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           )}
         </div>
 
-        {/* Middle Panel - Tree View */}
+        {/* Middle Panel - Tree View and Validation Errors */}
         <div className="aasx-middle-panel">
           <div className="aasx-middle-panel-scroll">
             <div className="aasx-middle-panel-content">
@@ -781,6 +757,30 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 </>
               ) : (
                 <div className="aasx-no-selection-message">Select a submodel to view its elements</div>
+              )}
+
+              {/* Validation Errors section (moved here) */}
+              {selectedFile && !selectedFile.valid && selectedFile.errors && selectedFile.errors.length > 0 && (
+                <div className="p-4 mt-4"> {/* Added margin-top for spacing */}
+                  <Collapsible className="border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                    <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5" />
+                        <span>Validation Errors ({selectedFile.errors.length})</span>
+                      </div>
+                      <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-4">
+                      <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-200 space-y-2">
+                        {selectedFile.errors.map((error, index) => (
+                          <li key={index} className="break-words">
+                            {typeof error === 'string' ? error : error.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
               )}
             </div>
           </div>
