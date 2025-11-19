@@ -267,7 +267,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                   {element.idShort || "Element"}
                 </span>
                 {displayValue && (
-                  <span className="aasx-tree-node-value">
+                  <span className="text-gray-600 dark:text-gray-400 font-normal ml-2">
                     = {String(displayValue).substring(0, 50)}
                     {String(displayValue).length > 50 ? "..." : ""}
                   </span>
@@ -295,8 +295,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       return <div className="aasx-no-selection-message">Upload a file to view details</div>
     }
 
-    // This panel now *always* shows element details or a selection message.
-    // Validation errors are handled in the middle panel.
     if (!selectedElement) {
       return <div className="aasx-no-selection-message">Select an element to view details</div>
     }
