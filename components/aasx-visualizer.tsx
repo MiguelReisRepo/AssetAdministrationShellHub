@@ -56,6 +56,57 @@ function normalizeValueType(t?: string): string | undefined {
   return canonical || undefined;
 }
 
+// ADD: derive from IEC and value matcher (like in editor)
+function deriveValueTypeFromIEC(iec?: string): string | undefined {
+  switch ((iec || '').toUpperCase()) {
+    case 'DATE': return 'xs:date';
+    case 'STRING': return 'xs:string';
+    case 'STRING_TRANSLATABLE': return 'xs:string';
+    case 'INTEGER_MEASURE':
+    case 'INTEGER_COUNT':
+    case 'INTEGER_CURRENCY': return 'xs:integer';
+    case 'REAL_MEASURE':
+    case 'REAL_COUNT':
+    case 'REAL_CURRENCY': return 'xs:decimal';
+    case 'BOOLEAN': return 'xs:boolean';
+    case 'IRI': return 'xs:anyURI';
+    case 'IRDI': return 'xs:string';
+    case 'RATIONAL':
+    case 'RATIONAL_MEASURE': return 'xs:string';
+    case 'TIME': return 'xs:time';
+    case 'TIMESTAMP': return 'xs:dateTime';
+    case 'FILE': return 'xs:string';
+    case 'HTML': return 'xs:string';
+    case 'BLOB': return 'xs:base64Binary';
+    default: return undefined;
+  }
+}
+function isValidValueForXsdType(vt: string, val: string): boolean {
+  const v = (val ?? '').trim();
+  if (!v) return true;
+  switch (vt) {
+    case 'xs:boolean':
+      return v === 'true' || v === 'false';
+    case 'xs:integer':
+    case 'xs:int':
+    case 'xs:long':
+    case 'xs:short':
+    case 'xs:byte':
+      return /^-?\d+$/.test(v);
+    case 'xs:unsignedLong':
+    case 'xs:unsignedInt':
+    case 'xs:unsignedShort':
+    case 'xs:unsignedByte':
+      return /^\d+$/.test(v);
+    case 'xs:float':
+    case 'xs:double':
+    case 'xs:decimal':
+      return /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(v);
+    default:
+      return true;
+  }
+}
+
 // ADD: cardinality badge like editor
 const getCardinalityBadge = (cardinality: string) => {
   const colorMap: Record<string, string> = {
@@ -82,9 +133,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const [selectedFile, setSelectedFile] = useState<ValidationResult | null>(null) // Use ValidationResult type
   const [selectedSubmodel, setSelectedSubmodel] = useState<any>(null)
   const [selectedElement, setSelectedElement] = useState<any>(null)
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // Corrected initialization
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [hideEmptyElements, setHideEmptyElements] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  // ADD: internal validation state
+  const [internalIssues, setInternalIssues] = useState<string[]>([])
+  const [validationErrorPaths, setValidationErrorPaths] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (newFileIndex !== null && newFileIndex >= 0 && uploadedFiles[newFileIndex]) {
@@ -117,6 +171,119 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       newExpanded.add(nodeId)
     }
     setExpandedNodes(newExpanded)
+  }
+
+  // Validate current submodel (like editor)
+  const validateAAS = (): { valid: boolean; missingFields: string[]; nodesToExpand: Set<string>; errorPaths: Set<string> } => {
+    const missingFields: string[] = []
+    const nodesToExpand = new Set<string>()
+    const errorPaths = new Set<string>()
+    if (!selectedSubmodel) {
+      return { valid: true, missingFields, nodesToExpand, errorPaths }
+    }
+    const elements: any[] = selectedSubmodel.submodelElements || []
+    const submodelId = selectedSubmodel.idShort || 'Submodel'
+
+    const validateElements = (els: any[], chain: string[] = []) => {
+      els.forEach((el) => {
+        const type = getElementType(el)
+        const currentChain = [...chain, el.idShort || 'Element']
+        const fullKey = `${submodelId}>${currentChain.join('>')}`
+        const cardQual = el.qualifiers?.find((q: any) => q.type === "Cardinality")
+        const cardinality = cardQual?.value || el.cardinality || "ZeroToOne"
+        const isRequired = cardinality === "One" || cardinality === "OneToMany"
+
+        // Property checks: valueType or IEC dataType required; and if set, value must match
+        if (type === "Property") {
+          const vtNorm = normalizeValueType(el.valueType) || deriveValueTypeFromIEC(el.dataType)
+          if (!vtNorm && isRequired) {
+            missingFields.push(`${submodelId} > ${currentChain.join(' > ')} (set Value Type or IEC Data Type)`)
+            errorPaths.add(fullKey)
+            // expand parents
+            for (let i = 0; i < currentChain.length - 1; i++) nodesToExpand.add(currentChain.slice(0, i + 1).join('.'))
+          }
+          if (vtNorm && typeof el.value === 'string' && el.value.trim() !== '' && !isValidValueForXsdType(vtNorm, el.value)) {
+            missingFields.push(`${submodelId} > ${currentChain.join(' > ')} (value "${el.value}" doesn't match ${vtNorm})`)
+            errorPaths.add(fullKey)
+            for (let i = 0; i < currentChain.length - 1; i++) nodesToExpand.add(currentChain.slice(0, i + 1).join('.'))
+          }
+        }
+
+        // Required value presence
+        let hasValue = false
+        if (type === "Property") {
+          hasValue = typeof el.value === 'string' && el.value.trim() !== ''
+        } else if (type === "MultiLanguageProperty") {
+          if (Array.isArray(el.value)) {
+            hasValue = el.value.some((v: any) => v && v.text && String(v.text).trim() !== '')
+          } else if (el.value && typeof el.value === 'object') {
+            hasValue = Object.values(el.value).some((t: any) => t && String(t).trim() !== '')
+          }
+        } else if (type === "SubmodelElementCollection" || type === "SubmodelElementList") {
+          const children = Array.isArray(el.value) ? el.value : []
+          hasValue = children.length > 0
+        } else if (type === "File") {
+          hasValue = typeof el.value === 'string' && el.value.trim() !== ''
+        }
+
+        if (isRequired && !hasValue) {
+          missingFields.push(`${submodelId} > ${currentChain.join(' > ')}`)
+          errorPaths.add(fullKey)
+          for (let i = 0; i < currentChain.length - 1; i++) nodesToExpand.add(currentChain.slice(0, i + 1).join('.'))
+        }
+
+        // Recurse into children for collections/lists
+        if ((type === "SubmodelElementCollection" || type === "SubmodelElementList") && Array.isArray(el.value)) {
+          validateElements(el.value, currentChain)
+        }
+      })
+    }
+
+    validateElements(elements, [])
+    return { valid: missingFields.length === 0, missingFields, nodesToExpand, errorPaths }
+  }
+
+  const runInternalValidation = () => {
+    const res = validateAAS()
+    setInternalIssues(res.missingFields)
+    setValidationErrorPaths(res.errorPaths)
+    // Expand nodes along idShort chain (stable keys)
+    setExpandedNodes((prev) => new Set([...prev, ...res.nodesToExpand]))
+    if (res.valid) {
+      toast.success("No missing required fields.")
+    } else {
+      toast.error(`Please fill all required fields (${res.missingFields.length} missing).`)
+    }
+  }
+
+  // Navigate to a missing field path like "SubmodelId > A > B > C"
+  const goToIssuePath = (issue: string) => {
+    const parts = issue.split('>').map((p) => p.trim()).filter(Boolean)
+    if (parts.length < 2) return
+    const submodelId = parts[0]
+    const pathSegments = parts.slice(1)
+    const sm = (aasxData?.submodels || []).find((s: any) => s.idShort === submodelId)
+    if (!sm) return
+    setSelectedSubmodel(sm)
+    // Expand using stable chain keys "A", "A.B", ...
+    const newExpanded = new Set(expandedNodes)
+    const cumulative: string[] = []
+    pathSegments.forEach((seg) => {
+      cumulative.push(seg)
+      newExpanded.add(cumulative.join('.'))
+    })
+    setExpandedNodes(newExpanded)
+    // Find element by chain and select it
+    const findByChain = (els: any[], chain: string[], idx = 0): any | null => {
+      if (idx >= chain.length) return null
+      const cur = els.find((e: any) => e.idShort === chain[idx])
+      if (!cur) return null
+      if (idx === chain.length - 1) return cur
+      const children = Array.isArray(cur.value) ? cur.value : []
+      return findByChain(children, chain, idx + 1)
+    }
+    const target = findByChain(sm.submodelElements || [], pathSegments)
+    if (target) setSelectedElement(target)
   }
 
   const getElementType = (element: any): string => {
@@ -394,19 +561,23 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     return hasValue(element)
   }
 
-  const renderTreeNode = (element: any, depth = 0, path = ""): React.ReactNode => {
+  const renderTreeNode = (element: any, depth = 0, path = "", idChain: string[] = []): React.ReactNode => {
     if (!element || typeof element !== "object") return null
     
     if (!shouldShowElement(element)) {
       return null
     }
 
-    const nodeId = `${path}-${element.idShort || "node"}`
+    const chain = [...idChain, element.idShort || "node"]
+    const nodeId = chain.join('.') // stable idShort chain key
     const isExpanded = expandedNodes.has(nodeId)
     const isSelected = selectedElement === element
     const type = getElementType(element)
     const children = hasChildren(element) ? element.value : [] // Use element.value for children
     const hasKids = children.length > 0
+    const hasValidationError = selectedSubmodel
+      ? validationErrorPaths.has(`${selectedSubmodel.idShort}>${chain.join('>')}`)
+      : false
 
     const getNodeHeaderClass = () => {
       if (isSelected) {
@@ -445,7 +616,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     return (
       <div key={nodeId} style={{ marginLeft: depth > 0 ? "0px" : "0" }}>
         <div
-          className={getNodeHeaderClass()}
+          className={`${getNodeHeaderClass()} ${hasValidationError ? "border-2 border-red-500 bg-red-50 dark:bg-red-900/20" : ""}`}
           style={indentStyle}
           onClick={() => {
             setSelectedElement(element)
@@ -472,7 +643,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             {getTypeBadge(type)}
             <div className="aasx-tree-node-info">
               <div className="aasx-tree-node-label-container">
-                <span className={`aasx-tree-node-label ${element.idShort ? "aasx-tree-node-label-bold" : ""}`}>
+                <span className={`aasx-tree-node-label ${element.idShort ? "aasx-tree-node-label-bold" : ""} ${hasValidationError ? "text-red-700 dark:text-red-400" : ""}`}>
                   {element.idShort || "Element"}
                 </span>
                 {displayValue && (
@@ -504,7 +675,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         </div>
         {isExpanded && hasKids && (
           <div className="aasx-tree-children-wrapper" style={indentStyle}>
-            {children.map((child: any, idx: number) => renderTreeNode(child, depth + 1, `${nodeId}-${idx}`))}
+            {children.map((child: any) => renderTreeNode(child, depth + 1, nodeId, chain))}
           </div>
         )}
       </div>
@@ -1107,6 +1278,36 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         <div className="aasx-middle-panel">
           <div className="aasx-middle-panel-scroll">
             <div className="aasx-middle-panel-content">
+              {/* Internal validation panel (Missing Required Fields) */}
+              {(internalIssues.length > 0) && (
+                <div className="mb-4">
+                  <Collapsible>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border border-red-300 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Missing Required Fields ({internalIssues.length})</span>
+                      </div>
+                      <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="border-x border-b border-red-200 dark:border-red-700 rounded-b-lg p-3">
+                      <ul className="list-disc list-inside text-sm space-y-2 text-red-800 dark:text-red-200">
+                        {internalIssues.map((msg, idx) => (
+                          <li key={idx} className="flex items-start justify-between gap-3">
+                            <span className="break-words">{msg}</span>
+                            <button
+                              onClick={() => goToIssuePath(msg)}
+                              className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-800 border border-red-300 dark:border-red-600 rounded hover:bg-red-100 dark:hover:bg-red-800/40"
+                            >
+                              Go to
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              )}
+
               {selectedSubmodel ? (
                 <>
                   <div className="aasx-submodel-header">
@@ -1115,6 +1316,9 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                       <span>{selectedSubmodel.idShort}</span>
                     </div>
                     <div className="flex items-center gap-3">
+                      <Button size="sm" variant="outline" onClick={runInternalValidation}>
+                        Validate
+                      </Button>
                       <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
                         <input
                           type="checkbox"
@@ -1129,17 +1333,17 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                       </span>
                     </div>
                   </div>
-                  {selectedSubmodel.submodelElements?.map((element: any, idx: number) =>
-                    renderTreeNode(element, 0, `submodel-${idx}`),
+                  {selectedSubmodel.submodelElements?.map((element: any) =>
+                    renderTreeNode(element, 0, "", []),
                   )}
                 </>
               ) : (
                 <div className="aasx-no-selection-message">Select a submodel to view its elements</div>
               )}
 
-              {/* Validation Errors section (moved here) */}
+              {/* Validation Errors section (file-level) */}
               {selectedFile && !selectedFile.valid && selectedFile.errors && selectedFile.errors.length > 0 && (
-                <div className="p-4 mt-4"> {/* Added margin-top for spacing */}
+                <div className="p-4 mt-4">
                   <Collapsible className="border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg">
                     <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
                       <div className="flex items-center gap-2">
