@@ -1460,7 +1460,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         {/* Middle Panel - Tree View and Validation Errors */}
         <div className="aasx-middle-panel">
           <div className="aasx-middle-panel-scroll">
-            <div className="aasx-middle-panel-content">
+            <div className="aasx-middle-panel-content flex flex-col">
               {/* Internal validation panel (Missing Required Fields) */}
               {(internalIssues.length > 0) && (
                 <div className="mb-4">
@@ -1516,9 +1516,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                       </span>
                     </div>
                   </div>
-                  {selectedSubmodel.submodelElements?.map((element: any) =>
-                    renderTreeNode(element, 0, "", []),
-                  )}
+                  {/* Scrollable tree container */}
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {selectedSubmodel.submodelElements?.map((element: any) =>
+                      renderTreeNode(element, 0, "", []),
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="aasx-no-selection-message">Select a submodel to view its elements</div>
