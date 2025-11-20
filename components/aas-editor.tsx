@@ -1216,21 +1216,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
               </a>
             )}
           </div>
-
-          <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
-            <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-              Definition/Description
-            </h4>
-            <textarea
-              value={selectedElement.description || ''}
-              onChange={(e) => {
-                updateElementMetadata(selectedSubmodel.idShort, elementPath, 'description', e.target.value)
-              }}
-              placeholder="Enter property definition/description..."
-              rows={3}
-              className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-            />
-          </div>
           
           {/* Removed Source of Definition input */}
         </div>
