@@ -988,6 +988,28 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             </div>
           </div>
           <h3 className="font-semibold text-lg">{selectedElement.idShort || "Element"}</h3>
+          {/* NEW: Editable idShort for all elements */}
+          {editMode && (
+            <div className="grid gap-1">
+              <label className="text-xs text-gray-600 dark:text-gray-400">IdShort</label>
+              <Input
+                value={selectedElement.idShort || ""}
+                onChange={(e) => setField("idShort", e.target.value)}
+                className="font-mono text-xs"
+                placeholder="Enter idShort..."
+              />
+              {/* inline hint when invalid */}
+              {(() => {
+                const s = String(selectedElement.idShort || "").trim()
+                const ok = /^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]$|^[a-zA-Z]$/.test(s)
+                return !ok ? (
+                  <div className="text-[11px] text-red-600">
+                    Use letters, digits, "_" or "-"; start with a letter and end with a letter or digit.
+                  </div>
+                ) : null
+              })()}
+            </div>
+          )}
         </div>
 
         {/* VALUE section (green) */}
@@ -1265,6 +1287,30 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             />
           </div>
         )}
+
+        {/* NEW: Generic keys editors for any other reference-like fields on the element */}
+        {Object.entries(selectedElement)
+          .filter(
+            ([name, val]) =>
+              val &&
+              typeof val === "object" &&
+              Array.isArray((val as any).keys) &&
+              name !== "semanticId" &&
+              !(type === "ReferenceElement" && name === "value")
+          )
+          .map(([name, val]) => (
+            <div key={name} className="p-3 space-y-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase">
+                {name} (Keys)
+              </h4>
+              <KeysEditor
+                reference={val as any}
+                editable={editMode}
+                onChange={(next) => setField(name, next)}
+                title={`${name} Keys`}
+              />
+            </div>
+          ))}
       </div>
     )
   }
@@ -1489,7 +1535,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                       </div>
                       <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-3">
+                    <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-3 max-h-[480px] overflow-y-auto">
                       <ul className="space-y-2">
                         {buildFriendlySchemaErrors().map((fe, index) => (
                           <li key={index} className="flex items-start justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700">
