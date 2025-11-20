@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react'
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" // Import Collapsible components
 import { Button } from "@/components/ui/button"
@@ -125,13 +125,13 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     })
   }
 
-  // Add: download handler for File elements
-  const handleDownloadSelectedFile = () => {
-    if (!selectedElement) return
-    const type = getElementType(selectedElement)
+  // New: download handler for a specific element (used in middle panel)
+  const handleDownloadElement = (el: any) => {
+    if (!el) return
+    const type = getElementType(el)
     if (type !== "File") return
 
-    const raw = String(selectedElement.value ?? "").trim()
+    const raw = String(el.value ?? "").trim()
     if (!raw) {
       toast.error("No file target found on this element")
       return
@@ -157,45 +157,30 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       return
     }
 
-    // 3) Maybe base64 (including URL-safe base64) that encodes a URL or path
+    // 3) Maybe base64 (including URL-safe base64) that encodes a path/URL
     const tryDecodeBase64 = (s: string): string | null => {
-      // Accept URL-safe base64 (-,_)
       const normalized = s.replace(/-/g, "+").replace(/_/g, "/")
       try {
-        // Must be multiple of 4 for base64; if not, pad
         const pad = normalized.length % 4
         const padded = pad ? normalized + "=".repeat(4 - pad) : normalized
-        const decoded = atob(padded)
-        // If it looks like readable text, return it
-        return decoded
+        return atob(padded)
       } catch {
         return null
       }
     }
-
     let candidate = raw
     const decoded = tryDecodeBase64(raw)
-    if (decoded) {
-      candidate = decoded.trim()
-    }
-
-    // If the decoded candidate is a URL, open it
+    if (decoded) candidate = decoded.trim()
     if (/^https?:\/\//i.test(candidate)) {
       window.open(candidate, "_blank", "noopener,noreferrer")
       toast.info("Opening file in a new tab")
       return
     }
 
-    // Normalize path-like target
     const normalizePath = (p: string) =>
-      p.replace(/^file:\/\//i, "")
-        .replace(/^file:\//i, "")
-        .replace(/^\/+/, "")
-
+      p.replace(/^file:\/\//i, "").replace(/^file:\//i, "").replace(/^\/+/, "")
     let pathCandidate = normalizePath(candidate)
 
-    // Many VDI2770 File values contain "...File-<filename.ext>"
-    // Try to extract filename after the last "File-"
     const fileDashIdx = pathCandidate.lastIndexOf("File-")
     let basename = pathCandidate.split("/").pop() || pathCandidate
     if (fileDashIdx >= 0) {
@@ -205,23 +190,26 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       }
     }
 
-    // Look up attachments from selectedFile
     const attachments = (selectedFile as any)?.attachments as Record<string, string> | undefined
     if (!attachments) {
       toast.error("No embedded attachments found in this AASX")
       return
     }
 
-    // Try several keys: exact, with leading slash, and basename match
-    const candidates = [pathCandidate, `/${pathCandidate}`, basename, `/${basename}`, `aasx/${basename}`, `/aasx/${basename}`]
+    const candidates = [
+      pathCandidate,
+      `/${pathCandidate}`,
+      basename,
+      `/${basename}`,
+      `aasx/${basename}`,
+      `/aasx/${basename}`,
+    ]
     let dataUrl: string | undefined
-
     for (const k of candidates) {
       if (attachments[k]) {
         dataUrl = attachments[k]
         break
       }
-      // Also try case-insensitive endsWith by basename
       const found = Object.entries(attachments).find(
         ([key]) =>
           key.toLowerCase().endsWith(`/${basename.toLowerCase()}`) ||
@@ -232,12 +220,10 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         break
       }
     }
-
     if (!dataUrl) {
       toast.error(`File not found in AASX attachments: ${basename}`)
       return
     }
-
     const a = document.createElement("a")
     a.href = dataUrl
     a.download = basename || "download"
@@ -460,6 +446,18 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                     {String(displayValue).length > 50 ? "..." : ""}
                   </span>
                 )}
+                {type === "File" && element?.value ? (
+                  <button
+                    className="ml-2 p-1 rounded hover:bg-green-50 text-green-600 hover:text-green-700"
+                    title="Download file"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleDownloadElement(element)
+                    }}
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                ) : null}
               </div>
               {hasKids && (
                 <span className="aasx-tree-node-element-count">
@@ -638,11 +636,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             Submodel Element ({type})
           </div>
           <div style={{ marginLeft: 'auto' }}>
-            {type === "File" && selectedElement?.value ? (
-              <Button size="sm" variant="outline" className="mr-2" onClick={handleDownloadSelectedFile}>
-                Download
-              </Button>
-            ) : null}
             <Button
               size="sm"
               variant={editMode ? "secondary" : "outline"}
