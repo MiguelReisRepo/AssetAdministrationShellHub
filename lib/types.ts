@@ -16,6 +16,7 @@ export interface ValidationResult {
   parsed?: any // The parsed content (e.g., XML to JSON, or AAS data structure)
   thumbnail?: string // Base64 data URL for AASX thumbnail
   aasData?: any // Structured AAS data extracted from parsed content
+  attachments?: Record<string, string>
 }
 
 // Interfaces for parsed AAS data (simplified for display)

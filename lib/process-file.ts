@@ -4,6 +4,27 @@ import { validateAASXXml } from "./xml-validator"
 import { validateAASXJson } from "./json-validator" // Import validateAASXJson
 import type { File } from "formdata-node"
 
+// ADD: simple mime resolver by extension
+function getMimeTypeFromExt(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case "png": return "image/png"
+    case "jpg":
+    case "jpeg": return "image/jpeg"
+    case "gif": return "image/gif"
+    case "bmp": return "image/bmp"
+    case "svg": return "image/svg+xml"
+    case "pdf": return "application/pdf"
+    case "txt": return "text/plain"
+    case "csv": return "text/csv"
+    case "json": return "application/json"
+    case "xml": return "application/xml"
+    case "html": return "text/html"
+    case "htm": return "text/html"
+    case "zip": return "application/zip"
+    default: return "application/octet-stream"
+  }
+}
+
 async function extractThumbnail(zipContent: JSZip): Promise<string | null> {
   try {
     // Look for common thumbnail locations in AASX files
@@ -99,6 +120,8 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       let allErrors: (string | ValidationError)[] = []
       let aasData: any = null
       let parsedContent: any = null
+      // ADD: attachments map for AASX embedded files
+      const attachments: Record<string, string> = {}
 
       // Try XML candidates until one parses (valid or invalid) so we at least extract data/errors
       if (xmlFiles.length > 0) {
@@ -161,6 +184,21 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         allErrors.push("No AAS JSON files found in AASX archive")
       }
 
+      // Build attachments from all non-XML/JSON files in the archive
+      for (const name of Object.keys(zipContent.files)) {
+        const entry = zipContent.files[name]
+        if (!entry || entry.dir) continue
+        const lower = name.toLowerCase()
+        if (lower.endsWith(".xml") || lower.endsWith(".json")) continue
+        const ext = lower.split(".").pop() || ""
+        const mime = getMimeTypeFromExt(ext)
+        const base64 = await entry.async("base64")
+        const dataUrl = `data:${mime};base64,${base64}`
+        // Store both normalized and leading-slash variants for easier matching
+        attachments[name] = dataUrl
+        attachments[`/${name}`] = dataUrl
+      }
+
       // Consolidate AASX results
       const aasxResult: ValidationResult = {
         file: file.name,
@@ -171,6 +209,7 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         thumbnail: thumbnail || undefined,
         aasData: aasData,
         parsed: parsedContent,
+        attachments: Object.keys(attachments).length ? attachments : undefined,
       }
       results.push(aasxResult)
 

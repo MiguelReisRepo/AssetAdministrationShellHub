@@ -9,6 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
 
 // ADD: same options as editor
 const IEC_DATA_TYPES = [
@@ -515,6 +516,11 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             Submodel Element ({type})
           </div>
           <div style={{ marginLeft: 'auto' }}>
+            {type === "File" && selectedElement?.value ? (
+              <Button size="sm" variant="outline" className="mr-2" onClick={handleDownloadSelectedFile}>
+                Download
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant={editMode ? "secondary" : "outline"}
