@@ -1724,8 +1724,8 @@ ${indent}</conceptDescription>`
         });
 
         const jsonShell = {
-          idShort: aasConfig.idShort,
           id: aasConfig.id,
+          idShort: aasConfig.idShort,
           assetInformation: {
             assetKind: aasConfig.assetKind,
             globalAssetId: aasConfig.globalAssetId,
@@ -1738,9 +1738,47 @@ ${indent}</conceptDescription>`
           })),
         };
 
+        // Build conceptDescriptions (compact IEC 61360 JSON)
+        const jsonConceptDescriptions = Object.values(collectedConceptDescriptions).map(concept => {
+          const ensuredPreferredName = (concept.preferredName && Object.values(concept.preferredName).some(v => v && String(v).trim() !== ""))
+            ? concept.preferredName!
+            : { en: concept.idShort };
+          const preferredNameArr = Object.entries(ensuredPreferredName).map(([language, text]) => ({ language, text }));
+          const shortNameArr = concept.shortName
+            ? Object.entries(concept.shortName).map(([language, text]) => ({ language, text }))
+            : undefined;
+          const definitionArr = concept.description
+            ? [{ language: "en", text: concept.description }]
+            : undefined;
+
+          return {
+            id: concept.id,
+            idShort: concept.idShort,
+            embeddedDataSpecifications: [
+              {
+                dataSpecification: {
+                  keys: [
+                    { type: "GlobalReference", value: "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360" }
+                  ]
+                },
+                dataSpecificationContent: {
+                  dataSpecificationIec61360: {
+                    preferredName: preferredNameArr,
+                    ...(shortNameArr && { shortName: shortNameArr }),
+                    ...(concept.unit && { unit: concept.unit }),
+                    ...(concept.dataType && { dataType: concept.dataType }),
+                    ...(definitionArr && { definition: definitionArr })
+                  }
+                }
+              }
+            ]
+          };
+        });
+
         const jsonEnvironment = {
           assetAdministrationShells: [jsonShell],
           submodels: jsonSubmodels,
+          conceptDescriptions: jsonConceptDescriptions
         };
 
         zip.file("model.json", JSON.stringify(jsonEnvironment, null, 2));
