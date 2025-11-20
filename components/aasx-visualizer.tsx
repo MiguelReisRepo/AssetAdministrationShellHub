@@ -300,6 +300,102 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     if (target) setSelectedElement(target)
   }
 
+  // Find the first tree path for an element by idShort across all submodels
+  const findFirstPathForIdShort = (needle: string): string | null => {
+    if (!aasxData?.submodels) return null
+    for (const sm of aasxData.submodels) {
+      const submodelId = sm?.idShort || 'Submodel'
+      const walk = (els: any[], chain: string[] = []): string | null => {
+        for (const el of els || []) {
+          const cur = [...chain, el?.idShort || 'Element']
+          if (el?.idShort === needle) return `${submodelId} > ${cur.join(' > ')}`
+          if (Array.isArray(el?.value)) {
+            const found = walk(el.value, cur)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const res = walk(sm?.submodelElements || [], [])
+      if (res) return res
+    }
+    return null
+  }
+
+  // Build user-friendly schema errors with optional Go to support
+  type FriendlyError = { message: string; hint?: string; path?: string }
+  const buildFriendlySchemaErrors = (): FriendlyError[] => {
+    const raw = (selectedFile?.errors || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
+    const list: FriendlyError[] = []
+    for (const msg of raw) {
+      const idShortMatch = msg.match(/idShort.*value '([^']+)'/i)
+      const minLenMatch = /value.*minLength/i.test(msg)
+      const displayNameMissing = /displayName.*Missing child element/i.test(msg)
+      const preferredNameMissing = /preferredName.*Missing child element/i.test(msg)
+      const keysMissing = /keys.*Missing child element/i.test(msg)
+      const specificAssetIdsMissing = /specificAssetIds.*Missing child element/i.test(msg)
+      const conceptDescriptionsMissing = /conceptDescriptions.*Missing child element/i.test(msg)
+
+      if (idShortMatch) {
+        const bad = idShortMatch[1]
+        const path = findFirstPathForIdShort(bad) || undefined
+        list.push({
+          message: `idShort "${bad}" doesn't follow naming rules`,
+          hint: 'Use letters, digits, "_" or "-", start with a letter, and end with a letter or digit.',
+          path,
+        })
+        continue
+      }
+      if (minLenMatch) {
+        list.push({
+          message: 'A required value is empty',
+          hint: 'Enter at least 1 character; required fields cannot be empty.',
+        })
+        continue
+      }
+      if (displayNameMissing) {
+        list.push({
+          message: 'Display name is missing a language entry',
+          hint: 'Add a name (e.g., language "en") to displayName.',
+        })
+        continue
+      }
+      if (preferredNameMissing) {
+        list.push({
+          message: 'Preferred name is missing',
+          hint: 'Add Preferred Name (e.g., English "en") for the IEC 61360 data spec.',
+        })
+        continue
+      }
+      if (keysMissing) {
+        list.push({
+          message: 'A Reference lacks required key entries',
+          hint: 'Add at least one "key" with proper type and value.',
+        })
+        continue
+      }
+      if (specificAssetIdsMissing) {
+        list.push({
+          message: 'AssetInformation › specificAssetIds is empty',
+          hint: 'Add one or more specificAssetId entries in Asset Information.',
+        })
+        continue
+      }
+      if (conceptDescriptionsMissing) {
+        list.push({
+          message: 'Concept Descriptions list is empty',
+          hint: 'Add at least one conceptDescription entry for referenced semantics.',
+        })
+        continue
+      }
+      // Fallback: keep a short version of the message
+      list.push({
+        message: msg.replace(/\s+/g, ' ').trim(),
+      })
+    }
+    return list
+  }
+
   const getElementType = (element: any): string => {
     if (!element?.modelType) return "Property"
     return element.modelType
@@ -1362,15 +1458,27 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                     <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
                       <div className="flex items-center gap-2">
                         <AlertCircle className="w-5 h-5" />
-                        <span>Validation Errors ({selectedFile.errors.length})</span>
+                        <span>Validation Errors ({buildFriendlySchemaErrors().length})</span>
                       </div>
                       <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
-                    <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-4">
-                      <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-200 space-y-2">
-                        {selectedFile.errors.map((error, index) => (
-                          <li key={index} className="break-words">
-                            {typeof error === 'string' ? error : error.message}
+                    <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-3">
+                      <ul className="space-y-2">
+                        {buildFriendlySchemaErrors().map((fe, index) => (
+                          <li key={index} className="flex items-start justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700">
+                            <div className="text-sm text-red-800 dark:text-red-200">
+                              <div className="font-medium">{fe.message}</div>
+                              {fe.hint && <div className="text-xs text-red-700/80 dark:text-red-300/80 mt-0.5">{fe.hint}</div>}
+                              {fe.path && <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Path: {fe.path}</div>}
+                            </div>
+                            {fe.path ? (
+                              <button
+                                onClick={() => goToIssuePath(fe.path!)}
+                                className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-red-300 dark:border-red-600 rounded hover:bg-red-100 dark:hover:bg-red-800/40"
+                              >
+                                Go to
+                              </button>
+                            ) : null}
                           </li>
                         ))}
                       </ul>
