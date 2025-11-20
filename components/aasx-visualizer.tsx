@@ -36,6 +36,41 @@ const IEC_DATA_TYPES = [
 
 const CATEGORY_OPTIONS = ["CONSTANT", "PARAMETER", "VARIABLE"];
 
+// ADD: XSD types and normalizer (like in editor)
+const XSD_VALUE_TYPES = [
+  'xs:string','xs:boolean','xs:decimal','xs:integer','xs:long','xs:int','xs:short','xs:byte',
+  'xs:double','xs:float','xs:dateTime','xs:date','xs:time','xs:anyURI','xs:duration',
+  'xs:gYearMonth','xs:gYear','xs:gMonthDay','xs:gDay','xs:gMonth',
+  'xs:unsignedLong','xs:unsignedInt','xs:unsignedShort','xs:unsignedByte',
+  'xs:base64Binary','xs:hexBinary'
+];
+const XSD_CANON_MAP: Record<string, string> =
+  Object.fromEntries(XSD_VALUE_TYPES.map(t => [t.slice(3).toLowerCase(), t]));
+function normalizeValueType(t?: string): string | undefined {
+  if (!t) return undefined;
+  const s = t.trim();
+  if (!s) return undefined;
+  const hasPrefix = s.slice(0,3).toLowerCase() === 'xs:';
+  const local = hasPrefix ? s.slice(3) : s;
+  const canonical = XSD_CANON_MAP[local.toLowerCase()];
+  return canonical || undefined;
+}
+
+// ADD: cardinality badge like editor
+const getCardinalityBadge = (cardinality: string) => {
+  const colorMap: Record<string, string> = {
+    "One": "bg-red-600",
+    "ZeroToOne": "bg-yellow-600",
+    "ZeroToMany": "bg-blue-600",
+    "OneToMany": "bg-purple-600"
+  };
+  return (
+    <span className={`px-2 py-0.5 ${colorMap[cardinality] || "bg-gray-500"} text-white text-xs font-semibold rounded`}>
+      {cardinality}
+    </span>
+  );
+};
+
 interface AASXVisualizerProps {
   uploadedFiles: ValidationResult[] // Use ValidationResult type
   newFileIndex?: number | null
@@ -624,265 +659,308 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       cardinalityValue = selectedElement.cardinality;
     }
 
+    // UPDATED: Mirror editor right panel layout and controls
+    // Helpers for MLP language management (array of { language, text })
+    const ensureEnLang = () => {
+      updateSelectedElement((el) => {
+        if (!Array.isArray(el.value)) el.value = []
+        if (!el.value.find((v: any) => v.language === 'en')) {
+          el.value.unshift({ language: 'en', text: '' })
+        }
+      })
+    }
+    const addLanguageToMLP = (lang: string) => {
+      if (!lang) return
+      updateSelectedElement((el) => {
+        if (!Array.isArray(el.value)) el.value = []
+        if (!el.value.find((v: any) => v.language === lang)) {
+          el.value.push({ language: lang, text: '' })
+        }
+      })
+    }
+    const removeLanguageFromMLP = (lang: string) => {
+      if (lang === 'en') return
+      updateSelectedElement((el) => {
+        if (Array.isArray(el.value)) {
+          el.value = el.value.filter((v: any) => v.language !== lang)
+        }
+      })
+    }
+    const updateMLPLanguageValue = (lang: string, text: string) => {
+      updateSelectedElement((el) => {
+        if (!Array.isArray(el.value)) el.value = []
+        const entry = el.value.find((v: any) => v.language === lang)
+        if (entry) entry.text = text
+        else el.value.push({ language: lang, text })
+      })
+    }
+    if (type === "MultiLanguageProperty") ensureEnLang()
+
+    // Derive cardinality and required badge (from qualifier or property)
+    let cardinalityValue = "N/A"
+    const cardQual = selectedElement.qualifiers?.find((q: any) => q.type === "Cardinality")
+    if (cardQual?.value) cardinalityValue = cardQual.value
+    else if (selectedElement.cardinality) cardinalityValue = selectedElement.cardinality
+    const isRequired = cardinalityValue === "One" || cardinalityValue === "OneToMany"
+
     return (
-      <div>
-        {/* Header matching editor style */}
-        <div
-          className="aasx-details-header"
-          style={{ backgroundColor: hexToRgba(typeColor, 0.2), display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
-          {getTypeBadge(type, true)}
-          <div className="aasx-details-header-title" style={{ color: typeColor }}>
-            Submodel Element ({type})
+      <div className="p-4 space-y-6">
+        {/* Editor-like header: badges + title + edit toggle */}
+        <div className="space-y-3 pb-4 border-b">
+          <div className="flex items-center gap-2">
+            {getTypeBadge(type)}
+            {getCardinalityBadge(cardinalityValue)}
+            <div className="ml-auto">
+              <Button
+                size="sm"
+                variant={editMode ? "secondary" : "outline"}
+                onClick={() => setEditMode((v) => !v)}
+              >
+                {editMode ? "Done" : "Edit"}
+              </Button>
+            </div>
           </div>
-          <div style={{ marginLeft: 'auto' }}>
-            <Button
-              size="sm"
-              variant={editMode ? "secondary" : "outline"}
-              onClick={() => setEditMode((v) => !v)}
-            >
-              {editMode ? "Done" : "Edit"}
-            </Button>
-          </div>
+          <h3 className="font-semibold text-lg">{selectedElement.idShort || "Element"}</h3>
         </div>
 
-        {/* VALUE section - always show */}
-        <div className="p-4 space-y-3 bg-green-50 dark:bg-green-900/20 border-b">
+        {/* VALUE section (green) */}
+        <div className="space-y-3 bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
           <h4 className="text-sm font-semibold text-green-800 dark:text-green-300 uppercase">
-            Value
+            Value {isRequired && <span className="text-red-500">*</span>}
           </h4>
-          {type === "MultiLanguageProperty" ? (
-            <div className="space-y-2">
-              {(Array.isArray(selectedElement.value) ? selectedElement.value : []).length > 0 ? (
-                (selectedElement.value as any[]).map((item: any, idx: number) => (
-                  <div key={idx} className="text-sm">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                      Language: {item.language || 'en'}
-                    </span>
+          {type === "Property" && (
+            editMode ? (
+              <Input
+                value={typeof selectedElement.value === 'string' ? selectedElement.value : ''}
+                onChange={(e) => setField("value", e.target.value)}
+                placeholder={`Enter ${selectedElement.idShort}...`}
+                className="w-full"
+              />
+            ) : (
+              <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
+                {typeof selectedElement.value === 'string' ? selectedElement.value : ''}
+              </div>
+            )
+          )}
+          {type === "MultiLanguageProperty" && (
+            <div className="space-y-3">
+              {(Array.isArray(selectedElement.value) ? selectedElement.value : []).map((item: any, idx: number) => (
+                <div key={idx} className="flex gap-2 items-start">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Language: {item.language || 'en'} ({item.language || 'en'})
+                    </label>
                     {editMode ? (
-                      <Textarea
-                        className="mt-1"
+                      <Input
                         value={item.text || ''}
-                        onChange={(e) =>
-                          updateSelectedElement((el) => {
-                            if (Array.isArray(el.value) && el.value[idx]) {
-                              el.value[idx].text = e.target.value
-                            }
-                          })
-                        }
+                        onChange={(e) => updateMLPLanguageValue(item.language || 'en', e.target.value)}
+                        placeholder={`Enter ${selectedElement.idShort} in ${item.language || 'en'}...`}
+                        className="w-full"
                       />
                     ) : (
-                      <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-mono break-all">
+                      <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
                         {item.text || ''}
                       </div>
                     )}
                   </div>
-                ))
-              ) : (
-                <div className="text-sm text-gray-500 italic">Not specified</div>
+                  {editMode && (item.language !== 'en') && (
+                    <button
+                      onClick={() => removeLanguageFromMLP(item.language)}
+                      className="mt-6 p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-600"
+                      title="Remove language"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {editMode && (
+                <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                    Add Language
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (val) {
+                          addLanguageToMLP(val)
+                          e.target.value = ''
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 focus:ring-2 focus:ring-[#61caf3] focus:border-transparent text-sm"
+                    >
+                      <option value="">Select language...</option>
+                      <option value="de">German (de)</option>
+                      <option value="fr">French (fr)</option>
+                      <option value="es">Spanish (es)</option>
+                      <option value="it">Italian (it)</option>
+                      <option value="pt">Portuguese (pt)</option>
+                      <option value="nl">Dutch (nl)</option>
+                      <option value="pl">Polish (pl)</option>
+                      <option value="ru">Russian (ru)</option>
+                      <option value="zh">Chinese (zh)</option>
+                      <option value="ja">Japanese (ja)</option>
+                      <option value="ko">Korean (ko)</option>
+                    </select>
+                  </div>
+                </div>
               )}
             </div>
-          ) : isCollection ? (
-            <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
-              {`Collection (${Array.isArray(selectedElement.value) ? selectedElement.value.length : 0} items)`}
+          )}
+          {isCollection && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="font-medium mb-1">Collection Element</p>
+              <p>This element contains child properties. Select its children in the tree to edit their values.</p>
             </div>
-          ) : editMode ? (
-            <Input
-              value={
-                typeof selectedElement.value === "string" || typeof selectedElement.value === "number"
-                  ? (selectedElement.value as any)
-                  : ""
-              }
-              onChange={(e) => setField("value", e.target.value)}
-            />
-          ) : (
-            <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
-              {typeof selectedElement.value === "string" || typeof selectedElement.value === "number"
-                ? (selectedElement.value as any)
-                : selectedElement.value == null
-                  ? ""
-                  : JSON.stringify(selectedElement.value)}
+          )}
+          {type === "File" && (
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              File path/URL: {typeof selectedElement.value === 'string' ? selectedElement.value : ''}
+            </div>
+          )}
+          {/* Property Value Type selector */}
+          {type === "Property" && editMode && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Value Type:
+              </label>
+              <select
+                value={normalizeValueType(selectedElement.valueType) || ''}
+                onChange={(e) => setField("valueType", e.target.value || undefined)}
+                className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm font-mono"
+              >
+                <option value="">Select xs:* type...</option>
+                {XSD_VALUE_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
             </div>
           )}
         </div>
 
-        {/* PROPERTY METADATA section - always show all fields */}
-        <div className="p-4 space-y-3 bg-blue-50 dark:bg-blue-900/20 border-b">
+        {/* PROPERTY METADATA section (blue) */}
+        <div className="space-y-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
           <h4 className="text-xs font-semibold text-blue-800 dark:text-blue-300 uppercase">
             Property Metadata
           </h4>
-          
           <div className="space-y-3 text-sm">
-            {/* Type - always show */}
             <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Type:
-              </span>
-              <span className="font-mono text-gray-900 dark:text-gray-100">
+              </label>
+              <div className="font-mono text-gray-900 dark:text-gray-100">
                 {type}
-              </span>
+              </div>
             </div>
-
-            {/* Preferred Name - always show */}
+            {/* Preferred Name (English) */}
             <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Preferred Name (English):
-              </span>
-              {editMode ? (
-                <Input
-                  value={preferredNameValue || ""}
-                  onChange={(e) => setField("preferredName", e.target.value)}
-                />
-              ) : (
-                <span className="text-gray-900 dark:text-gray-100">
-                  {preferredNameValue || <span className="text-gray-400 italic">Not specified</span>}
-                </span>
-              )}
+              </label>
+              <Input
+                value={getStringValue(selectedElement.preferredName)}
+                onChange={(e) => setField("preferredName", { en: e.target.value })}
+                placeholder="Enter preferred name..."
+              />
             </div>
-
-            {/* Short Name - always show */}
+            {/* Short Name (English) */}
             <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                 Short Name (English):
-              </span>
-              {editMode ? (
-                <Input
-                  value={shortNameValue || ""}
-                  onChange={(e) => setField("shortName", e.target.value)}
-                />
-              ) : (
-                <span className="text-gray-900 dark:text-gray-100">
-                  {shortNameValue || <span className="text-gray-400 italic">Not specified</span>}
-                </span>
-              )}
+              </label>
+              <Input
+                value={getStringValue(selectedElement.shortName)}
+                onChange={(e) => setField("shortName", { en: e.target.value })}
+                placeholder="Enter short name..."
+              />
             </div>
-
-            {/* Data Type - always show */}
+            {/* Unit */}
             <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
-                Data Type:
-              </span>
-              {editMode ? (
-                <select
-                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                  value={selectedElement.dataType || dataTypeValue || ""}
-                  onChange={(e) => setField("dataType", e.target.value || undefined)}
-                >
-                  <option value="">Select data type...</option>
-                  {IEC_DATA_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="font-mono text-gray-900 dark:text-gray-100">
-                  {dataTypeValue || <span className="text-gray-400 italic">Not specified</span>}
-                </span>
-              )}
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Unit:
+              </label>
+              <Input
+                value={selectedElement.unit || ""}
+                onChange={(e) => setField("unit", e.target.value)}
+                placeholder="mm, kg, °C, etc."
+              />
             </div>
-
-            {/* Value Type - always show for Property */}
-            {(type === "Property" || selectedElement.valueType) && (
-              <div>
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
-                  Value Type:
-                </span>
-                {editMode ? (
-                  <Input
-                    value={selectedElement.valueType || ""}
-                    onChange={(e) => setField("valueType", e.target.value)}
-                  />
-                ) : (
-                  <span className="font-mono text-gray-900 dark:text-gray-100">
-                    {selectedElement.valueType || <span className="text-gray-400 italic">Not specified</span>}
+            {/* IEC Data Type */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Data Type:
+              </label>
+              <select
+                className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                value={selectedElement.dataType || ""}
+                onChange={(e) => setField("dataType", e.target.value || undefined)}
+              >
+                <option value="">Select data type...</option>
+                {IEC_DATA_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Definition/Description */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Definition/Description:
+              </label>
+              <Textarea
+                value={typeof selectedElement.description === 'string' ? selectedElement.description : (descriptionText === "N/A" ? "" : descriptionText)}
+                onChange={(e) => setField("description", e.target.value)}
+                rows={3}
+              />
+            </div>
+            {/* Category */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Category:
+              </label>
+              <select
+                className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg.white dark:bg-gray-900 text-sm"
+                value={selectedElement.category || ""}
+                onChange={(e) => setField("category", e.target.value || undefined)}
+              >
+                <option value="">None</option>
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Cardinality */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Cardinality:
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-gray-900 dark:text-gray-100">{cardinalityValue}</span>
+                {cardinalityValue !== "N/A" && (
+                  <span className="text-xs text-gray-500">
+                    {isRequired ? "(Required)" : "(Optional)"}
                   </span>
                 )}
-              </div>
-            )}
-
-            {/* Unit - always show */}
-            <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
-                Unit:
-              </span>
-              {editMode ? (
-                <Input
-                  value={unitValue || ""}
-                  onChange={(e) => setField("unit", e.target.value)}
-                />
-              ) : (
-                <span className="text-gray-900 dark:text-gray-100">
-                  {unitValue || <span className="text-gray-400 italic">Not specified</span>}
-                </span>
-              )}
-            </div>
-
-            {/* Category - always show */}
-            <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
-                Category:
-              </span>
-              {editMode ? (
-                <select
-                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
-                  value={categoryValue || ""}
-                  onChange={(e) => setField("category", e.target.value || undefined)}
-                >
-                  <option value="">None</option>
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="text-gray-900 dark:text-gray-100">
-                  {categoryValue || <span className="text-gray-400 italic">Not specified</span>}
-                </span>
-              )}
-            </div>
-
-            {/* Cardinality - always show */}
-            <div>
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
-                Cardinality:
-              </span>
-              <div className="flex items-center gap-2">
-                <>
-                  <span className="font-mono text-gray-900 dark:text-gray-100">
-                    {cardinalityValue}
-                  </span>
-                  {cardinalityValue !== "N/A" && (
-                    <span className="text-xs text-gray-500">
-                      {cardinalityValue === "One" && "(Required)"}
-                      {cardinalityValue === "ZeroToOne" && "(Optional)"}
-                      {cardinalityValue === "ZeroToMany" && "(Multiple Optional)"}
-                      {cardinalityValue === "OneToMany" && "(Multiple Required)"}
-                    </span>
-                  )}
-                </>
               </div>
             </div>
           </div>
         </div>
 
-        {/* SEMANTIC ID section - always show */}
-        <div className="p-4 space-y-2 bg-purple-50 dark:bg-purple-900/20 border-b">
+        {/* SEMANTIC ID section (purple) */}
+        <div className="p-3 space-y-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
           <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase">
             Semantic ID (ECLASS/IEC61360)
           </h4>
-          {editMode ? (
-            <Input
-              value={typeof selectedElement.semanticId === 'string' ? selectedElement.semanticId : ''}
-              onChange={(e) => setField("semanticId", e.target.value)}
-              placeholder="0173-1#02-AAO677#002 or https://..."
-            />
-          ) : (
-            <div className="text-xs font-mono text-gray-900 dark:text-gray-100 break-all">
-              {semanticIdValue === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : semanticIdValue}
-            </div>
-          )}
+          <Input
+            value={typeof selectedElement.semanticId === 'string' ? selectedElement.semanticId : ''}
+            onChange={(e) => setField("semanticId", e.target.value)}
+            placeholder="0173-1#02-AAO677#002 or https://..."
+            className="font-mono text-xs"
+          />
           {semanticIdValue !== "N/A" && semanticIdValue.startsWith('http') && (
             <a
               href={semanticIdValue}
@@ -892,23 +970,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             >
               View specification →
             </a>
-          )}
-        </div>
-
-        {/* DEFINITION/DESCRIPTION section - always show */}
-        <div className="p-4 space-y-2 bg-gray-100 dark:bg-gray-700 border-b">
-          <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-            Definition/Description
-          </h4>
-          {editMode ? (
-            <Textarea
-              value={typeof selectedElement.description === 'string' ? selectedElement.description : (descriptionText === "N/A" ? "" : descriptionText)}
-              onChange={(e) => setField("description", e.target.value)}
-            />
-          ) : (
-            <div className="text-sm text-gray-900 dark:text-gray-100">
-              {descriptionText === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : descriptionText}
-            </div>
           )}
         </div>
       </div>
