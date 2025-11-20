@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import KeysEditor from "@/components/keys-editor"
+import { validateAASStructure } from "@/lib/json-validator"
 
 // ADD: same options as editor
 const IEC_DATA_TYPES = [
@@ -140,6 +141,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   // ADD: internal validation state
   const [internalIssues, setInternalIssues] = useState<string[]>([])
   const [validationErrorPaths, setValidationErrorPaths] = useState<Set<string>>(new Set())
+  // NEW: live schema errors (updated every Validate click)
+  const [liveErrors, setLiveErrors] = useState<(string | { message: string })[]>([])
 
   useEffect(() => {
     if (newFileIndex !== null && newFileIndex >= 0 && uploadedFiles[newFileIndex]) {
@@ -269,6 +272,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     } else {
       toast.error(`Please fill all required fields (${res.missingFields.length} missing).`)
     }
+    // NEW: Live structural validation against current in-memory data
+    const structureValidation = validateAASStructure(aasxData || {})
+    const nextErrors = structureValidation.valid
+      ? []
+      : (structureValidation.errors || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
+    setLiveErrors(nextErrors)
   }
 
   // Navigate to a missing field path like "SubmodelId > A > B > C"
@@ -325,8 +334,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
 
   // Build user-friendly schema errors with optional Go to support
   type FriendlyError = { message: string; hint?: string; path?: string }
-  const buildFriendlySchemaErrors = (): FriendlyError[] => {
-    const raw = (selectedFile?.errors || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
+  const buildFriendlyErrors = (source?: (string | ValidationError)[]): FriendlyError[] => {
+    const raw: string[] = (source || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
     const list: FriendlyError[] = []
     for (const msg of raw) {
       const idShortMatch = msg.match(/idShort.*value '([^']+)'/i)
@@ -395,7 +404,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
       })
     }
     return list
-  }
+   }
 
   const getElementType = (element: any): string => {
     if (!element?.modelType) return "Property"
@@ -1527,41 +1536,46 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 <div className="aasx-no-selection-message">Select a submodel to view its elements</div>
               )}
 
-              {/* Validation Errors section (file-level) */}
-              {selectedFile && !selectedFile.valid && selectedFile.errors && selectedFile.errors.length > 0 && (
-                <div className="p-4 mt-4">
-                  <Collapsible className="border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                    <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
-                      <div className="flex items-center gap-2">
-                        <AlertCircle className="w-5 h-5" />
-                        <span>Validation Errors ({buildFriendlySchemaErrors().length})</span>
-                      </div>
-                      <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-3 max-h-[480px] overflow-y-auto">
-                      <ul className="space-y-2">
-                        {buildFriendlySchemaErrors().map((fe, index) => (
-                          <li key={index} className="flex items-start justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700">
-                            <div className="text-sm text-red-800 dark:text-red-200">
-                              <div className="font-medium">{fe.message}</div>
-                              {fe.hint && <div className="text-xs text-red-700/80 dark:text-red-300/80 mt-0.5">{fe.hint}</div>}
-                              {fe.path && <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Path: {fe.path}</div>}
-                            </div>
-                            {fe.path ? (
-                              <button
-                                onClick={() => goToIssuePath(fe.path!)}
-                                className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-red-300 dark:border-red-600 rounded hover:bg-red-100 dark:hover:bg-red-800/40"
-                              >
-                                Go to
-                              </button>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </div>
-              )}
+              {/* Validation Errors section (live + fallback) */}
+              {(() => {
+                const currentErrors = (liveErrors && liveErrors.length > 0) ? liveErrors : (selectedFile?.errors || [])
+                const friendly = buildFriendlyErrors(currentErrors)
+                if (friendly.length === 0) return null
+                return (
+                  <div className="p-4 mt-4">
+                    <Collapsible className="border border-red-300 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-4 text-red-800 dark:text-red-300 font-semibold">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle className="w-5 h-5" />
+                          <span>Validation Errors ({friendly.length})</span>
+                        </div>
+                        <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="border-t border-red-200 dark:border-red-700 p-3 max-h-[480px] overflow-y-auto">
+                        <ul className="space-y-2">
+                          {friendly.map((fe, index) => (
+                            <li key={index} className="flex items-start justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-red-200 dark:border-red-700">
+                              <div className="text-sm text-red-800 dark:text-red-200">
+                                <div className="font-medium">{fe.message}</div>
+                                {fe.hint && <div className="text-xs text-red-700/80 dark:text-red-300/80 mt-0.5">{fe.hint}</div>}
+                                {fe.path && <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Path: {fe.path}</div>}
+                              </div>
+                              {fe.path ? (
+                                <button
+                                  onClick={() => goToIssuePath(fe.path!)}
+                                  className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-red-300 dark:border-red-600 rounded hover:bg-red-100 dark:hover:bg-red-800/40"
+                                >
+                                  Go to
+                                </button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
