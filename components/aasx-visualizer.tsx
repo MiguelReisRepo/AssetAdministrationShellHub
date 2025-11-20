@@ -6,6 +6,9 @@ import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle } from 'lucide-react'
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" // Import Collapsible components
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 interface AASXVisualizerProps {
   uploadedFiles: ValidationResult[] // Use ValidationResult type
@@ -20,6 +23,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const [selectedElement, setSelectedElement] = useState<any>(null)
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set()) // Corrected initialization
   const [hideEmptyElements, setHideEmptyElements] = useState(false)
+  const [editMode, setEditMode] = useState(false)
 
   useEffect(() => {
     if (newFileIndex !== null && newFileIndex >= 0 && uploadedFiles[newFileIndex]) {
@@ -57,6 +61,42 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const getElementType = (element: any): string => {
     if (!element?.modelType) return "Property"
     return element.modelType
+  }
+
+  // helper to update currently selected element within aasxData
+  const updateSelectedElement = (updater: (el: any) => void) => {
+    if (!selectedElement || !aasxData) return
+    let updated = false
+    const updateInElements = (elements: any[]): boolean => {
+      if (!Array.isArray(elements)) return false
+      for (const el of elements) {
+        if (el === selectedElement) {
+          updater(el)
+          return true
+        }
+        if (Array.isArray(el?.value) && updateInElements(el.value)) {
+          return true
+        }
+      }
+      return false
+    }
+    for (const sm of aasxData?.submodels || []) {
+      if (updateInElements(sm?.submodelElements || [])) {
+        updated = true
+        break
+      }
+    }
+    if (updated) {
+      setAasxData({ ...aasxData })
+      // keep same object reference for selectedElement; shallow update is enough to re-render
+    }
+  }
+
+  // shorthand setter
+  const setField = (key: string, value: any) => {
+    updateSelectedElement((el) => {
+      ;(el as any)[key] = value
+    })
   }
 
   const getTypeBadge = (type: string, inverted = false) => {
@@ -441,10 +481,22 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     return (
       <div>
         {/* Header matching editor style */}
-        <div className="aasx-details-header" style={{ backgroundColor: hexToRgba(typeColor, 0.2) }}>
+        <div
+          className="aasx-details-header"
+          style={{ backgroundColor: hexToRgba(typeColor, 0.2), display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
           {getTypeBadge(type, true)}
           <div className="aasx-details-header-title" style={{ color: typeColor }}>
             Submodel Element ({type})
+          </div>
+          <div style={{ marginLeft: 'auto' }}>
+            <Button
+              size="sm"
+              variant={editMode ? "secondary" : "outline"}
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode ? "Done" : "Edit"}
+            </Button>
           </div>
         </div>
 
@@ -455,24 +507,43 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           </h4>
           {type === "MultiLanguageProperty" ? (
             <div className="space-y-2">
-              {getDetailValue().length > 0 ? (
-                getDetailValue().map((item: any, idx: number) => (
+              {(Array.isArray(selectedElement.value) ? selectedElement.value : []).length > 0 ? (
+                (selectedElement.value as any[]).map((item: any, idx: number) => (
                   <div key={idx} className="text-sm">
                     <span className="font-medium text-gray-700 dark:text-gray-300">
-                      Language: {item.language || 'en'} ({item.language === 'en' ? 'en' : item.language})
+                      Language: {item.language || 'en'}
                     </span>
-                    <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-mono break-all">
-                      {item.text || ''}
-                    </div>
+                    {editMode ? (
+                      <Textarea
+                        className="mt-1"
+                        value={item.text || ''}
+                        onChange={(e) =>
+                          updateSelectedElement((el) => {
+                            if (Array.isArray(el.value) && el.value[idx]) {
+                              el.value[idx].text = e.target.value
+                            }
+                          })
+                        }
+                      />
+                    ) : (
+                      <div className="mt-1 p-2 bg-white dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 font-mono break-all">
+                        {item.text || ''}
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
                 <div className="text-sm text-gray-500 italic">Not specified</div>
               )}
             </div>
+          ) : editMode ? (
+            <Input
+              value={selectedElement.value ?? ""}
+              onChange={(e) => setField("value", e.target.value)}
+            />
           ) : (
             <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
-              {typeof getDetailValue() === 'string' ? getDetailValue() : ''}
+              {selectedElement.value ?? ''}
             </div>
           )}
         </div>
@@ -499,9 +570,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
                 Preferred Name (English):
               </span>
-              <span className="text-gray-900 dark:text-gray-100">
-                {preferredNameValue || <span className="text-gray-400 italic">Not specified</span>}
-              </span>
+              {editMode ? (
+                <Input
+                  value={preferredNameValue || ""}
+                  onChange={(e) => setField("preferredName", e.target.value)}
+                />
+              ) : (
+                <span className="text-gray-900 dark:text-gray-100">
+                  {preferredNameValue || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+              )}
             </div>
 
             {/* Short Name - always show */}
@@ -509,9 +587,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
                 Short Name (English):
               </span>
-              <span className="text-gray-900 dark:text-gray-100">
-                {shortNameValue || <span className="text-gray-400 italic">Not specified</span>}
-              </span>
+              {editMode ? (
+                <Input
+                  value={shortNameValue || ""}
+                  onChange={(e) => setField("shortName", e.target.value)}
+                />
+              ) : (
+                <span className="text-gray-900 dark:text-gray-100">
+                  {shortNameValue || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+              )}
             </div>
 
             {/* Data Type - always show */}
@@ -519,9 +604,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
                 Data Type:
               </span>
-              <span className="font-mono text-gray-900 dark:text-gray-100">
-                {dataTypeValue || <span className="text-gray-400 italic">Not specified</span>}
-              </span>
+              {editMode ? (
+                <Input
+                  value={dataTypeValue || ""}
+                  onChange={(e) => setField("dataType", e.target.value)}
+                />
+              ) : (
+                <span className="font-mono text-gray-900 dark:text-gray-100">
+                  {dataTypeValue || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+              )}
             </div>
 
             {/* Value Type - always show for Property */}
@@ -530,9 +622,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
                   Value Type:
                 </span>
-                <span className="font-mono text-gray-900 dark:text-gray-100">
-                  {selectedElement.valueType || <span className="text-gray-400 italic">Not specified</span>}
-                </span>
+                {editMode ? (
+                  <Input
+                    value={selectedElement.valueType || ""}
+                    onChange={(e) => setField("valueType", e.target.value)}
+                  />
+                ) : (
+                  <span className="font-mono text-gray-900 dark:text-gray-100">
+                    {selectedElement.valueType || <span className="text-gray-400 italic">Not specified</span>}
+                  </span>
+                )}
               </div>
             )}
 
@@ -541,9 +640,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
                 Unit:
               </span>
-              <span className="text-gray-900 dark:text-gray-100">
-                {unitValue || <span className="text-gray-400 italic">Not specified</span>}
-              </span>
+              {editMode ? (
+                <Input
+                  value={unitValue || ""}
+                  onChange={(e) => setField("unit", e.target.value)}
+                />
+              ) : (
+                <span className="text-gray-900 dark:text-gray-100">
+                  {unitValue || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+              )}
             </div>
 
             {/* Category - always show */}
@@ -551,9 +657,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400 block mb-1">
                 Category:
               </span>
-              <span className="text-gray-900 dark:text-gray-100">
-                {categoryValue || <span className="text-gray-400 italic">Not specified</span>}
-              </span>
+              {editMode ? (
+                <Input
+                  value={categoryValue || ""}
+                  onChange={(e) => setField("category", e.target.value)}
+                />
+              ) : (
+                <span className="text-gray-900 dark:text-gray-100">
+                  {categoryValue || <span className="text-gray-400 italic">Not specified</span>}
+                </span>
+              )}
             </div>
 
             {/* Cardinality - always show */}
@@ -562,16 +675,32 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Cardinality:
               </span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-gray-900 dark:text-gray-100">
-                  {cardinalityValue}
-                </span>
-                {cardinalityValue !== "N/A" && (
-                  <span className="text-xs text-gray-500">
-                    {cardinalityValue === 'One' && '(Required)'}
-                    {cardinalityValue === 'ZeroToOne' && '(Optional)'}
-                    {cardinalityValue === 'ZeroToMany' && '(Multiple Optional)'}
-                    {cardinalityValue === 'OneToMany' && '(Multiple Required)'}
-                  </span>
+                {editMode ? (
+                  <select
+                    className="border-input h-9 rounded-md border bg-transparent px-3 text-sm"
+                    value={cardinalityValue !== "N/A" ? cardinalityValue : ""}
+                    onChange={(e) => setField("cardinality", e.target.value)}
+                  >
+                    <option value="">Not specified</option>
+                    <option value="One">One</option>
+                    <option value="ZeroToOne">ZeroToOne</option>
+                    <option value="ZeroToMany">ZeroToMany</option>
+                    <option value="OneToMany">OneToMany</option>
+                  </select>
+                ) : (
+                  <>
+                    <span className="font-mono text-gray-900 dark:text-gray-100">
+                      {cardinalityValue}
+                    </span>
+                    {cardinalityValue !== "N/A" && (
+                      <span className="text-xs text-gray-500">
+                        {cardinalityValue === 'One' && '(Required)'}
+                        {cardinalityValue === 'ZeroToOne' && '(Optional)'}
+                        {cardinalityValue === 'ZeroToMany' && '(Multiple Optional)'}
+                        {cardinalityValue === 'OneToMany' && '(Multiple Required)'}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -583,9 +712,17 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase">
             Semantic ID (ECLASS/IEC61360)
           </h4>
-          <div className="text-xs font-mono text-gray-900 dark:text-gray-100 break-all">
-            {semanticIdValue === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : semanticIdValue}
-          </div>
+          {editMode ? (
+            <Input
+              value={typeof selectedElement.semanticId === 'string' ? selectedElement.semanticId : ''}
+              onChange={(e) => setField("semanticId", e.target.value)}
+              placeholder="0173-1#02-AAO677#002 or https://..."
+            />
+          ) : (
+            <div className="text-xs font-mono text-gray-900 dark:text-gray-100 break-all">
+              {semanticIdValue === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : semanticIdValue}
+            </div>
+          )}
           {semanticIdValue !== "N/A" && semanticIdValue.startsWith('http') && (
             <a
               href={semanticIdValue}
@@ -603,9 +740,16 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           <h4 className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
             Definition/Description
           </h4>
-          <div className="text-sm text-gray-900 dark:text-gray-100">
-            {descriptionText === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : descriptionText}
-          </div>
+          {editMode ? (
+            <Textarea
+              value={typeof selectedElement.description === 'string' ? selectedElement.description : (descriptionText === "N/A" ? "" : descriptionText)}
+              onChange={(e) => setField("description", e.target.value)}
+            />
+          ) : (
+            <div className="text-sm text-gray-900 dark:text-gray-100">
+              {descriptionText === "N/A" ? <span className="text-gray-400 italic">Not specified</span> : descriptionText}
+            </div>
+          )}
         </div>
       </div>
     )

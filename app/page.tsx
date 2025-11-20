@@ -104,7 +104,7 @@ export default function VisualizerPage() {
                   : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800"
             }`}
           >
-            Editor {currentAASConfig && `(${Object.keys(currentAASConfig).length})`}
+            Editor
           </button>
         </div>
       </div>
