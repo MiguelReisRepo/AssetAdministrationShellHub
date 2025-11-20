@@ -185,6 +185,12 @@ export function parseSubmodelElements(elements: any[]): any[] {
       qualifiers: element.qualifiers || [],
       embeddedDataSpecifications: element.embeddedDataSpecifications || [],
     }
+    // ADDED: editor metadata for visualizer display
+    parsed.preferredName = element.preferredName
+    parsed.shortName = element.shortName
+    parsed.dataType = element.dataType
+    parsed.unit = element.unit
+    parsed.cardinality = element.cardinality
 
     // Handle different element types
     switch (element.modelType) {
