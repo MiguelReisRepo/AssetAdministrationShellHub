@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react'
+import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle, Download, X } from 'lucide-react'
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" // Import Collapsible components
 import { Button } from "@/components/ui/button"
@@ -643,21 +643,6 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
 
     const semanticIdValue = getSemanticIdValue()
     const descriptionText = getDescriptionText()
-    
-    const preferredNameValue = getStringValue(selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.preferredName?.langStringPreferredNameTypeIec61360?.[0]?.text || selectedElement.preferredName)
-    const shortNameValue = getStringValue(selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.shortName?.langStringShortNameTypeIec61360?.[0]?.text || selectedElement.shortName)
-    const dataTypeValue = selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.dataType || selectedElement.dataType
-    const unitValue = selectedElement.embeddedDataSpecifications?.[0]?.dataSpecificationContent?.unit || selectedElement.unit
-    const categoryValue = selectedElement.category
-
-    // Determine cardinality from qualifiers if available, otherwise default
-    let cardinalityValue = "N/A";
-    const cardinalityQualifier = selectedElement.qualifiers?.find((q: any) => q.type === "Cardinality");
-    if (cardinalityQualifier && cardinalityQualifier.value) {
-      cardinalityValue = cardinalityQualifier.value;
-    } else if (selectedElement.cardinality) { // Fallback to direct cardinality property
-      cardinalityValue = selectedElement.cardinality;
-    }
 
     // UPDATED: Mirror editor right panel layout and controls
     // Helpers for MLP language management (array of { language, text })
@@ -921,7 +906,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Category:
               </label>
               <select
-                className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg.white dark:bg-gray-900 text-sm"
+                className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
                 value={selectedElement.category || ""}
                 onChange={(e) => setField("category", e.target.value || undefined)}
               >
