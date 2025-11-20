@@ -125,6 +125,63 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     })
   }
 
+  // Add: download handler for File elements
+  const handleDownloadSelectedFile = () => {
+    if (!selectedElement) return
+    const type = getElementType(selectedElement)
+    if (type !== "File") return
+    const targetRaw = String(selectedElement.value ?? "").trim()
+    if (!targetRaw) {
+      toast.error("No file target found on this element")
+      return
+    }
+    // External URL: open in new tab
+    if (/^https?:\/\//i.test(targetRaw)) {
+      window.open(targetRaw, "_blank", "noopener,noreferrer")
+      toast.info("Opening file in a new tab")
+      return
+    }
+    // Embedded file inside AASX: look up in attachments (if available)
+    const attachments = (selectedFile as any)?.attachments as Record<string, string> | undefined
+    if (!attachments) {
+      toast.error("No embedded attachments found for this AASX")
+      return
+    }
+    const normalize = (p: string) =>
+      p.replace(/^file:\/\//i, "").replace(/^file:\//i, "").replace(/^\/+/, "")
+    const n = normalize(targetRaw)
+    const candidates = [n, `/${n}`]
+    let dataUrl: string | undefined
+    for (const key of candidates) {
+      if (attachments[key]) {
+        dataUrl = attachments[key]
+        break
+      }
+    }
+    if (!dataUrl) {
+      // Fallback: try by basename
+      const base = n.split("/").pop() || n
+      const match = Object.entries(attachments).find(
+        ([k]) =>
+          k.toLowerCase().endsWith(`/${base.toLowerCase()}`) ||
+          k.toLowerCase() === base.toLowerCase(),
+      )
+      if (match) dataUrl = match[1]
+    }
+    if (!dataUrl) {
+      toast.error("File target not found in AASX attachments")
+      return
+    }
+    const filename = (n.split("/").pop() || "download").trim()
+    const a = document.createElement("a")
+    a.href = dataUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    toast.success(`Downloading ${filename}`)
+  }
+
   const getTypeBadge = (type: string, inverted = false) => {
     const badgeMap: Record<string, { label: string; classes: string }> = {
       SubmodelElementCollection: {
