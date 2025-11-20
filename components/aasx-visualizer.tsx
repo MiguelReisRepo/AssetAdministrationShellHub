@@ -130,56 +130,121 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     if (!selectedElement) return
     const type = getElementType(selectedElement)
     if (type !== "File") return
-    const targetRaw = String(selectedElement.value ?? "").trim()
-    if (!targetRaw) {
+
+    const raw = String(selectedElement.value ?? "").trim()
+    if (!raw) {
       toast.error("No file target found on this element")
       return
     }
-    // External URL: open in new tab
-    if (/^https?:\/\//i.test(targetRaw)) {
-      window.open(targetRaw, "_blank", "noopener,noreferrer")
+
+    // 1) Direct data URL
+    if (/^data:/i.test(raw)) {
+      const filename = "download"
+      const a = document.createElement("a")
+      a.href = raw
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      toast.success(`Downloading ${filename}`)
+      return
+    }
+
+    // 2) External URL
+    if (/^https?:\/\//i.test(raw)) {
+      window.open(raw, "_blank", "noopener,noreferrer")
       toast.info("Opening file in a new tab")
       return
     }
-    // Embedded file inside AASX: look up in attachments (if available)
-    const attachments = (selectedFile as any)?.attachments as Record<string, string> | undefined
-    if (!attachments) {
-      toast.error("No embedded attachments found for this AASX")
+
+    // 3) Maybe base64 (including URL-safe base64) that encodes a URL or path
+    const tryDecodeBase64 = (s: string): string | null => {
+      // Accept URL-safe base64 (-,_)
+      const normalized = s.replace(/-/g, "+").replace(/_/g, "/")
+      try {
+        // Must be multiple of 4 for base64; if not, pad
+        const pad = normalized.length % 4
+        const padded = pad ? normalized + "=".repeat(4 - pad) : normalized
+        const decoded = atob(padded)
+        // If it looks like readable text, return it
+        return decoded
+      } catch {
+        return null
+      }
+    }
+
+    let candidate = raw
+    const decoded = tryDecodeBase64(raw)
+    if (decoded) {
+      candidate = decoded.trim()
+    }
+
+    // If the decoded candidate is a URL, open it
+    if (/^https?:\/\//i.test(candidate)) {
+      window.open(candidate, "_blank", "noopener,noreferrer")
+      toast.info("Opening file in a new tab")
       return
     }
-    const normalize = (p: string) =>
-      p.replace(/^file:\/\//i, "").replace(/^file:\//i, "").replace(/^\/+/, "")
-    const n = normalize(targetRaw)
-    const candidates = [n, `/${n}`]
+
+    // Normalize path-like target
+    const normalizePath = (p: string) =>
+      p.replace(/^file:\/\//i, "")
+        .replace(/^file:\//i, "")
+        .replace(/^\/+/, "")
+
+    let pathCandidate = normalizePath(candidate)
+
+    // Many VDI2770 File values contain "...File-<filename.ext>"
+    // Try to extract filename after the last "File-"
+    const fileDashIdx = pathCandidate.lastIndexOf("File-")
+    let basename = pathCandidate.split("/").pop() || pathCandidate
+    if (fileDashIdx >= 0) {
+      const tail = pathCandidate.slice(fileDashIdx + "File-".length)
+      if (/\.[a-z0-9]{2,5}$/i.test(tail)) {
+        basename = tail
+      }
+    }
+
+    // Look up attachments from selectedFile
+    const attachments = (selectedFile as any)?.attachments as Record<string, string> | undefined
+    if (!attachments) {
+      toast.error("No embedded attachments found in this AASX")
+      return
+    }
+
+    // Try several keys: exact, with leading slash, and basename match
+    const candidates = [pathCandidate, `/${pathCandidate}`, basename, `/${basename}`, `aasx/${basename}`, `/aasx/${basename}`]
     let dataUrl: string | undefined
-    for (const key of candidates) {
-      if (attachments[key]) {
-        dataUrl = attachments[key]
+
+    for (const k of candidates) {
+      if (attachments[k]) {
+        dataUrl = attachments[k]
+        break
+      }
+      // Also try case-insensitive endsWith by basename
+      const found = Object.entries(attachments).find(
+        ([key]) =>
+          key.toLowerCase().endsWith(`/${basename.toLowerCase()}`) ||
+          key.toLowerCase() === basename.toLowerCase(),
+      )
+      if (found) {
+        dataUrl = found[1]
         break
       }
     }
+
     if (!dataUrl) {
-      // Fallback: try by basename
-      const base = n.split("/").pop() || n
-      const match = Object.entries(attachments).find(
-        ([k]) =>
-          k.toLowerCase().endsWith(`/${base.toLowerCase()}`) ||
-          k.toLowerCase() === base.toLowerCase(),
-      )
-      if (match) dataUrl = match[1]
-    }
-    if (!dataUrl) {
-      toast.error("File target not found in AASX attachments")
+      toast.error(`File not found in AASX attachments: ${basename}`)
       return
     }
-    const filename = (n.split("/").pop() || "download").trim()
+
     const a = document.createElement("a")
     a.href = dataUrl
-    a.download = filename
+    a.download = basename || "download"
     document.body.appendChild(a)
     a.click()
     a.remove()
-    toast.success(`Downloading ${filename}`)
+    toast.success(`Downloading ${basename}`)
   }
 
   const getTypeBadge = (type: string, inverted = false) => {
