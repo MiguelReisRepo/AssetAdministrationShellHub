@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import KeysEditor from "@/components/keys-editor"
 
 // ADD: same options as editor
 const IEC_DATA_TYPES = [
@@ -1237,7 +1238,33 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               View specification →
             </a>
           )}
+          {/* Keys editor for semanticId when it's a Reference object */}
+          {selectedElement.semanticId && typeof selectedElement.semanticId === "object" && Array.isArray(selectedElement.semanticId.keys) && (
+            <div className="mt-3">
+              <KeysEditor
+                reference={selectedElement.semanticId}
+                editable={editMode}
+                onChange={(next) => setField("semanticId", next)}
+                title="Semantic ID Keys"
+              />
+            </div>
+          )}
         </div>
+
+        {/* ReferenceElement value keys editor (if applicable) */}
+        {type === "ReferenceElement" && selectedElement.value && typeof selectedElement.value === "object" && Array.isArray(selectedElement.value.keys) && (
+          <div className="p-3 space-y-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-300 uppercase">
+              Reference Value (Keys)
+            </h4>
+            <KeysEditor
+              reference={selectedElement.value}
+              editable={editMode}
+              onChange={(next) => setField("value", next)}
+              title="Reference Keys"
+            />
+          </div>
+        )}
       </div>
     )
   }
