@@ -679,22 +679,22 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
               <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
                 Asset Administration Shell
               </h3>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between">
+              <div className="space-y-3 text-xs">
+                <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">IdShort:</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{currentAAS.idShort || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">ID:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all text-right">{currentAAS.id || 'N/A'}</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all">{currentAAS.id || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">Asset Kind:</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100">{currentAAS.assetKind || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">Global Asset ID:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all text-right">{currentAAS.assetInformation?.globalAssetId || 'N/A'}</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all">{currentAAS.assetInformation?.globalAssetId || 'N/A'}</span>
                 </div>
               </div>
             </div>
