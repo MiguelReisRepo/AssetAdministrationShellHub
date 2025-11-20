@@ -1837,6 +1837,14 @@ ${indent}</conceptDescription>`
   <Relationship Id="aasx-origin" Type="http://admin-shell.io/aasx/relationships/aasx-origin" Target="/aasx/aasx-origin"/>
 </Relationships>`)
 
+        // ADD: [Content_Types].xml (OPC) and _rels/aasx-original.rels pointing to main AAS XML
+        const contentTypesXml = `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="text/xml" /><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" /><Default Extension="png" ContentType="image/png" /><Default Extension="pdf" ContentType="application/pdf" /><Default Extension="json" ContentType="text/plain" /><Override PartName="/aasx/aasx-origin" ContentType="text/plain" /></Types>`;
+        zip.file("[Content_Types].xml", contentTypesXml);
+
+        const relId = "R" + Math.random().toString(16).slice(2);
+        const aasxOriginalRels = `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="http://admin-shell.io/aasx/relationships/aas-spec" Target="/${xmlFileName}" Id="${relId}" /></Relationships>`;
+        zip.file("_rels/aasx-original.rels", aasxOriginalRels);
+
         // Generate ZIP file
         const blob = await zip.generateAsync({ type: "blob" })
         
