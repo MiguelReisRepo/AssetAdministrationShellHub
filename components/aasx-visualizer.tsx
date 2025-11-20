@@ -624,14 +624,26 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 <div className="text-sm text-gray-500 italic">Not specified</div>
               )}
             </div>
+          ) : isCollection ? (
+            <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
+              {`Collection (${Array.isArray(selectedElement.value) ? selectedElement.value.length : 0} items)`}
+            </div>
           ) : editMode ? (
             <Input
-              value={selectedElement.value ?? ""}
+              value={
+                typeof selectedElement.value === "string" || typeof selectedElement.value === "number"
+                  ? (selectedElement.value as any)
+                  : ""
+              }
               onChange={(e) => setField("value", e.target.value)}
             />
           ) : (
             <div className="text-sm text-gray-900 dark:text-gray-100 font-mono break-all">
-              {selectedElement.value ?? ''}
+              {typeof selectedElement.value === "string" || typeof selectedElement.value === "number"
+                ? (selectedElement.value as any)
+                : selectedElement.value == null
+                  ? ""
+                  : JSON.stringify(selectedElement.value)}
             </div>
           )}
         </div>
