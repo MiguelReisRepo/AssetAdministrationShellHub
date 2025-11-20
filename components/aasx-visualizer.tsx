@@ -10,6 +10,31 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
+// ADD: same options as editor
+const IEC_DATA_TYPES = [
+  "DATE",
+  "STRING",
+  "STRING_TRANSLATABLE",
+  "INTEGER_MEASURE",
+  "INTEGER_COUNT",
+  "INTEGER_CURRENCY",
+  "REAL_MEASURE",
+  "REAL_COUNT",
+  "REAL_CURRENCY",
+  "BOOLEAN",
+  "IRI",
+  "IRDI",
+  "RATIONAL",
+  "RATIONAL_MEASURE",
+  "TIME",
+  "TIMESTAMP",
+  "FILE",
+  "HTML",
+  "BLOB",
+];
+
+const CATEGORY_OPTIONS = ["CONSTANT", "PARAMETER", "VARIABLE"];
+
 interface AASXVisualizerProps {
   uploadedFiles: ValidationResult[] // Use ValidationResult type
   newFileIndex?: number | null
@@ -605,10 +630,18 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Data Type:
               </span>
               {editMode ? (
-                <Input
-                  value={dataTypeValue || ""}
-                  onChange={(e) => setField("dataType", e.target.value)}
-                />
+                <select
+                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
+                  value={selectedElement.dataType || dataTypeValue || ""}
+                  onChange={(e) => setField("dataType", e.target.value || undefined)}
+                >
+                  <option value="">Select data type...</option>
+                  {IEC_DATA_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <span className="font-mono text-gray-900 dark:text-gray-100">
                   {dataTypeValue || <span className="text-gray-400 italic">Not specified</span>}
@@ -658,10 +691,18 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Category:
               </span>
               {editMode ? (
-                <Input
+                <select
+                  className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-sm"
                   value={categoryValue || ""}
-                  onChange={(e) => setField("category", e.target.value)}
-                />
+                  onChange={(e) => setField("category", e.target.value || undefined)}
+                >
+                  <option value="">None</option>
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <span className="text-gray-900 dark:text-gray-100">
                   {categoryValue || <span className="text-gray-400 italic">Not specified</span>}
@@ -675,33 +716,19 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 Cardinality:
               </span>
               <div className="flex items-center gap-2">
-                {editMode ? (
-                  <select
-                    className="border-input h-9 rounded-md border bg-transparent px-3 text-sm"
-                    value={cardinalityValue !== "N/A" ? cardinalityValue : ""}
-                    onChange={(e) => setField("cardinality", e.target.value)}
-                  >
-                    <option value="">Not specified</option>
-                    <option value="One">One</option>
-                    <option value="ZeroToOne">ZeroToOne</option>
-                    <option value="ZeroToMany">ZeroToMany</option>
-                    <option value="OneToMany">OneToMany</option>
-                  </select>
-                ) : (
-                  <>
-                    <span className="font-mono text-gray-900 dark:text-gray-100">
-                      {cardinalityValue}
+                <>
+                  <span className="font-mono text-gray-900 dark:text-gray-100">
+                    {cardinalityValue}
+                  </span>
+                  {cardinalityValue !== "N/A" && (
+                    <span className="text-xs text-gray-500">
+                      {cardinalityValue === "One" && "(Required)"}
+                      {cardinalityValue === "ZeroToOne" && "(Optional)"}
+                      {cardinalityValue === "ZeroToMany" && "(Multiple Optional)"}
+                      {cardinalityValue === "OneToMany" && "(Multiple Required)"}
                     </span>
-                    {cardinalityValue !== "N/A" && (
-                      <span className="text-xs text-gray-500">
-                        {cardinalityValue === 'One' && '(Required)'}
-                        {cardinalityValue === 'ZeroToOne' && '(Optional)'}
-                        {cardinalityValue === 'ZeroToMany' && '(Multiple Optional)'}
-                        {cardinalityValue === 'OneToMany' && '(Multiple Required)'}
-                      </span>
-                    )}
-                  </>
-                )}
+                  )}
+                </>
               </div>
             </div>
           </div>
