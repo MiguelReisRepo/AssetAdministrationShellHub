@@ -178,13 +178,10 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     const missingFields: string[] = []
     const nodesToExpand = new Set<string>()
     const errorPaths = new Set<string>()
-    if (!selectedSubmodel) {
-      return { valid: true, missingFields, nodesToExpand, errorPaths }
-    }
-    const elements: any[] = selectedSubmodel.submodelElements || []
-    const submodelId = selectedSubmodel.idShort || 'Submodel'
 
-    const validateElements = (els: any[], chain: string[] = []) => {
+    const idShortPattern = /^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]$|^[a-zA-Z]$/
+
+    const validateElements = (els: any[], submodelId: string, chain: string[] = []) => {
       els.forEach((el) => {
         const type = getElementType(el)
         const currentChain = [...chain, el.idShort || 'Element']
@@ -192,6 +189,14 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
         const cardQual = el.qualifiers?.find((q: any) => q.type === "Cardinality")
         const cardinality = cardQual?.value || el.cardinality || "ZeroToOne"
         const isRequired = cardinality === "One" || cardinality === "OneToMany"
+
+        // idShort pattern compliance (surface as an issue and highlight the node)
+        const idShort = el.idShort
+        if (typeof idShort === 'string' && idShort.trim() !== '' && !idShortPattern.test(idShort)) {
+          missingFields.push(`${submodelId} > ${currentChain.join(' > ')} (idShort "${idShort}" doesn't match pattern [a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9])`)
+          errorPaths.add(fullKey)
+          for (let i = 0; i < currentChain.length - 1; i++) nodesToExpand.add(currentChain.slice(0, i + 1).join('.'))
+        }
 
         // Property checks: valueType or IEC dataType required; and if set, value must match
         if (type === "Property") {
@@ -234,12 +239,21 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
 
         // Recurse into children for collections/lists
         if ((type === "SubmodelElementCollection" || type === "SubmodelElementList") && Array.isArray(el.value)) {
-          validateElements(el.value, currentChain)
+          validateElements(el.value, submodelId, currentChain)
         }
       })
     }
 
-    validateElements(elements, [])
+    // Validate all submodels, like the Editor does
+    const submodels: any[] = Array.isArray(aasxData?.submodels) ? aasxData.submodels : []
+    if (submodels.length === 0) {
+      return { valid: true, missingFields, nodesToExpand, errorPaths }
+    }
+    submodels.forEach((sm: any) => {
+      const elements: any[] = sm?.submodelElements || []
+      const submodelId = sm?.idShort || 'Submodel'
+      validateElements(elements, submodelId, [])
+    })
     return { valid: missingFields.length === 0, missingFields, nodesToExpand, errorPaths }
   }
 
