@@ -988,8 +988,11 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             {getCardinalityBadge(cardinalityValue)}
             <div className="ml-auto">
               <Button
-                size="sm"
-                variant={editMode ? "secondary" : "outline"}
+                size="lg"
+                variant="default"
+                className={editMode
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                  : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
                 onClick={() => setEditMode((v) => !v)}
               >
                 {editMode ? "Done" : "Edit"}
@@ -1508,7 +1511,12 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                       <span>{selectedSubmodel.idShort}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Button size="sm" variant="outline" onClick={runInternalValidation}>
+                      <Button
+                        size="lg"
+                        variant="default"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                        onClick={runInternalValidation}
+                      >
                         Validate
                       </Button>
                       <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
