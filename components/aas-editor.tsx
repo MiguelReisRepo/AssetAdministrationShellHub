@@ -203,8 +203,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [lastGeneratedXml, setLastGeneratedXml] = useState<string | null>(null)
   // New: gate generation until a successful validation
   const [canGenerate, setCanGenerate] = useState(false)
-+ // New: track whether validation has been run (and is current)
-+ const [hasValidated, setHasValidated] = useState(false)
+  // New: track whether validation has been run (and is current)
+  const [hasValidated, setHasValidated] = useState(false)
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
