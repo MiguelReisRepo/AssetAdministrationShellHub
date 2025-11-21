@@ -19,6 +19,16 @@ export default function VisualizerPage() {
   const [initialSubmodelData, setInitialSubmodelData] = useState<Record<string, any> | null>(null)
   const [editorFileIndex, setEditorFileIndex] = useState<number | null>(null)
 
+  const reorderFiles = (fromIndex: number, toIndex: number) => {
+    setUploadedFiles((prev) => {
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.length || toIndex >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
+    })
+  }
+
   const handleDataUploaded = (fileData: ValidationResult) => {
     console.log("[v0] Page received file data:", fileData)
     setUploadedFiles((prev) => {
@@ -218,6 +228,7 @@ export default function VisualizerPage() {
             onOpen={openVisualizerAt}
             onUploadClick={() => setViewMode("upload")}
             onCreateClick={() => setViewMode("creator")}
+            onReorder={reorderFiles}
           />
         )}
         {viewMode === "upload" && (

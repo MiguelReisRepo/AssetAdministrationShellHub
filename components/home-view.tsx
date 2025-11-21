@@ -11,9 +11,13 @@ interface HomeViewProps {
   onOpen: (index: number) => void;
   onUploadClick: () => void;
   onCreateClick: () => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
 }
 
-export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }: HomeViewProps) {
+export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder }: HomeViewProps) {
+  const [dragIndex, setDragIndex] = React.useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+
   const getIdShort = (file: ValidationResult): string => {
     const idShort =
       (file.aasData as any)?.assetAdministrationShells?.[0]?.idShort ||
@@ -71,8 +75,30 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }
               return (
                 <Card
                   key={`${file.file}-${idx}`}
-                  className="group relative bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700 hover:border-blue-400 transition-colors cursor-pointer h-44"
+                  className={`group relative bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700 hover:border-blue-400 transition-colors cursor-pointer h-44 ${dragOverIndex === idx ? 'ring-2 ring-blue-400' : ''}`}
                   onClick={() => onOpen(idx)}
+                  draggable
+                  onDragStart={(e) => {
+                    setDragIndex(idx);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx);
+                  }}
+                  onDragLeave={() => setDragOverIndex(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex !== null && dragIndex !== idx) {
+                      onReorder(dragIndex, idx);
+                    }
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
                 >
                   {file.valid !== undefined && (
                     <div className="absolute top-2 right-2">

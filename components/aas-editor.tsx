@@ -58,6 +58,17 @@ function normalizeValueType(t?: string): string | undefined {
   return canonical || undefined;
 }
 
+// Escape special XML characters to avoid parser errors (&, <, >, quotes)
+function escapeXml(s?: string): string {
+  if (s == null) return "";
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 // SHARED HELPERS: make these available to both generateFinalAAS and validateAAS
 function deriveValueTypeFromIEC(iec?: string): string | undefined {
   switch ((iec || '').toUpperCase()) {
@@ -1420,9 +1431,9 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         let xml = `${indent}<${tagName}>\n`
         // Category must appear before idShort in AAS 3.1 sequence
         if (element.category) {
-          xml += `${indent}  <category>${element.category}</category>\n`
+          xml += `${indent}  <category>${escapeXml(element.category)}</category>\n`
         }
-        xml += `${indent}  <idShort>${element.idShort}</idShort>\n`
+        xml += `${indent}  <idShort>${escapeXml(element.idShort)}</idShort>\n`
 
         // Description (AAS Referable)
         if (element.description && String(element.description).trim() !== "") {
@@ -1430,7 +1441,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  <description>\n`
           xml += `${indent}    <langStringTextType>\n`
           xml += `${indent}      <language>en</language>\n`
-          xml += `${indent}      <text>${desc}</text>\n`
+          xml += `${indent}      <text>${escapeXml(desc)}</text>\n`
           xml += `${indent}    </langStringTextType>\n`
           xml += `${indent}  </description>\n`
         }
@@ -1441,7 +1452,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}    <keys>\n`
           xml += `${indent}      <key>\n`
           xml += `${indent}        <type>GlobalReference</type>\n`
-          xml += `${indent}        <value>${element.semanticId}</value>\n`
+          xml += `${indent}        <value>${escapeXml(element.semanticId)}</value>\n`
           xml += `${indent}      </key>\n`
           xml += `${indent}    </keys>\n`
           xml += `${indent}  </semanticId>\n`
@@ -1453,7 +1464,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}    <qualifier>\n`
           xml += `${indent}      <type>Cardinality</type>\n`
           xml += `${indent}      <valueType>xs:string</valueType>\n`
-          xml += `${indent}      <value>${element.cardinality}</value>\n`
+          xml += `${indent}      <value>${escapeXml(element.cardinality)}</value>\n`
           xml += `${indent}    </qualifier>\n`
           xml += `${indent}  </qualifiers>\n`
         }
@@ -1478,7 +1489,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             .map(([lang, text]) =>
               `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>${lang}</language>
-${indent}              <text>${text}</text>
+${indent}              <text>${escapeXml(text)}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>
 `).join("")
 
@@ -1490,7 +1501,7 @@ ${indent}            </langStringPreferredNameTypeIec61360>
                 .map(([lang, text]) =>
                   `${indent}            <langStringShortNameTypeIec61360>
 ${indent}              <language>${lang}</language>
-${indent}              <text>${text}</text>
+${indent}              <text>${escapeXml(text)}</text>
 ${indent}            </langStringShortNameTypeIec61360>
 `).join("")
             : ""
@@ -1529,17 +1540,17 @@ ${indent}            </langStringPreferredNameTypeIec61360>
             xml += `${indent}          </shortName>\n`
           }
           if (element.unit && element.unit.trim() !== "") {
-            xml += `${indent}          <unit>${element.unit}</unit>\n`
+            xml += `${indent}          <unit>${escapeXml(element.unit)}</unit>\n`
           }
           if (element.dataType && element.dataType.trim() !== "") {
-            xml += `${indent}          <dataType>${element.dataType}</dataType>\n`
+            xml += `${indent}          <dataType>${escapeXml(element.dataType)}</dataType>\n`
           }
           if (element.description && String(element.description).trim() !== "") {
             const desc = typeof element.description === "string" ? element.description : String(element.description)
             xml += `${indent}          <definition>\n`
             xml += `${indent}            <langStringDefinitionTypeIec61360>\n`
             xml += `${indent}              <language>en</language>\n`
-            xml += `${indent}              <text>${desc}</text>\n`
+            xml += `${indent}              <text>${escapeXml(desc)}</text>\n`
             xml += `${indent}            </langStringDefinitionTypeIec61360>\n`
             xml += `${indent}          </definition>\n`
           }
@@ -1553,9 +1564,9 @@ ${indent}            </langStringPreferredNameTypeIec61360>
         if (element.modelType === "Property") {
           // Normalize user input or derive from IEC dataType; default to xs:string
           const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
-          xml += `${indent}  <valueType>${vtNorm}</valueType>\n`;
+          xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
           if (typeof element.value === 'string' && element.value.trim() !== '') {
-            xml += `${indent}  <value>${element.value}</value>\n`;
+            xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
             console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType>(${vtNorm}) and <value> for Property ${element.idShort}`);
           }
         } else if (element.modelType === "MultiLanguageProperty") {
@@ -1566,7 +1577,7 @@ ${indent}            </langStringPreferredNameTypeIec61360>
               if (text && String(text).trim() !== '') {
                 xml += `${indent}    <langStringTextType>\n`
                 xml += `${indent}      <language>${lang}</language>\n`
-                xml += `${indent}      <text>${text}</text>\n`
+                xml += `${indent}      <text>${escapeXml(text)}</text>\n`
                 xml += `${indent}    </langStringTextType>\n`
               }
             })
@@ -1576,9 +1587,9 @@ ${indent}            </langStringPreferredNameTypeIec61360>
         } else if (element.modelType === "File") {
           // Per schema, contentType should appear before value
           const contentType = element.fileData?.mimeType || 'application/octet-stream'
-          xml += `${indent}  <contentType>${contentType}</contentType>\n`
+          xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`
           if (typeof element.value === 'string' && element.value) {
-            xml += `${indent}  <value>${element.value}</value>\n`
+            xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`
             console.log(`[v0] XML_GEN_DEBUG:   Generated <contentType> and <value> for File ${element.idShort}`);
           }
         } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
@@ -1616,11 +1627,11 @@ ${indent}            </langStringPreferredNameTypeIec61360>
 <environment xmlns="https://admin-shell.io/aas/3/1" xmlns:xs="http://www.w3.org/2001/XMLSchema"> <!-- Updated namespace to 3/1 and declared xs prefix -->
   <assetAdministrationShells>
     <assetAdministrationShell>
-      <idShort>${aasConfig.idShort}</idShort>
-      <id>${aasConfig.id}</id>
+      <idShort>${escapeXml(aasConfig.idShort)}</idShort>
+      <id>${escapeXml(aasConfig.id)}</id>
       <assetInformation>
         <assetKind>${aasConfig.assetKind}</assetKind>
-        <globalAssetId>${aasConfig.globalAssetId}</globalAssetId>
+        <globalAssetId>${escapeXml(aasConfig.globalAssetId)}</globalAssetId>
 ${defaultThumbnailXml}      </assetInformation>
       <submodels>
 ${aasConfig.selectedSubmodels.map(sm => `        <reference>
@@ -1628,7 +1639,7 @@ ${aasConfig.selectedSubmodels.map(sm => `        <reference>
           <keys>
             <key>
               <type>Submodel</type>
-              <value>${aasConfig.id}/submodels/${sm.idShort}</value>
+              <value>${escapeXml(`${aasConfig.id}/submodels/${sm.idShort}`)}</value>
             </key>
           </keys>
         </reference>`).join('\n')}
@@ -1639,15 +1650,15 @@ ${aasConfig.selectedSubmodels.map(sm => `        <reference>
 ${aasConfig.selectedSubmodels.map(sm => {
         const elements = submodelData[sm.idShort] || []
         return `    <submodel>
-      <idShort>${sm.idShort}</idShort>
-      <id>${aasConfig.id}/submodels/${sm.idShort}</id>
+      <idShort>${escapeXml(sm.idShort)}</idShort>
+      <id>${escapeXml(`${aasConfig.id}/submodels/${sm.idShort}`)}</id>
       <kind>Instance</kind>
       <semanticId>
         <type>ExternalReference</type>
         <keys>
           <key>
             <type>GlobalReference</type>
-            <value>${sm.template.url || 'https://admin-shell.io/submodels/' + sm.idShort}</value>
+            <value>${escapeXml(sm.template.url || ('https://admin-shell.io/submodels/' + sm.idShort))}</value>
           </key>
         </keys>
       </semanticId>
@@ -1665,8 +1676,8 @@ ${Object.values(collectedConceptDescriptions).map(concept => {
       : { en: concept.idShort };
 
     return `${indent}<conceptDescription>
-${indent}  <idShort>${concept.idShort}</idShort>
-${indent}  <id>${concept.id}</id>
+${indent}  <idShort>${escapeXml(concept.idShort)}</idShort>
+${indent}  <id>${escapeXml(concept.id)}</id>
 ${indent}  <embeddedDataSpecifications>
 ${indent}    <embeddedDataSpecification>
 ${indent}      <dataSpecification>
@@ -1683,21 +1694,21 @@ ${indent}        <dataSpecificationIec61360>
 ${indent}          <preferredName>
 ${Object.entries(ensuredPreferredName).map(([lang, text]) => text ? `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>${lang}</language>
-${indent}              <text>${text}</text>
+${indent}              <text>${escapeXml(text)}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>` : '').join('\n')}
 ${indent}          </preferredName>
 ${concept.shortName ? `${indent}          <shortName>
 ${Object.entries(concept.shortName).map(([lang, text]) => text ? `${indent}            <langStringShortNameTypeIec61360>
 ${indent}              <language>${lang}</language>
-${indent}              <text>${text}</text>
+${indent}              <text>${escapeXml(text)}</text>
 ${indent}            </langStringShortNameTypeIec61360>` : '').join('\n')}
 ${indent}          </shortName>\n` : ''}
-${concept.unit ? `${indent}          <unit>${concept.unit}</unit>\n` : ''}
-${concept.dataType ? `${indent}          <dataType>${concept.dataType}</dataType>\n` : ''}
+${concept.unit ? `${indent}          <unit>${escapeXml(concept.unit)}</unit>\n` : ''}
+${concept.dataType ? `${indent}          <dataType>${escapeXml(concept.dataType)}</dataType>\n` : ''}
 ${concept.description ? `${indent}          <definition>
 ${indent}            <langStringDefinitionTypeIec61360>
 ${indent}              <language>en</language>
-${indent}              <text>${concept.description}</text>
+${indent}              <text>${escapeXml(concept.description)}</text>
 ${indent}            </langStringDefinitionTypeIec61360>
 ${indent}          </definition>\n` : ''}
 ${indent}        </dataSpecificationIec61360>
@@ -2329,14 +2340,7 @@ ${indent}</conceptDescription>`
             >
               Validate
             </Button>
-            <Button
-              onClick={saveAAS}
-              size="lg"
-              variant="default"
-              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-            >
-              Save
-            </Button>
+            {/* REMOVED: Save button per latest requirement */}
             <button
               onClick={generateFinalAAS}
               disabled={isGenerating || !canGenerate}
@@ -2345,12 +2349,12 @@ ${indent}</conceptDescription>`
               {isGenerating ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating...
+                  Exporting...
                 </>
               ) : (
                 <>
                   <Download className="w-5 h-5" />
-                  Download AAS
+                  Export AAS
                 </>
               )}
             </button>
