@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical } from 'lucide-react'
 // ADD: extra icons and UI + toast
 import { AlertCircle, CheckCircle } from 'lucide-react'
@@ -180,6 +180,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [internalIssues, setInternalIssues] = useState<string[]>([])
   const [externalIssues, setExternalIssues] = useState<string[]>([])
   const [lastGeneratedXml, setLastGeneratedXml] = useState<string | null>(null)
+  // New: gate generation until a successful validation
+  const [canGenerate, setCanGenerate] = useState(false)
+
+  // Any change to AAS content should require re-validation
+  useEffect(() => {
+    setCanGenerate(false)
+  }, [submodelData, aasConfig.idShort, aasConfig.id, aasConfig.assetKind, aasConfig.globalAssetId, aasConfig.selectedSubmodels])
 
   const loadTemplates = async () => {
     if (availableTemplates.length > 0) return
@@ -2098,6 +2105,8 @@ ${indent}</conceptDescription>`
     } else {
       toast.error(`Please fill all required fields (${result.missingFields.length} missing).`)
     }
+    // Enable generation only after a passing validation
+    setCanGenerate(result.valid)
   }
 
   return (
@@ -2132,7 +2141,7 @@ ${indent}</conceptDescription>`
           </button>
           <button
             onClick={generateFinalAAS}
-            disabled={isGenerating}
+            disabled={isGenerating || !canGenerate}
             className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isGenerating ? (
