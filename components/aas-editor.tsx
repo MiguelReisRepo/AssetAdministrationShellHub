@@ -209,7 +209,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   // Any change to AAS content should require re-validation
   useEffect(() => {
     setCanGenerate(false)
-+   setHasValidated(false)
+    setHasValidated(false)
   }, [submodelData, aasConfig.idShort, aasConfig.id, aasConfig.assetKind, aasConfig.globalAssetId, aasConfig.selectedSubmodels])
 
   const loadTemplates = async () => {
