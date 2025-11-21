@@ -59,17 +59,6 @@ export default function VisualizerPage() {
         </h1>
         <div className="flex gap-2">
           <button
-            onClick={() => setViewMode("upload")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === "upload"
-                ? "bg-blue-600 text-white shadow-md"
-                : "bg-white/70 text-blue-600 hover:bg-white dark:bg-gray-700 dark:text-blue-400"
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            Upload Data
-          </button>
-          <button
             onClick={() => setViewMode("creator")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
               viewMode === "creator"
@@ -81,17 +70,15 @@ export default function VisualizerPage() {
             Create AAS
           </button>
           <button
-            onClick={() => uploadedFiles.length > 0 && setViewMode("visualizer")}
-            disabled={uploadedFiles.length === 0}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === "visualizer"
-                ? "bg-indigo-600 text-white shadow-md"
-                : uploadedFiles.length > 0
-                  ? "bg-white/70 text-indigo-600 hover:bg-white dark:bg-gray-700 dark:text-indigo-400"
-                  : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800"
+            onClick={() => setViewMode("upload")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              viewMode === "upload"
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-white/70 text-blue-600 hover:bg-white dark:bg-gray-700 dark:text-blue-400"
             }`}
           >
-            Visualizer {uploadedFiles.length > 0 && `(${uploadedFiles.length})`}
+            <Upload className="w-4 h-4" />
+            Upload Data
           </button>
           <button
             onClick={() => currentAASConfig && setViewMode("editor")}
@@ -105,6 +92,19 @@ export default function VisualizerPage() {
             }`}
           >
             Editor
+          </button>
+          <button
+            onClick={() => uploadedFiles.length > 0 && setViewMode("visualizer")}
+            disabled={uploadedFiles.length === 0}
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+              viewMode === "visualizer"
+                ? "bg-indigo-600 text-white shadow-md"
+                : uploadedFiles.length > 0
+                  ? "bg-white/70 text-indigo-600 hover:bg-white dark:bg-gray-700 dark:text-indigo-400"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800"
+            }`}
+          >
+            Visualizer {uploadedFiles.length > 0 && `(${uploadedFiles.length})`}
           </button>
         </div>
       </div>
