@@ -13,16 +13,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQooND7MhVOoUIXEc75y6x1AmYNxptid2hUCA&s',
       },
     ],
     apple: '/apple-icon.png',

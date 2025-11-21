@@ -1012,18 +1012,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           <div className="flex items-center gap-2">
             {getTypeBadge(type)}
             {getCardinalityBadge(cardinalityValue)}
-            <div className="ml-auto">
-              <Button
-                size="lg"
-                variant="default"
-                className={editMode
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-                  : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
-                onClick={() => setEditMode((v) => !v)}
-              >
-                {editMode ? "Done" : "Edit"}
-              </Button>
-            </div>
+            {/* Edit button moved to top header */}
           </div>
           <h3 className="font-semibold text-lg">{selectedElement.idShort || "Element"}</h3>
           {/* NEW: Editable idShort for all elements */}
@@ -1358,55 +1347,61 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* File selector row at top */}
-      <div className="w-full px-5 py-3 overflow-x-auto" style={{ backgroundColor: "rgba(97, 202, 243, 0.1)" }}>
-        <div className="flex gap-3 items-center">
-          <div className="text-sm font-medium text-gray-700 shrink-0">Uploaded Files:</div>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {uploadedFiles.map((file, idx) => (
-              <div
-                key={idx}
-                className={`h-[90px] w-[140px] min-w-[140px] rounded-lg flex flex-col items-center justify-between p-3 cursor-pointer transition-all relative ${
-                  selectedFile === file ? "border-2" : "border border-[#adadae]"
-                }`}
-                style={{
-                  borderColor: selectedFile === file ? "#61caf3" : undefined,
-                }}
-                onClick={() => {
-                  setSelectedFile(file)
-                  setSelectedElement(null)
-                  setExpandedNodes(new Set())
-                }}
-              >
-                {file.valid !== undefined && (
-                  <div className="absolute top-1 right-1">
-                    {file.valid ? (
-                      <div className="flex flex-col items-center gap-0.5">
-                        <CheckCircle className="w-4 h-4 text-green-600" />
-                        <span className="text-[8px] font-semibold text-green-600 uppercase tracking-tight">IDTA</span>
-                      </div>
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-red-600" />
-                    )}
-                  </div>
-                )}
-
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-white"
-                  style={{ backgroundColor: selectedFile === file ? "#61caf3" : "#adadae" }}
-                >
-                  <FileText className="w-5 h-5" />
+      {/* Top header: model thumbnail + actions (Validate + both Edit toggles) */}
+      <div className="w-full px-5 py-3 border-b" style={{ backgroundColor: "rgba(97, 202, 243, 0.1)" }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-lg border border-blue-200 bg-white overflow-hidden flex items-center justify-center">
+              {selectedFile?.thumbnail ? (
+                <img
+                  src={selectedFile.thumbnail || "/placeholder.svg"}
+                  alt="AASX Thumbnail"
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[#61caf3]">
+                  <FileText className="w-6 h-6" />
                 </div>
-                <span
-                  className={`text-xs text-center truncate w-full ${
-                    selectedFile === file ? "text-[#61caf3] font-medium" : "text-[#adadae]"
-                  }`}
-                  title={file.file || file.file}
-                >
-                  {file.file || file.file}
-                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
+                {currentAAS?.idShort || selectedFile?.file || "Model"}
               </div>
-            ))}
+              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {selectedFile?.file}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="lg"
+              variant="default"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+              onClick={runInternalValidation}
+            >
+              Validate
+            </Button>
+            <Button
+              size="lg"
+              variant="default"
+              className={editMode
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
+              onClick={() => setEditMode((v) => !v)}
+            >
+              {editMode ? "Done" : "Edit"}
+            </Button>
+            <Button
+              size="lg"
+              variant="default"
+              className={aasEditMode
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
+              onClick={() => setAasEditMode((v) => !v)}
+            >
+              {aasEditMode ? "Done" : "Edit AAS"}
+            </Button>
           </div>
         </div>
       </div>
@@ -1422,16 +1417,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                 <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300">
                   Asset Administration Shell
                 </h3>
-                <Button
-                  size="lg"
-                  variant="default"
-                  className={aasEditMode
-                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-                    : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
-                  onClick={() => setAasEditMode((v) => !v)}
-                >
-                  {aasEditMode ? "Done" : "Edit"}
-                </Button>
+                {/* Edit AAS button moved to top header */}
               </div>
               <div className="space-y-3 text-xs">
                 {/* IdShort */}
@@ -1673,14 +1659,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
                       <span>{selectedSubmodel.idShort}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Button
-                        size="lg"
-                        variant="default"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-                        onClick={runInternalValidation}
-                      >
-                        Validate
-                      </Button>
+                      {/* Validate button moved to top header */}
                       <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
                         <input
                           type="checkbox"

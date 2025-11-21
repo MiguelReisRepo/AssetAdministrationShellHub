@@ -11,6 +11,7 @@ import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validati
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { processFile } from "@/lib/process-file"
 import AasEditorDebugXML from "./aas-editor-debug"
+import { Button } from "@/components/ui/button"
 
 // Add IEC 61360 data types list
 const IEC_DATA_TYPES = [
@@ -2133,12 +2134,14 @@ ${indent}</conceptDescription>`
 
         {/* ADD: Validate + Download actions */}
         <div className="flex items-center gap-3">
-          <button
+          <Button
             onClick={runInternalValidation}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            size="lg"
+            variant="default"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
           >
             Validate
-          </button>
+          </Button>
           <button
             onClick={generateFinalAAS}
             disabled={isGenerating || !canGenerate}
