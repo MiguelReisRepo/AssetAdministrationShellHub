@@ -3,15 +3,17 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ArrowRight, AlertCircle, CheckCircle } from "lucide-react";
+import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus } from "lucide-react";
 import type { ValidationResult } from "@/lib/types";
 
 interface HomeViewProps {
   files: ValidationResult[];
   onOpen: (index: number) => void;
+  onUploadClick: () => void;
+  onCreateClick: () => void;
 }
 
-export default function HomeView({ files, onOpen }: HomeViewProps) {
+export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }: HomeViewProps) {
   const getIdShort = (file: ValidationResult): string => {
     const idShort =
       (file.aasData as any)?.assetAdministrationShells?.[0]?.idShort ||
@@ -23,15 +25,33 @@ export default function HomeView({ files, onOpen }: HomeViewProps) {
   return (
     <div className="h-full overflow-auto">
       <div className="px-6 py-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            Your AAS Models
-          </h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            {files.length > 0
-              ? `Loaded models: ${files.length}`
-              : "No models loaded yet — upload or create an AAS to get started."}
-          </p>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              Your AAS Models
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              {files.length > 0
+                ? `Loaded models: ${files.length}`
+                : "No models loaded yet — upload or create an AAS to get started."}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={onUploadClick}
+              className="bg-blue-600 text-white hover:bg-blue-700"
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload Data
+            </Button>
+            <Button
+              onClick={onCreateClick}
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create AAS
+            </Button>
+          </div>
         </div>
 
         {files.length === 0 ? (

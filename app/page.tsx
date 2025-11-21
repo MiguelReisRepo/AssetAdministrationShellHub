@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import { Upload, Plus, Home as HomeIcon } from 'lucide-react'
-import { DataUploader } from "@/components/data-uploader"
 import { AASXVisualizer } from "@/components/aasx-visualizer"
 import { AASCreator } from "@/components/aas-creator"
 import { AASEditor } from "@/components/aas-editor"
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import HomeView from "@/components/home-view"
+import UploadDialog from "@/components/upload-dialog"
 
 type ViewMode = "home" | "upload" | "visualizer" | "creator" | "editor"
 
@@ -24,7 +24,8 @@ export default function VisualizerPage() {
       setNewFileIndex(newFiles.length - 1)
       return newFiles
     })
-    setViewMode("visualizer")
+    // After upload, go back to Home as requested
+    setViewMode("home")
   }
 
   const handleProceedToEditor = (config: any) => {
@@ -131,9 +132,19 @@ export default function VisualizerPage() {
       {/* Main Content Area */}
       <div className="h-[calc(100vh-73px)]">
         {viewMode === "home" && (
-          <HomeView files={uploadedFiles} onOpen={openVisualizerAt} />
+          <HomeView
+            files={uploadedFiles}
+            onOpen={openVisualizerAt}
+            onUploadClick={() => setViewMode("upload")}
+            onCreateClick={() => setViewMode("creator")}
+          />
         )}
-        {viewMode === "upload" && <DataUploader onDataUploaded={handleDataUploaded} />}
+        {viewMode === "upload" && (
+          <UploadDialog
+            onDataUploaded={handleDataUploaded}
+            onClose={() => setViewMode("home")}
+          />
+        )}
         {viewMode === "creator" && <AASCreator onProceedToEditor={handleProceedToEditor} />}
         {viewMode === "editor" && currentAASConfig && (
           <AASEditor 
