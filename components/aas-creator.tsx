@@ -154,68 +154,12 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Panel: Available Templates */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Available Submodel Templates
-            </h3>
-            
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search submodels..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              </div>
-            ) : filteredTemplates.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No templates found matching "{searchQuery}"
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredTemplates.map((template, index) => (
-                  <div
-                    key={index}
-                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-400 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h4 className="font-semibold text-gray-900 dark:text-white">
-                          {template.name}
-                        </h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Version {template.version}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => addSubmodel(template)}
-                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {template.description}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right Panel: AAS Builder */}
+          {/* Left Panel: Your AAS */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Your AAS
             </h3>
-
+            
             {/* AAS Configuration */}
             <div className="mb-6 space-y-4">
               <div>
@@ -318,6 +262,62 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
               <Download className="w-5 h-5" />
               Generate & Proceed to Editor
             </button>
+          </div>
+
+          {/* Right Panel: Available Submodel Templates */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Available Submodel Templates
+            </h3>
+            
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder="Search submodels..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No templates found matching "{searchQuery}"
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredTemplates.map((template, index) => (
+                  <div
+                    key={index}
+                    className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-blue-400 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">
+                          {template.name}
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Version {template.version}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => addSubmodel(template)}
+                        className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {template.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
