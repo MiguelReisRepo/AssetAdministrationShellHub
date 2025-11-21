@@ -2212,7 +2212,7 @@ ${indent}</conceptDescription>`
     }
     // Enable generation only after a passing validation
     setCanGenerate(result.valid)
-+   setHasValidated(true)
+    setHasValidated(true)
   }
 
   const setAASFieldValue = (field: 'idShort'|'id'|'assetKind'|'globalAssetId', value: string) => {
