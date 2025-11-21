@@ -152,9 +152,11 @@ interface AASEditorProps {
   onFileGenerated?: (file: ValidationResult) => void
   onUpdateAASConfig: (newConfig: AASConfig) => void
   initialSubmodelData?: Record<string, SubmodelElement[]>
+  onSave?: (file: ValidationResult) => void
+  initialThumbnail?: string | null
 }
 
-export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData }: AASEditorProps) {
+export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData, onSave, initialThumbnail }: AASEditorProps) {
   const [submodelData, setSubmodelData] = useState<Record<string, SubmodelElement[]>>(() => {
     const initial: Record<string, SubmodelElement[]> = {}
     aasConfig.selectedSubmodels.forEach((sm) => {
@@ -175,7 +177,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [availableTemplates, setAvailableTemplates] = useState<SubmodelTemplate[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set())
-  const [thumbnail, setThumbnail] = useState<string | null>(null)
+  const [thumbnail, setThumbnail] = useState<string | null>(initialThumbnail || null)
   const [templateSearchQuery, setSearchQuery] = useState("")
   const [draggedItem, setDraggedItem] = useState<{ path: string[]; element: SubmodelElement } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<string | null>(null)
@@ -1248,6 +1250,100 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     valueType?: string; // For properties
   };
 
+  // Helper to build current JSON environment (used for Save)
+  const buildJsonEnvironment = () => {
+    const mapElementToJson = (element: SubmodelElement): any => {
+      const base: any = {
+        idShort: element.idShort,
+        modelType: element.modelType,
+      };
+      if (element.category) base.category = element.category;
+      if (element.description) {
+        const descText = typeof element.description === 'string' ? element.description : String(element.description);
+        base.description = [{ language: 'en', text: descText }];
+      }
+      if (element.semanticId) {
+        base.semanticId = { keys: [{ type: "GlobalReference", value: element.semanticId }] };
+      }
+      if (element.preferredName) base.preferredName = typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName;
+      if (element.shortName) base.shortName = typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName;
+      if (element.unit) base.unit = element.unit;
+      if (element.dataType) base.dataType = element.dataType;
+      if (element.cardinality) base.cardinality = element.cardinality;
+      switch (element.modelType) {
+        case "Property":
+          base.valueType = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
+          base.value = typeof element.value === 'string' ? element.value : undefined;
+          break;
+        case "MultiLanguageProperty": {
+          const valueArr: any[] = [];
+          if (element.value && typeof element.value === 'object') {
+            Object.entries(element.value as Record<string, string>)
+              .filter(([_, text]) => text && String(text).trim() !== '')
+              .forEach(([language, text]) => valueArr.push({ language, text }));
+          }
+          base.value = valueArr;
+          break;
+        }
+        case "File":
+          base.value = typeof element.value === 'string' ? element.value : '';
+          base.contentType = element.fileData?.mimeType || 'application/octet-stream';
+          break;
+        case "SubmodelElementCollection":
+        case "SubmodelElementList":
+          base.value = Array.isArray(element.children) ? element.children.map(mapElementToJson) : [];
+          break;
+      }
+      return base;
+    };
+    const jsonSubmodels = aasConfig.selectedSubmodels.map(sm => {
+      const elements = submodelData[sm.idShort] || [];
+      return {
+        idShort: sm.idShort,
+        id: `${aasConfig.id}/submodels/${sm.idShort}`,
+        kind: "Instance",
+        semanticId: {
+          keys: [{ type: "GlobalReference", value: sm.template.url || `https://admin-shell.io/submodels/${sm.idShort}` }]
+        },
+        submodelElements: elements.map(mapElementToJson),
+      };
+    });
+    const jsonShell = {
+      id: aasConfig.id,
+      idShort: aasConfig.idShort,
+      assetInformation: {
+        assetKind: aasConfig.assetKind,
+        globalAssetId: aasConfig.globalAssetId,
+        ...(thumbnail ? { defaultThumbnail: { path: "thumbnail.png", contentType: "image/png" } } : {})
+      },
+      submodels: aasConfig.selectedSubmodels.map(sm => ({
+        keys: [{ type: "Submodel", value: `${aasConfig.id}/submodels/${sm.idShort}` }]
+      })),
+    };
+    return {
+      assetAdministrationShells: [jsonShell],
+      submodels: jsonSubmodels,
+      conceptDescriptions: [] // kept minimal for save
+    };
+  };
+
+  const saveAAS = async () => {
+    const env = buildJsonEnvironment();
+    const result: ValidationResult = {
+      file: `${aasConfig.idShort}.aasx`,
+      type: "AASX",
+      valid: true,
+      processingTime: 0,
+      parsed: env,
+      aasData: null,
+      thumbnail: thumbnail || undefined,
+    };
+    if (onSave) {
+      onSave(result);
+      toast.success("Changes saved.");
+    }
+  };
+
   const generateFinalAAS = async () => {
     setIsGenerating(true)
     
@@ -2145,6 +2241,14 @@ ${indent}</conceptDescription>`
             className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
           >
             Validate
+          </Button>
+          <Button
+            onClick={saveAAS}
+            size="lg"
+            variant="default"
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+          >
+            Save
           </Button>
           <button
             onClick={generateFinalAAS}

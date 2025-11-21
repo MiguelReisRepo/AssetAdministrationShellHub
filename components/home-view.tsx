@@ -71,7 +71,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }
               return (
                 <Card
                   key={`${file.file}-${idx}`}
-                  className="group relative bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700 hover:border-blue-400 transition-colors cursor-pointer"
+                  className="group relative bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700 hover:border-blue-400 transition-colors cursor-pointer h-44"
                   onClick={() => onOpen(idx)}
                 >
                   {file.valid !== undefined && (
@@ -88,20 +88,21 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }
                       )}
                     </div>
                   )}
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                        {/* Thumbnail preview */}
-                        {file.thumbnail ? (
-                          <img
-                            src={thumb}
-                            alt={`${idShort} thumbnail`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <FileText className="w-5 h-5 text-gray-500" />
-                        )}
-                      </div>
+                  <div className="flex h-full">
+                    {/* Left: Square thumbnail with full card height */}
+                    <div className="h-full aspect-square rounded-l overflow-hidden bg-gray-100 flex items-center justify-center">
+                      {file.thumbnail ? (
+                        <img
+                          src={thumb}
+                          alt={`${idShort} thumbnail`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <FileText className="w-6 h-6 text-gray-500" />
+                      )}
+                    </div>
+                    {/* Right: Details and action */}
+                    <div className="flex-1 flex flex-col justify-between p-3">
                       <div className="min-w-0">
                         <CardTitle className="truncate text-base text-gray-900 dark:text-gray-100">
                           {idShort}
@@ -110,24 +111,22 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }
                           {file.file}
                         </div>
                       </div>
+                      <div className="flex items-center justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpen(idx);
+                          }}
+                        >
+                          View
+                          <ArrowRight className="ml-1 w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex items-center justify-end">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpen(idx);
-                        }}
-                      >
-                        Open
-                        <ArrowRight className="ml-1 w-4 h-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
+                  </div>
                 </Card>
               );
             })}

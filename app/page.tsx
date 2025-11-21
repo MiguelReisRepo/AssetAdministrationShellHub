@@ -13,12 +13,13 @@ type ViewMode = "home" | "upload" | "visualizer" | "creator" | "editor"
 
 export default function VisualizerPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("home")
-  const [uploadedFiles, setUploadedFiles] = useState<ValidationResult[]>([]) // Use ValidationResult type
+  const [uploadedFiles, setUploadedFiles] = useState<ValidationResult[]>([])
   const [newFileIndex, setNewFileIndex] = useState<number | null>(null)
-  const [currentAASConfig, setCurrentAASConfig] = useState<any>(null) // Renamed from aasConfig
+  const [currentAASConfig, setCurrentAASConfig] = useState<any>(null)
   const [initialSubmodelData, setInitialSubmodelData] = useState<Record<string, any> | null>(null)
+  const [editorFileIndex, setEditorFileIndex] = useState<number | null>(null)
 
-  const handleDataUploaded = (fileData: ValidationResult) => { // Use ValidationResult type
+  const handleDataUploaded = (fileData: ValidationResult) => {
     console.log("[v0] Page received file data:", fileData)
     setUploadedFiles((prev) => {
       const newFiles = [...prev, fileData]
@@ -30,12 +31,12 @@ export default function VisualizerPage() {
   }
 
   const handleProceedToEditor = (config: any) => {
-    // Now receiving assetKind and globalAssetId from AASCreator
-    setCurrentAASConfig(config) // Update the new state variable
+    setCurrentAASConfig(config)
     setViewMode("editor")
+   setEditorFileIndex(null)
   }
 
-  const handleFileGenerated = async (fileData: ValidationResult) => { // Use ValidationResult type
+  const handleFileGenerated = async (fileData: ValidationResult) => {
     console.log("[v0] Generated file received:", fileData)
     
     setUploadedFiles((prev) => {
@@ -44,13 +45,31 @@ export default function VisualizerPage() {
       return newFiles
     })
     
-    // Stay in Editor after generation
     setViewMode("editor")
+    setEditorFileIndex(uploadedFiles.length) // index of newly added file
   }
 
   // Callback to update AASConfig from AASEditor
   const updateAASConfig = (newConfig: any) => {
     setCurrentAASConfig(newConfig)
+  }
+
+  const handleSaveFile = (fileData: ValidationResult) => {
+    if (editorFileIndex === null) {
+      // No specific file selected, append
+      setUploadedFiles((prev) => [...prev, fileData])
+      return
+    }
+    setUploadedFiles((prev) => {
+      const next = [...prev]
+      const existing = next[editorFileIndex]
+      next[editorFileIndex] = {
+        ...existing,
+        ...fileData,
+        file: existing.file || fileData.file,
+      }
+      return next
+    })
   }
 
   const openVisualizerAt = (index: number) => {
@@ -148,6 +167,7 @@ export default function VisualizerPage() {
     })
     setCurrentAASConfig(cfg)
     setInitialSubmodelData(initial)
+   setEditorFileIndex(index)
     setViewMode("editor")
   }
 
@@ -155,9 +175,13 @@ export default function VisualizerPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border-b border-blue-200 dark:border-gray-700">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+        <button
+          onClick={() => setViewMode("home")}
+          className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
+          aria-label="Go Home"
+        >
           AAS Hub
-        </h1>
+        </button>
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode("home")}
@@ -213,8 +237,10 @@ export default function VisualizerPage() {
             aasConfig={currentAASConfig} 
             onBack={() => setViewMode("creator")} 
             onFileGenerated={handleFileGenerated}
-            onUpdateAASConfig={updateAASConfig} // Pass the update callback
+            onUpdateAASConfig={updateAASConfig}
             initialSubmodelData={initialSubmodelData || undefined}
+           onSave={handleSaveFile}
+           initialThumbnail={editorFileIndex !== null ? uploadedFiles[editorFileIndex]?.thumbnail || null : null}
           />
         )}
         {/* Visualizer view is no longer reachable from the navbar; kept for internal use if needed */}
