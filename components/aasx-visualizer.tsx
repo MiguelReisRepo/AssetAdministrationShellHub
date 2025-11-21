@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle, Download, X } from 'lucide-react'
+import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle, Download, X, Copy } from 'lucide-react'
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" // Import Collapsible components
 import { Button } from "@/components/ui/button"
@@ -138,11 +138,37 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const [hideEmptyElements, setHideEmptyElements] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  // Edit mode for AAS card (left panel)
+  const [aasEditMode, setAasEditMode] = useState(false)
   // ADD: internal validation state
   const [internalIssues, setInternalIssues] = useState<string[]>([])
   const [validationErrorPaths, setValidationErrorPaths] = useState<Set<string>>(new Set())
   // NEW: live schema errors (updated every Validate click)
   const [liveErrors, setLiveErrors] = useState<(string | { message: string })[]>([])
+
+  // Copy helper for AAS fields
+  const copyText = (label: string, value?: string) => {
+    const text = String(value ?? '').trim()
+    if (!text) {
+      toast.error(`No ${label} to copy`)
+      return
+    }
+    navigator.clipboard.writeText(text)
+    toast.success(`${label} copied`)
+  }
+
+  // Update helper for AAS fields (writes into aasxData.assetAdministrationShells[0])
+  const setAASFieldValue = (key: 'idShort' | 'id' | 'assetKind' | 'globalAssetId', value: string) => {
+    if (!aasxData || !Array.isArray(aasxData.assetAdministrationShells) || !aasxData.assetAdministrationShells[0]) return
+    const shell = aasxData.assetAdministrationShells[0]
+    if (key === 'globalAssetId') {
+      shell.assetInformation = shell.assetInformation || {}
+      shell.assetInformation.globalAssetId = value
+    } else {
+      ;(shell as any)[key] = value
+    }
+    setAasxData({ ...aasxData })
+  }
 
   useEffect(() => {
     if (newFileIndex !== null && newFileIndex >= 0 && uploadedFiles[newFileIndex]) {
@@ -1328,7 +1354,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   }
 
   // Get the first AAS from the selected file's AAS data
-  const currentAAS = selectedFile?.aasData?.assetAdministrationShells?.[0];
+  const currentAAS = (aasxData?.assetAdministrationShells?.[0]) || selectedFile?.aasData?.assetAdministrationShells?.[0];
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -1392,25 +1418,161 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
           {/* AAS Information Section */}
           {currentAAS && (
             <div className="mb-4 px-2 py-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-blue-200 dark:border-gray-700">
-              <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">
-                Asset Administration Shell
-              </h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                  Asset Administration Shell
+                </h3>
+                <Button
+                  size="lg"
+                  variant="default"
+                  className={aasEditMode
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+                    : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
+                  onClick={() => setAasEditMode((v) => !v)}
+                >
+                  {aasEditMode ? "Done" : "Edit"}
+                </Button>
+              </div>
               <div className="space-y-3 text-xs">
+                {/* IdShort */}
                 <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">IdShort:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{currentAAS.idShort || 'N/A'}</span>
+                  {aasEditMode ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={currentAAS.idShort || ""}
+                        onChange={(e) => setAASFieldValue('idShort', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('IdShort', currentAAS.idShort)}
+                        title="Copy IdShort"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100 break-all">
+                        {currentAAS.idShort || 'N/A'}
+                      </span>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('IdShort', currentAAS.idShort)}
+                        title="Copy IdShort"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                {/* ID */}
                 <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">ID:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all">{currentAAS.id || 'N/A'}</span>
+                  {aasEditMode ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={currentAAS.id || ""}
+                        onChange={(e) => setAASFieldValue('id', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('ID', currentAAS.id)}
+                        title="Copy ID"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100 break-all">
+                        {currentAAS.id || 'N/A'}
+                      </span>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('ID', currentAAS.id)}
+                        title="Copy ID"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                {/* Asset Kind */}
                 <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">Asset Kind:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{currentAAS.assetKind || 'N/A'}</span>
+                  {aasEditMode ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={currentAAS.assetKind || ""}
+                        onChange={(e) => setAASFieldValue('assetKind', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('Asset Kind', currentAAS.assetKind)}
+                        title="Copy Asset Kind"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {currentAAS.assetKind || 'N/A'}
+                      </span>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('Asset Kind', currentAAS.assetKind)}
+                        title="Copy Asset Kind"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                {/* Global Asset ID */}
                 <div className="flex flex-col">
                   <span className="text-gray-600 dark:text-gray-400">Global Asset ID:</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 break-all">{currentAAS.assetInformation?.globalAssetId || 'N/A'}</span>
+                  {aasEditMode ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={currentAAS.assetInformation?.globalAssetId || ""}
+                        onChange={(e) => setAASFieldValue('globalAssetId', e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('Global Asset ID', currentAAS.assetInformation?.globalAssetId)}
+                        title="Copy Global Asset ID"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100 break-all">
+                        {currentAAS.assetInformation?.globalAssetId || 'N/A'}
+                      </span>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => copyText('Global Asset ID', currentAAS.assetInformation?.globalAssetId)}
+                        title="Copy Global Asset ID"
+                      >
+                        <Copy className="size-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
