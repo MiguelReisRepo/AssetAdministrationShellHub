@@ -191,7 +191,7 @@ export default function VisualizerPage() {
           aria-label="Go Home"
         >
           <img
-            src="/icon.svg"
+            src="https://support.industry.siemens.com/cs/images/109963158/109963158_AssetAdministrationShell_01.png"
             alt="AAS Hub Logo"
             className="w-8 h-8"
           />

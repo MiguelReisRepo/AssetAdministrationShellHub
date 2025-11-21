@@ -203,10 +203,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [lastGeneratedXml, setLastGeneratedXml] = useState<string | null>(null)
   // New: gate generation until a successful validation
   const [canGenerate, setCanGenerate] = useState(false)
++ // New: track whether validation has been run (and is current)
++ const [hasValidated, setHasValidated] = useState(false)
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
     setCanGenerate(false)
++   setHasValidated(false)
   }, [submodelData, aasConfig.idShort, aasConfig.id, aasConfig.assetKind, aasConfig.globalAssetId, aasConfig.selectedSubmodels])
 
   const loadTemplates = async () => {
@@ -2209,6 +2212,7 @@ ${indent}</conceptDescription>`
     }
     // Enable generation only after a passing validation
     setCanGenerate(result.valid)
++   setHasValidated(true)
   }
 
   const setAASFieldValue = (field: 'idShort'|'id'|'assetKind'|'globalAssetId', value: string) => {
@@ -2310,62 +2314,70 @@ ${indent}</conceptDescription>`
             </div>
           </div>
           {/* Actions */}
-          <div className="flex items-center gap-3 shrink-0">
-             <Button
-               onClick={() => setEditMode((v) => !v)}
-               size="lg"
-               variant="default"
-               className={(editMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#61caf3] hover:bg-[#4db6e6]") + " text-white shadow-md"}
-             >
-               {editMode ? "Done" : "Edit"}
-             </Button>
-             <Button
-               onClick={runInternalValidation}
-               size="lg"
-               variant="default"
-               className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-             >
-               Validate
-             </Button>
-             {/* REMOVED: Save button per latest requirement */}
-             <button
-               onClick={generateFinalAAS}
-               disabled={isGenerating || !canGenerate}
-               className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               {isGenerating ? (
-                 <>
-                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                   Exporting...
-                 </>
-               ) : (
-                 <>
-                   <Download className="w-5 h-5" />
-                   Export AAS
-                 </>
-               )}
-             </button>
-             {/* Status badge */}
-             <div className="ml-2">
-               {(externalIssues.length > 0) ? (
-                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-800 border border-red-300 dark:bg-red-900/20 dark:text-red-200 dark:border-red-700">
-                   <AlertCircle className="w-4 h-4" />
-                   <span className="text-sm font-semibold">Invalid</span>
-                   <span className="text-xs">({externalIssues.length} XML errors)</span>
-                 </div>
-               ) : canGenerate ? (
-                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 text-green-800 border border-green-300 dark:bg-green-900/20 dark:text-green-200 dark:border-green-700">
-                   <CheckCircle className="w-4 h-4" />
-                   <span className="text-sm font-semibold">Valid</span>
-                 </div>
-               ) : (
-                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-700">
-                   <AlertCircle className="w-4 h-4" />
-                   <span className="text-sm font-semibold">Incomplete</span>
-                   <span className="text-xs">({internalIssues.length} missing)</span>
-                 </div>
-               )}
-             </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <div className="flex items-center gap-3">
+               <Button
+                 onClick={() => setEditMode((v) => !v)}
+                 size="lg"
+                 variant="default"
+                 className={(editMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#61caf3] hover:bg-[#4db6e6]") + " text-white shadow-md"}
+               >
+                 {editMode ? "Done" : "Edit"}
+               </Button>
+               <Button
+                 onClick={runInternalValidation}
+                 size="lg"
+                 variant="default"
+                 className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+               >
+                 Validate
+               </Button>
+               {/* REMOVED: Save button per latest requirement */}
+               <button
+                 onClick={generateFinalAAS}
+                 disabled={isGenerating || !canGenerate}
+                 className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+               >
+                 {isGenerating ? (
+                   <>
+                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                     Exporting...
+                   </>
+                 ) : (
+                   <>
+                     <Download className="w-5 h-5" />
+                     Export AAS
+                   </>
+                 )}
+               </button>
+            </div>
+            {/* Status badge below buttons */}
+            <div className="w-full flex justify-end">
+              {(externalIssues.length > 0) ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-800 border border-red-300 dark:bg-red-900/20 dark:text-red-200 dark:border-red-700">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Invalid</span>
+                  <span className="text-xs">({externalIssues.length} XML errors)</span>
+                </div>
+              ) : !hasValidated ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-800 border border-gray-300 dark:bg-gray-800/40 dark:text-gray-200 dark:border-gray-700">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Unvalidated</span>
+                  <span className="text-xs">(run Validate)</span>
+                </div>
+              ) : canGenerate ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 text-green-800 border border-green-300 dark:bg-green-900/20 dark:text-green-200 dark:border-green-700">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Valid</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-700">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm font-semibold">Incomplete</span>
+                  <span className="text-xs">({internalIssues.length} missing)</span>
+                </div>
+              )}
+            </div>
            </div>
         </div>
       </div>
