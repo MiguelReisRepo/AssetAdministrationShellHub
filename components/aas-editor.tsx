@@ -149,15 +149,19 @@ interface SubmodelElement {
 interface AASEditorProps {
   aasConfig: AASConfig
   onBack: () => void
-  onFileGenerated?: (file: ValidationResult) => void // Use ValidationResult type
-  onUpdateAASConfig: (newConfig: AASConfig) => void // New prop for updating AASConfig
+  onFileGenerated?: (file: ValidationResult) => void
+  onUpdateAASConfig: (newConfig: AASConfig) => void
+  initialSubmodelData?: Record<string, SubmodelElement[]>
 }
 
-export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig }: AASEditorProps) {
+export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData }: AASEditorProps) {
   const [submodelData, setSubmodelData] = useState<Record<string, SubmodelElement[]>>(() => {
     const initial: Record<string, SubmodelElement[]> = {}
     aasConfig.selectedSubmodels.forEach((sm) => {
-      initial[sm.idShort] = generateTemplateStructure(sm.template.name)
+      initial[sm.idShort] =
+        (initialSubmodelData && initialSubmodelData[sm.idShort])
+          ? initialSubmodelData[sm.idShort]
+          : generateTemplateStructure(sm.template.name)
     })
     return initial
   })

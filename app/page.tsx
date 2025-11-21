@@ -16,6 +16,7 @@ export default function VisualizerPage() {
   const [uploadedFiles, setUploadedFiles] = useState<ValidationResult[]>([]) // Use ValidationResult type
   const [newFileIndex, setNewFileIndex] = useState<number | null>(null)
   const [currentAASConfig, setCurrentAASConfig] = useState<any>(null) // Renamed from aasConfig
+  const [initialSubmodelData, setInitialSubmodelData] = useState<Record<string, any> | null>(null)
 
   const handleDataUploaded = (fileData: ValidationResult) => { // Use ValidationResult type
     console.log("[v0] Page received file data:", fileData)
@@ -43,8 +44,8 @@ export default function VisualizerPage() {
       return newFiles
     })
     
-    // Automatically switch to visualizer to show the new file
-    setViewMode("visualizer")
+    // Stay in Editor after generation
+    setViewMode("editor")
   }
 
   // Callback to update AASConfig from AASEditor
@@ -53,10 +54,101 @@ export default function VisualizerPage() {
   }
 
   const openVisualizerAt = (index: number) => {
-    if (index >= 0 && index < uploadedFiles.length) {
-      setNewFileIndex(index)
-      setViewMode("visualizer")
+    if (index < 0 || index >= uploadedFiles.length) return
+    const file = uploadedFiles[index]
+    const env = file.aasData
+    if (!env || !Array.isArray(env.assetAdministrationShells) || !env.assetAdministrationShells[0]) {
+      return
     }
+    const shell = env.assetAdministrationShells[0]
+    const submodels = Array.isArray(env.submodels) ? env.submodels : []
+    // Build Editor config from existing AAS
+    const selectedSubmodels = submodels.map((sm: any) => ({
+      idShort: sm.idShort || `Submodel`,
+      template: {
+        name: sm.idShort || `Submodel`,
+        version: "1.0",
+        description: "Imported submodel",
+        url: sm.semanticId?.keys?.[0]?.value || `https://admin-shell.io/submodels/${sm.idShort || 'submodel'}`
+      }
+    }))
+    const cfg = {
+      idShort: shell.idShort || "ImportedAAS",
+      id: shell.id || "https://example.com/aas/imported",
+      assetKind: shell.assetKind || "Instance",
+      globalAssetId: shell.assetInformation?.globalAssetId || "",
+      selectedSubmodels
+    }
+    // Map submodelElements into Editor format
+    const mapDescription = (desc: any): string | undefined => {
+      if (!desc) return undefined
+      if (typeof desc === "string") return desc
+      if (Array.isArray(desc)) {
+        const en = desc.find((d: any) => d.language === 'en')
+        return (en?.text || desc[0]?.text) || undefined
+      }
+      return undefined
+    }
+    const mapSemanticId = (sid: any): string | undefined => {
+      if (!sid) return undefined
+      if (typeof sid === "string") return sid
+      const key = sid?.keys?.[0]
+      return key?.value || undefined
+    }
+    const mapCardinality = (el: any): "One" | "ZeroToOne" | "ZeroToMany" | "OneToMany" => {
+      const q = Array.isArray(el.qualifiers) ? el.qualifiers.find((x: any) => x?.type === "Cardinality") : null
+      const v = q?.value || el.cardinality
+      if (v === "One" || v === "ZeroToOne" || v === "ZeroToMany" || v === "OneToMany") return v
+      return "ZeroToOne"
+    }
+    const mapMLPValue = (val: any): Record<string, string> => {
+      if (Array.isArray(val)) {
+        const out: Record<string, string> = {}
+        val.forEach((item: any) => {
+          if (item?.language) out[item.language] = item.text || ""
+        })
+        if (!out.en) out.en = ""
+        return out
+      }
+      if (typeof val === "object" && val) return val
+      return { en: "" }
+    }
+    const mapElement = (el: any): any => {
+      const type = el.modelType || "Property"
+      const base: any = {
+        idShort: el.idShort || "Element",
+        modelType: type,
+        cardinality: mapCardinality(el),
+        description: mapDescription(el.description),
+        semanticId: mapSemanticId(el.semanticId),
+        preferredName: el.preferredName,
+        shortName: el.shortName,
+        unit: el.unit,
+        dataType: el.dataType,
+        category: el.category,
+        valueType: el.valueType,
+      }
+      if (type === "Property") {
+        base.value = typeof el.value === "string" ? el.value : ""
+      } else if (type === "MultiLanguageProperty") {
+        base.value = mapMLPValue(el.value)
+      } else if (type === "File") {
+        base.value = typeof el.value === "string" ? el.value : ""
+        base.fileData = el.fileData
+      } else if (type === "SubmodelElementCollection" || type === "SubmodelElementList") {
+        const children = Array.isArray(el.value) ? el.value.map(mapElement) : []
+        base.children = children
+      }
+      return base
+    }
+    const initial: Record<string, any[]> = {}
+    submodels.forEach((sm: any) => {
+      const elements = Array.isArray(sm.submodelElements) ? sm.submodelElements.map(mapElement) : []
+      initial[sm.idShort || "Submodel"] = elements
+    })
+    setCurrentAASConfig(cfg)
+    setInitialSubmodelData(initial)
+    setViewMode("editor")
   }
 
   return (
@@ -91,19 +183,6 @@ export default function VisualizerPage() {
           >
             Editor
           </button>
-          <button
-            onClick={() => uploadedFiles.length > 0 && setViewMode("visualizer")}
-            disabled={uploadedFiles.length === 0}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === "visualizer"
-                ? "bg-indigo-600 text-white shadow-md"
-                : uploadedFiles.length > 0
-                  ? "bg-white/70 text-indigo-600 hover:bg-white dark:bg-gray-700 dark:text-indigo-400"
-                  : "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-gray-800"
-            }`}
-          >
-            Visualizer {uploadedFiles.length > 0 && `(${uploadedFiles.length})`}
-          </button>
         </div>
       </div>
 
@@ -135,11 +214,10 @@ export default function VisualizerPage() {
             onBack={() => setViewMode("creator")} 
             onFileGenerated={handleFileGenerated}
             onUpdateAASConfig={updateAASConfig} // Pass the update callback
+            initialSubmodelData={initialSubmodelData || undefined}
           />
         )}
-        {viewMode === "visualizer" && uploadedFiles.length > 0 && (
-          <AASXVisualizer uploadedFiles={uploadedFiles} newFileIndex={newFileIndex} onFileSelected={() => setNewFileIndex(null)} />
-        )}
+        {/* Visualizer view is no longer reachable from the navbar; kept for internal use if needed */}
       </div>
     </div>
   )

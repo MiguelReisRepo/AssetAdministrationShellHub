@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, FileText, CheckCircle, AlertCircle, Download, X, Copy } from 'lucide-react'
+import JSZip from 'jszip'
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible" // Import Collapsible components
 import { Button } from "@/components/ui/button"
@@ -1349,7 +1350,7 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     <div className="flex flex-col h-full overflow-hidden">
       {/* Top header: larger thumbnail + AAS info + actions */}
       <div className="w-full px-5 py-4 border-b" style={{ backgroundColor: "rgba(97, 202, 243, 0.12)" }}>
-        <div className="flex items-start gap-4">
+        <div className="flex items-center gap-4">
           {/* Larger thumbnail */}
           <div className="w-20 h-20 rounded-lg border border-blue-200 bg-white overflow-hidden flex items-center justify-center shrink-0">
             {selectedFile?.thumbnail ? (
@@ -1480,22 +1481,72 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
             <Button
               size="lg"
               variant="default"
-              className={editMode
+              className={(editMode || aasEditMode)
                 ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
                 : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
-              onClick={() => setEditMode((v) => !v)}
+              onClick={() => {
+                const next = !(editMode || aasEditMode);
+                setEditMode(next);
+                setAasEditMode(next);
+              }}
             >
-              {editMode ? "Done" : "Edit"}
+              {(editMode || aasEditMode) ? "Done" : "Edit"}
             </Button>
             <Button
               size="lg"
               variant="default"
-              className={aasEditMode
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-                : "bg-[#61caf3] hover:bg-[#4db6e6] text-white shadow-md"}
-              onClick={() => setAasEditMode((v) => !v)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md"
+              onClick={async () => {
+                if (!aasxData) {
+                  toast.error("No AAS data to export");
+                  return;
+                }
+                const zip = new JSZip();
+                // Save current in-memory environment as model.json
+                zip.file("model.json", JSON.stringify(aasxData, null, 2));
+                // Include attachments if present
+                const attachments = (selectedFile as any)?.attachments as Record<string, string> | undefined;
+                if (attachments) {
+                  const toBytes = (dataUrl: string) => {
+                    const [meta, data] = dataUrl.split(",");
+                    const binary = atob(data);
+                    const arr = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+                    return arr;
+                  };
+                  Object.entries(attachments).forEach(([path, dataUrl]) => {
+                    const normalized = path.replace(/^\/+/, "");
+                    zip.file(normalized, toBytes(dataUrl));
+                  });
+                }
+                // Minimal AASX relationships and content types
+                zip.file("aasx/aasx-origin", `<?xml version="1.0" encoding="UTF-8"?>
+<origin xmlns="http://admin-shell.io/aasx/relationships/aasx-origin">
+  <originPath>/model.json</originPath>
+</origin>`);
+                zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="aasx-origin" Type="http://admin-shell.io/aasx/relationships/aasx-origin" Target="/aasx/aasx-origin"/>
+</Relationships>`);
+                zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="utf-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="text/xml"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="json" ContentType="text/plain"/>
+  <Override PartName="/aasx/aasx-origin" ContentType="text/plain"/>
+</Types>`);
+                const blob = await zip.generateAsync({ type: "blob" });
+                const name = (currentAAS?.idShort || selectedFile?.file || "AAS") + ".aasx";
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                toast.success("Exported AASX");
+              }}
             >
-              {aasEditMode ? "Done" : "Edit AAS"}
+              Export AAS
             </Button>
           </div>
         </div>
