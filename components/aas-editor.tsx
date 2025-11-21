@@ -179,6 +179,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [validationErrors, setValidationErrors] = useState<Set<string>>(new Set())
   const [thumbnail, setThumbnail] = useState<string | null>(initialThumbnail || null)
+// ADD: initialize editMode to control AAS info and right panel editing
+  const [editMode, setEditMode] = useState(false)
   const [templateSearchQuery, setSearchQuery] = useState("")
   const [draggedItem, setDraggedItem] = useState<{ path: string[]; element: SubmodelElement } | null>(null)
   const [dragOverItem, setDragOverItem] = useState<string | null>(null)
