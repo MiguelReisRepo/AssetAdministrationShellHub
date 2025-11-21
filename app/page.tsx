@@ -235,12 +235,12 @@ export default function VisualizerPage() {
         {viewMode === "editor" && currentAASConfig && (
           <AASEditor 
             aasConfig={currentAASConfig} 
-            onBack={() => setViewMode("creator")} 
+            onBack={() => setViewMode("home")} 
             onFileGenerated={handleFileGenerated}
             onUpdateAASConfig={updateAASConfig}
             initialSubmodelData={initialSubmodelData || undefined}
-           onSave={handleSaveFile}
-           initialThumbnail={editorFileIndex !== null ? uploadedFiles[editorFileIndex]?.thumbnail || null : null}
+            onSave={handleSaveFile}
+            initialThumbnail={editorFileIndex !== null ? uploadedFiles[editorFileIndex]?.thumbnail || null : null}
           />
         )}
         {/* Visualizer view is no longer reachable from the navbar; kept for internal use if needed */}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical } from 'lucide-react'
+import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical, Copy } from 'lucide-react'
 // ADD: extra icons and UI + toast
 import { AlertCircle, CheckCircle } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -12,6 +12,7 @@ import type { ValidationResult } from "@/lib/types" // Import ValidationResult t
 import { processFile } from "@/lib/process-file"
 import AasEditorDebugXML from "./aas-editor-debug"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 
 // Add IEC 61360 data types list
 const IEC_DATA_TYPES = [
@@ -2210,63 +2211,148 @@ ${indent}</conceptDescription>`
     setCanGenerate(result.valid)
   }
 
+  const setAASFieldValue = (field: 'idShort'|'id'|'assetKind'|'globalAssetId', value: string) => {
+    onUpdateAASConfig({ ...aasConfig, [field]: value })
+  }
+
+  const copyText = async (label: string, value?: string) => {
+    if (!value) return
+    await navigator.clipboard.writeText(value)
+    toast.success(`${label} copied`)
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Edit AAS: {aasConfig.idShort}
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Fill in the values for your Asset Administration Shell
-              <span className="ml-2 text-red-600">* = Required field</span>
-            </p>
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={onBack}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                title="Back to Home"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Edit AAS: {aasConfig.idShort}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Fill in the values for your Asset Administration Shell
+                  <span className="ml-2 text-red-600">* = Required field</span>
+                </p>
+              </div>
+            </div>
+            {/* AAS Info inline grid */}
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* IdShort */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-gray-600 dark:text-gray-400">IdShort</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={aasConfig.idShort || ""}
+                    onChange={(e) => setAASFieldValue('idShort', e.target.value)}
+                    className="h-9"
+                    disabled={!editMode}
+                  />
+                  <Button size="icon-sm" variant="ghost" onClick={() => copyText('IdShort', aasConfig.idShort)} title="Copy IdShort">
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              {/* ID */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-gray-600 dark:text-gray-400">ID</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={aasConfig.id || ""}
+                    onChange={(e) => setAASFieldValue('id', e.target.value)}
+                    className="h-9"
+                    disabled={!editMode}
+                  />
+                  <Button size="icon-sm" variant="ghost" onClick={() => copyText('ID', aasConfig.id)} title="Copy ID">
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              {/* Asset Kind */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-gray-600 dark:text-gray-400">Asset Kind</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={aasConfig.assetKind || ""}
+                    onChange={(e) => setAASFieldValue('assetKind', e.target.value)}
+                    className="h-9"
+                    disabled={!editMode}
+                  />
+                  <Button size="icon-sm" variant="ghost" onClick={() => copyText('Asset Kind', aasConfig.assetKind)} title="Copy Asset Kind">
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
+              </div>
+              {/* Global Asset ID */}
+              <div className="space-y-1">
+                <div className="text-[11px] font-medium text-gray-600 dark:text-gray-400">Global Asset ID</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={aasConfig.globalAssetId || ""}
+                    onChange={(e) => setAASFieldValue('globalAssetId', e.target.value)}
+                    className="h-9"
+                    disabled={!editMode}
+                  />
+                  <Button size="icon-sm" variant="ghost" onClick={() => copyText('Global Asset ID', aasConfig.globalAssetId)} title="Copy Global Asset ID">
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* ADD: Validate + Download actions */}
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={runInternalValidation}
-            size="lg"
-            variant="default"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-          >
-            Validate
-          </Button>
-          <Button
-            onClick={saveAAS}
-            size="lg"
-            variant="default"
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
-          >
-            Save
-          </Button>
-          <button
-            onClick={generateFinalAAS}
-            disabled={isGenerating || !canGenerate}
-            className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5" />
-                Download AAS
-              </>
-            )}
-          </button>
+          {/* Actions */}
+          <div className="flex items-center gap-3 shrink-0">
+            <Button
+              onClick={() => setEditMode((v) => !v)}
+              size="lg"
+              variant="default"
+              className={(editMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#61caf3] hover:bg-[#4db6e6]") + " text-white shadow-md"}
+            >
+              {editMode ? "Done" : "Edit"}
+            </Button>
+            <Button
+              onClick={runInternalValidation}
+              size="lg"
+              variant="default"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+            >
+              Validate
+            </Button>
+            <Button
+              onClick={saveAAS}
+              size="lg"
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+            >
+              Save
+            </Button>
+            <button
+              onClick={generateFinalAAS}
+              disabled={isGenerating || !canGenerate}
+              className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5" />
+                  Download AAS
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2453,8 +2539,8 @@ ${indent}</conceptDescription>`
           </div>
         </div>
 
-        {/* Right Panel - Editable Fields */}
-        <div className="w-96 overflow-y-auto bg-gray-50 dark:bg-gray-800">
+        {/* Right Panel - Editable Fields (locked when Edit is off) */}
+        <div className={`w-96 overflow-y-auto bg-gray-50 dark:bg-gray-800 ${editMode ? "" : "pointer-events-none opacity-70"}`}>
           {renderEditableDetails()}
         </div>
       </div>
