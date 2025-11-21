@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Download, Plus, Trash2, FileText, Loader2 } from 'lucide-react'
+import { Download, Plus, Trash2, FileText, Loader2, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 interface SubmodelTemplate {
@@ -229,6 +229,29 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
                 Selected: {selectedSubmodels.length}
               </span>
             </div>
+            {selectedSubmodels.length > 0 && (
+              <div className="-mt-1">
+                <div className="flex flex-wrap gap-2">
+                  {selectedSubmodels.map((sm, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 px-2.5 py-1 text-xs text-gray-800 dark:text-gray-200"
+                      title={sm.template.name}
+                    >
+                      {sm.idShort || sm.template.name}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${sm.idShort || sm.template.name}`}
+                        onClick={() => removeSubmodel(index)}
+                        className="ml-1 rounded-full p-0.5 hover:bg-gray-200 dark:hover:bg-gray-800"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <input
                 type="text"
