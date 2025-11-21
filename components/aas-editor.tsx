@@ -99,8 +99,11 @@ function isValidValueForXsdType(vt: string, val: string): boolean {
   const v = (val ?? '').trim();
   if (!v) return true; // empties handled by required checks
   switch (vt) {
-    case 'xs:boolean':
-      return v === 'true' || v === 'false';
+    case 'xs:boolean': {
+      const lower = v.toLowerCase();
+      // XML Schema boolean allows true/false and 1/0
+      return lower === 'true' || lower === 'false' || v === '1' || v === '0';
+    }
     case 'xs:integer':
     case 'xs:int':
     case 'xs:long':
