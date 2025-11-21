@@ -3,7 +3,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ArrowRight, AlertCircle } from "lucide-react";
+import { FileText, ArrowRight, AlertCircle, CheckCircle } from "lucide-react";
 import type { ValidationResult } from "@/lib/types";
 
 interface HomeViewProps {
@@ -39,7 +39,7 @@ export default function HomeView({ files, onOpen }: HomeViewProps) {
             <CardContent className="flex items-center gap-3 p-6">
               <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <div className="text-sm text-gray-700 dark:text-gray-300">
-                You don’t have any AAS models loaded yet.
+                You don't have any AAS models loaded yet.
               </div>
             </CardContent>
           </Card>
@@ -50,9 +50,23 @@ export default function HomeView({ files, onOpen }: HomeViewProps) {
               return (
                 <Card
                   key={`${file.file}-${idx}`}
-                  className="group bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700 hover:border-blue-400 transition-colors cursor-pointer"
+                  className="group relative bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700 hover:border-blue-400 transition-colors cursor-pointer"
                   onClick={() => onOpen(idx)}
                 >
+                  {file.valid !== undefined && (
+                    <div className="absolute top-2 right-2">
+                      {file.valid ? (
+                        <div className="flex flex-col items-center gap-0.5">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span className="text-[8px] font-semibold text-green-600 uppercase tracking-tight">
+                            IDTA
+                          </span>
+                        </div>
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-600" />
+                      )}
+                    </div>
+                  )}
                   <CardHeader className="pb-2">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-blue-500 to-indigo-500">
@@ -69,10 +83,7 @@ export default function HomeView({ files, onOpen }: HomeViewProps) {
                     </div>
                   </CardHeader>
                   <CardContent className="pt-0">
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {file.valid ? "Valid" : "Has issues"}
-                      </div>
+                    <div className="flex items-center justify-end">
                       <Button
                         size="sm"
                         variant="outline"
