@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Upload, Plus } from 'lucide-react'
+import { Upload, Plus, Home as HomeIcon } from 'lucide-react'
 import { DataUploader } from "@/components/data-uploader"
 import { AASXVisualizer } from "@/components/aasx-visualizer"
 import { AASCreator } from "@/components/aas-creator"
@@ -66,6 +66,17 @@ export default function VisualizerPage() {
           AASX File Visualizer
         </h1>
         <div className="flex gap-2">
+          <button
+            onClick={() => setViewMode("home")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+              viewMode === "home"
+                ? "bg-gray-600 text-white shadow-md"
+                : "bg-white/70 text-gray-700 hover:bg-white dark:bg-gray-700 dark:text-gray-200"
+            }`}
+          >
+            <HomeIcon className="w-4 h-4" />
+            Home
+          </button>
           <button
             onClick={() => setViewMode("creator")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
