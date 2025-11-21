@@ -64,7 +64,7 @@ export default function VisualizerPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border-b border-blue-200 dark:border-gray-700">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-          AASX File Visualizer
+          AAS Hub
         </h1>
         <div className="flex gap-2">
           <button
@@ -77,28 +77,6 @@ export default function VisualizerPage() {
           >
             <HomeIcon className="w-4 h-4" />
             Home
-          </button>
-          <button
-            onClick={() => setViewMode("creator")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === "creator"
-                ? "bg-green-600 text-white shadow-md"
-                : "bg-white/70 text-green-600 hover:bg-white dark:bg-gray-700 dark:text-green-400"
-            }`}
-          >
-            <Plus className="w-4 h-4" />
-            Create AAS
-          </button>
-          <button
-            onClick={() => setViewMode("upload")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === "upload"
-                ? "bg-blue-600 text-white shadow-md"
-                : "bg-white/70 text-blue-600 hover:bg-white dark:bg-gray-700 dark:text-blue-400"
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            Upload Data
           </button>
           <button
             onClick={() => currentAASConfig && setViewMode("editor")}
@@ -145,7 +123,12 @@ export default function VisualizerPage() {
             onClose={() => setViewMode("home")}
           />
         )}
-        {viewMode === "creator" && <AASCreator onProceedToEditor={handleProceedToEditor} />}
+        {viewMode === "creator" && (
+          <AASCreator
+            onProceedToEditor={handleProceedToEditor}
+            onClose={() => setViewMode("home")}
+          />
+        )}
         {viewMode === "editor" && currentAASConfig && (
           <AASEditor 
             aasConfig={currentAASConfig} 

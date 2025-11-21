@@ -67,6 +67,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {files.map((file, idx) => {
               const idShort = getIdShort(file);
+              const thumb = file.thumbnail || "/placeholder.svg";
               return (
                 <Card
                   key={`${file.file}-${idx}`}
@@ -89,8 +90,17 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick }
                   )}
                   <CardHeader className="pb-2">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full flex items-center justify-center text-white bg-gradient-to-br from-blue-500 to-indigo-500">
-                        <FileText className="w-5 h-5" />
+                      <div className="w-12 h-12 rounded overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {/* Thumbnail preview */}
+                        {file.thumbnail ? (
+                          <img
+                            src={thumb}
+                            alt={`${idShort} thumbnail`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <FileText className="w-5 h-5 text-gray-500" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <CardTitle className="truncate text-base text-gray-900 dark:text-gray-100">

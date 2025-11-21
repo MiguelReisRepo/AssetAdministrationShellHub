@@ -16,7 +16,7 @@ interface SelectedSubmodel {
   idShort: string
 }
 
-export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: any) => void }) {
+export function AASCreator({ onProceedToEditor, onClose }: { onProceedToEditor: (config: any) => void, onClose?: () => void }) {
   const [templates, setTemplates] = useState<SubmodelTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedSubmodels, setSelectedSubmodels] = useState<SelectedSubmodel[]>([])
@@ -151,7 +151,13 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
     globalAssetId.trim().length > 0
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        setOpen(value)
+        if (!value) onClose?.()
+      }}
+    >
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Create Asset Administration Shell</DialogTitle>
