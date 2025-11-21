@@ -7,11 +7,12 @@ import { AASXVisualizer } from "@/components/aasx-visualizer"
 import { AASCreator } from "@/components/aas-creator"
 import { AASEditor } from "@/components/aas-editor"
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
+import HomeView from "@/components/home-view"
 
-type ViewMode = "upload" | "visualizer" | "creator" | "editor"
+type ViewMode = "home" | "upload" | "visualizer" | "creator" | "editor"
 
 export default function VisualizerPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>("upload")
+  const [viewMode, setViewMode] = useState<ViewMode>("home")
   const [uploadedFiles, setUploadedFiles] = useState<ValidationResult[]>([]) // Use ValidationResult type
   const [newFileIndex, setNewFileIndex] = useState<number | null>(null)
   const [currentAASConfig, setCurrentAASConfig] = useState<any>(null) // Renamed from aasConfig
@@ -48,6 +49,13 @@ export default function VisualizerPage() {
   // Callback to update AASConfig from AASEditor
   const updateAASConfig = (newConfig: any) => {
     setCurrentAASConfig(newConfig)
+  }
+
+  const openVisualizerAt = (index: number) => {
+    if (index >= 0 && index < uploadedFiles.length) {
+      setNewFileIndex(index)
+      setViewMode("visualizer")
+    }
   }
 
   return (
@@ -111,6 +119,9 @@ export default function VisualizerPage() {
 
       {/* Main Content Area */}
       <div className="h-[calc(100vh-73px)]">
+        {viewMode === "home" && (
+          <HomeView files={uploadedFiles} onOpen={openVisualizerAt} />
+        )}
         {viewMode === "upload" && <DataUploader onDataUploaded={handleDataUploaded} />}
         {viewMode === "creator" && <AASCreator onProceedToEditor={handleProceedToEditor} />}
         {viewMode === "editor" && currentAASConfig && (
