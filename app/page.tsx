@@ -187,10 +187,17 @@ export default function VisualizerPage() {
       <div className="flex items-center justify-between px-6 py-4 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border-b border-blue-200 dark:border-gray-700">
         <button
           onClick={() => setViewMode("home")}
-          className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"
+          className="flex items-center gap-2"
           aria-label="Go Home"
         >
-          AAS Hub
+          <img
+            src="/icon.svg"
+            alt="AAS Hub Logo"
+            className="w-8 h-8"
+          />
+          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            AAS Hub
+          </span>
         </button>
         <div className="flex gap-2">
           <button

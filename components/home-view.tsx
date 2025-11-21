@@ -46,7 +46,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
               <Upload className="mr-2 h-4 w-4" />
-              Upload Data
+              Upload AAS
             </Button>
             <Button
               onClick={onCreateClick}

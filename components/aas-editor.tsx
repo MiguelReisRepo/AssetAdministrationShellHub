@@ -1425,15 +1425,21 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
                         element.modelType === "SubmodelElementCollection" ? "submodelElementCollection" :
                         element.modelType === "SubmodelElementList" ? "submodelElementList" :
                         element.modelType === "File" ? "file" : "property"
-        
-        console.log(`[v0] XML_GEN_DEBUG: Processing element: ${element.idShort}, modelType: ${element.modelType}, tagName: ${tagName}`);
 
         let xml = `${indent}<${tagName}>\n`
-        // Category must appear before idShort in AAS 3.1 sequence
         if (element.category) {
           xml += `${indent}  <category>${escapeXml(element.category)}</category>\n`
         }
         xml += `${indent}  <idShort>${escapeXml(element.idShort)}</idShort>\n`
+
+        // For Property: output valueType and value EARLY to satisfy schema ordering
+        if (element.modelType === "Property") {
+          const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
+          xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
+          if (typeof element.value === 'string' && element.value.trim() !== '') {
+            xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
+          }
+        }
 
         // Description (AAS Referable)
         if (element.description && String(element.description).trim() !== "") {
@@ -1445,7 +1451,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}    </langStringTextType>\n`
           xml += `${indent}  </description>\n`
         }
-        
+
         if (element.semanticId) {
           xml += `${indent}  <semanticId>\n`
           xml += `${indent}    <type>ExternalReference</type>\n`
@@ -1458,7 +1464,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </semanticId>\n`
         }
 
-        // Qualifiers -> Cardinality
+        // Qualifiers -> Cardinality (kept after property fields)
         if (element.cardinality) {
           xml += `${indent}  <qualifiers>\n`
           xml += `${indent}    <qualifier>\n`
@@ -1483,7 +1489,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           const prefNames = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {})
           const shortNames = typeof element.shortName === "string" ? { en: element.shortName } : (element.shortName || {})
 
-          // Build preferredName XML entries
           const preferredNameXml = Object.entries(prefNames as Record<string, string>)
             .filter(([_, text]) => text && String(text).trim() !== "")
             .map(([lang, text]) =>
@@ -1493,7 +1498,6 @@ ${indent}              <text>${escapeXml(text)}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>
 `).join("")
 
-          // Build shortName XML if available
           const hasShortNames = shortNames && Object.values(shortNames as Record<string, string>).some(v => v && String(v).trim() !== "")
           const shortNameXml = hasShortNames
             ? Object.entries(shortNames as Record<string, string>)
@@ -1519,21 +1523,15 @@ ${indent}            </langStringShortNameTypeIec61360>
           xml += `${indent}      </dataSpecification>\n`
           xml += `${indent}      <dataSpecificationContent>\n`
           xml += `${indent}        <dataSpecificationIec61360>\n`
-
-          // preferredName (must contain at least one child). Fallback to idShort if empty.
-          const preferredNameBlock =
-            preferredNameXml && preferredNameXml.trim().length > 0
-              ? preferredNameXml
-              : `${indent}            <langStringPreferredNameTypeIec61360>
+          xml += `${indent}          <preferredName>\n`
+          xml += preferredNameXml && preferredNameXml.trim().length > 0
+            ? preferredNameXml
+            : `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>en</language>
 ${indent}              <text>${element.idShort}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>
 `
-          xml += `${indent}          <preferredName>\n`
-          xml += preferredNameBlock
           xml += `${indent}          </preferredName>\n`
-
-          // shortName
           if (hasShortNames) {
             xml += `${indent}          <shortName>\n`
             xml += shortNameXml
@@ -1560,16 +1558,8 @@ ${indent}            </langStringPreferredNameTypeIec61360>
           xml += `${indent}  </embeddedDataSpecifications>\n`
         }
 
-        // Type-specific content
-        if (element.modelType === "Property") {
-          // Normalize user input or derive from IEC dataType; default to xs:string
-          const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
-          xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
-          if (typeof element.value === 'string' && element.value.trim() !== '') {
-            xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <valueType>(${vtNorm}) and <value> for Property ${element.idShort}`);
-          }
-        } else if (element.modelType === "MultiLanguageProperty") {
+        // Type-specific content (Property branch handled above)
+        if (element.modelType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
           if (hasLangValues) {
             xml += `${indent}  <value>\n`
@@ -1582,15 +1572,12 @@ ${indent}            </langStringPreferredNameTypeIec61360>
               }
             })
             xml += `${indent}  </value>\n`
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <value> for MLP ${element.idShort}`);
           }
         } else if (element.modelType === "File") {
-          // Per schema, contentType should appear before value
           const contentType = element.fileData?.mimeType || 'application/octet-stream'
           xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`
           if (typeof element.value === 'string' && element.value) {
             xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`
-            console.log(`[v0] XML_GEN_DEBUG:   Generated <contentType> and <value> for File ${element.idShort}`);
           }
         } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
           if (element.children && element.children.length > 0) {
@@ -2324,41 +2311,62 @@ ${indent}</conceptDescription>`
           </div>
           {/* Actions */}
           <div className="flex items-center gap-3 shrink-0">
-            <Button
-              onClick={() => setEditMode((v) => !v)}
-              size="lg"
-              variant="default"
-              className={(editMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#61caf3] hover:bg-[#4db6e6]") + " text-white shadow-md"}
-            >
-              {editMode ? "Done" : "Edit"}
-            </Button>
-            <Button
-              onClick={runInternalValidation}
-              size="lg"
-              variant="default"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
-            >
-              Validate
-            </Button>
-            {/* REMOVED: Save button per latest requirement */}
-            <button
-              onClick={generateFinalAAS}
-              disabled={isGenerating || !canGenerate}
-              className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Exporting...
-                </>
-              ) : (
-                <>
-                  <Download className="w-5 h-5" />
-                  Export AAS
-                </>
-              )}
-            </button>
-          </div>
+             <Button
+               onClick={() => setEditMode((v) => !v)}
+               size="lg"
+               variant="default"
+               className={(editMode ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#61caf3] hover:bg-[#4db6e6]") + " text-white shadow-md"}
+             >
+               {editMode ? "Done" : "Edit"}
+             </Button>
+             <Button
+               onClick={runInternalValidation}
+               size="lg"
+               variant="default"
+               className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
+             >
+               Validate
+             </Button>
+             {/* REMOVED: Save button per latest requirement */}
+             <button
+               onClick={generateFinalAAS}
+               disabled={isGenerating || !canGenerate}
+               className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               {isGenerating ? (
+                 <>
+                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                   Exporting...
+                 </>
+               ) : (
+                 <>
+                   <Download className="w-5 h-5" />
+                   Export AAS
+                 </>
+               )}
+             </button>
+             {/* Status badge */}
+             <div className="ml-2">
+               {(externalIssues.length > 0) ? (
+                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-800 border border-red-300 dark:bg-red-900/20 dark:text-red-200 dark:border-red-700">
+                   <AlertCircle className="w-4 h-4" />
+                   <span className="text-sm font-semibold">Invalid</span>
+                   <span className="text-xs">({externalIssues.length} XML errors)</span>
+                 </div>
+               ) : canGenerate ? (
+                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 text-green-800 border border-green-300 dark:bg-green-900/20 dark:text-green-200 dark:border-green-700">
+                   <CheckCircle className="w-4 h-4" />
+                   <span className="text-sm font-semibold">Valid</span>
+                 </div>
+               ) : (
+                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-700">
+                   <AlertCircle className="w-4 h-4" />
+                   <span className="text-sm font-semibold">Incomplete</span>
+                   <span className="text-xs">({internalIssues.length} missing)</span>
+                 </div>
+               )}
+             </div>
+           </div>
         </div>
       </div>
 
