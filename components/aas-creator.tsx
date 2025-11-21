@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Download, Plus, Trash2, FileText, Loader2 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 interface SubmodelTemplate {
   name: string
@@ -24,6 +25,8 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
   const [assetKind, setAssetKind] = useState<"Instance" | "Type">("Instance") // New state for Asset Kind
   const [globalAssetId, setGlobalAssetId] = useState("https://example.com/asset/1") // New state for Global Asset ID
   const [searchQuery, setSearchQuery] = useState("")
+  const [step, setStep] = useState<1 | 2>(1)
+  const [open, setOpen] = useState(true)
 
   useEffect(() => {
     fetchSubmodelTemplates()
@@ -141,136 +144,92 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
     template.description.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const isStep1Valid =
+    aasIdShort.trim().length > 0 &&
+    aasId.trim().length > 0 &&
+    assetKind.trim().length > 0 &&
+    globalAssetId.trim().length > 0
+
   return (
-    <div className="h-full p-6 overflow-auto">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Create Asset Administration Shell
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Build a new AAS by selecting submodel templates from IDTA specifications
-          </p>
-        </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Create Asset Administration Shell</DialogTitle>
+          <DialogDescription>
+            Fill your AAS details, then pick submodel templates.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Panel: Your AAS */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Your AAS
-            </h3>
-            
-            {/* AAS Configuration */}
-            <div className="mb-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  AAS IdShort
-                </label>
-                <input
-                  type="text"
-                  value={aasIdShort}
-                  onChange={(e) => setAasIdShort(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="MyAssetAdministrationShell"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  AAS ID
-                </label>
-                <input
-                  type="text"
-                  value={aasId}
-                  onChange={(e) => setAasId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="https://example.com/aas/1"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Asset Kind
-                </label>
-                <select
-                  value={assetKind}
-                  onChange={(e) => setAssetKind(e.target.value as "Instance" | "Type")}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                >
-                  <option value="Instance">Instance</option>
-                  <option value="Type">Type</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Global Asset ID
-                </label>
-                <input
-                  type="text"
-                  value={globalAssetId}
-                  onChange={(e) => setGlobalAssetId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                  placeholder="https://example.com/asset/1"
-                />
+        {step === 1 ? (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Your AAS
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    AAS IdShort
+                  </label>
+                  <input
+                    type="text"
+                    value={aasIdShort}
+                    onChange={(e) => setAasIdShort(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    placeholder="MyAssetAdministrationShell"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    AAS ID
+                  </label>
+                  <input
+                    type="text"
+                    value={aasId}
+                    onChange={(e) => setAasId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    placeholder="https://example.com/aas/1"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Asset Kind
+                  </label>
+                  <select
+                    value={assetKind}
+                    onChange={(e) => setAssetKind(e.target.value as "Instance" | "Type")}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  >
+                    <option value="Instance">Instance</option>
+                    <option value="Type">Type</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Global Asset ID
+                  </label>
+                  <input
+                    type="text"
+                    value={globalAssetId}
+                    onChange={(e) => setGlobalAssetId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                    placeholder="https://example.com/asset/1"
+                  />
+                </div>
               </div>
             </div>
-
-            {/* Selected Submodels */}
-            <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                Selected Submodels ({selectedSubmodels.length})
-              </h4>
-              {selectedSubmodels.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>No submodels selected yet</p>
-                  <p className="text-sm">Add submodels from the left panel</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedSubmodels.map((sm, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg"
-                    >
-                      <input
-                        type="text"
-                        value={sm.idShort}
-                        onChange={(e) => updateSubmodelIdShort(index, e.target.value)}
-                        className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm"
-                      />
-                      <button
-                        onClick={() => removeSubmodel(index)}
-                        className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Generate Button */}
-            <button
-              onClick={generateAAS}
-              disabled={selectedSubmodels.length === 0}
-              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
-                selectedSubmodels.length > 0
-                  ? "bg-green-600 text-white hover:bg-green-700 shadow-md"
-                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
-            >
-              <Download className="w-5 h-5" />
-              Generate & Proceed to Editor
-            </button>
           </div>
-
-          {/* Right Panel: Available Submodel Templates */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Available Submodel Templates
-            </h3>
-            
-            <div className="mb-4">
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Available Submodel Templates
+              </h3>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Selected: {selectedSubmodels.length}
+              </span>
+            </div>
+            <div>
               <input
                 type="text"
                 placeholder="Search submodels..."
@@ -279,9 +238,8 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
-
             {loading ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
               </div>
             ) : filteredTemplates.length === 0 ? (
@@ -289,7 +247,7 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
                 No templates found matching "{searchQuery}"
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[50vh] overflow-auto pr-1">
                 {filteredTemplates.map((template, index) => (
                   <div
                     key={index}
@@ -319,8 +277,47 @@ export function AASCreator({ onProceedToEditor }: { onProceedToEditor: (config: 
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </div>
+        )}
+
+        <DialogFooter className="mt-4">
+          {step === 2 ? (
+            <div className="flex w-full items-center justify-between">
+              <button
+                onClick={() => setStep(1)}
+                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              >
+                Back
+              </button>
+              <button
+                onClick={generateAAS}
+                disabled={selectedSubmodels.length === 0}
+                className={`flex items-center gap-2 px-6 py-2 rounded-lg font-medium transition ${
+                  selectedSubmodels.length > 0
+                    ? "bg-green-600 text-white hover:bg-green-700 shadow"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                <Download className="w-5 h-5" />
+                Generate & Proceed to Editor
+              </button>
+            </div>
+          ) : (
+            <div className="flex w-full items-center justify-end">
+              <button
+                onClick={() => setStep(2)}
+                disabled={!isStep1Valid}
+                className={`px-6 py-2 rounded-lg font-medium transition ${
+                  isStep1Valid
+                    ? "bg-blue-600 text-white hover:bg-blue-700 shadow"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
