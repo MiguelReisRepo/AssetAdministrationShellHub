@@ -210,7 +210,8 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
     const nodesToExpand = new Set<string>()
     const errorPaths = new Set<string>()
 
-    const idShortPattern = /^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9]$|^[a-zA-Z]$/
+    // UPDATED: align with XSD so underscore is allowed at the end
+    const idShortPattern = /^[a-zA-Z][a-zA-Z0-9_-]*[a-zA-Z0-9_]+$|^[a-zA-Z]$/
 
     const validateElements = (els: any[], submodelId: string, chain: string[] = []) => {
       els.forEach((el) => {
@@ -363,75 +364,144 @@ export function AASXVisualizer({ uploadedFiles, newFileIndex, onFileSelected }: 
   type FriendlyError = { message: string; hint?: string; path?: string }
   const buildFriendlyErrors = (source?: (string | ValidationError)[]): FriendlyError[] => {
     const raw: string[] = (source || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
-    const list: FriendlyError[] = []
-    for (const msg of raw) {
-      const idShortMatch = msg.match(/idShort.*value '([^']+)'/i)
-      const minLenMatch = /value.*minLength/i.test(msg)
-      const displayNameMissing = /displayName.*Missing child element/i.test(msg)
-      const preferredNameMissing = /preferredName.*Missing child element/i.test(msg)
-      const keysMissing = /keys.*Missing child element/i.test(msg)
-      const specificAssetIdsMissing = /specificAssetIds.*Missing child element/i.test(msg)
-      const conceptDescriptionsMissing = /conceptDescriptions.*Missing child element/i.test(msg)
 
-      if (idShortMatch) {
-        const bad = idShortMatch[1]
-        const path = findFirstPathForIdShort(bad) || undefined
-        list.push({
-          message: `idShort "${bad}" doesn't follow naming rules`,
-          hint: 'Use letters, digits, "_" or "-", start with a letter, and end with a letter or digit.',
-          path,
-        })
-        continue
+    // Aggregate duplicates to reduce noise
+    const bucket = new Map<string, { message: string; hint?: string; count: number; path?: string }>()
+    const add = (message: string, hint?: string, path?: string) => {
+      const key = `${message}::${hint ?? ""}`
+      const entry = bucket.get(key)
+      if (entry) {
+        entry.count += 1
+      } else {
+        bucket.set(key, { message, hint, count: 1, path })
       }
-      if (minLenMatch) {
-        list.push({
-          message: 'A required value is empty',
-          hint: 'Enter at least 1 character; required fields cannot be empty.',
-        })
-        continue
-      }
-      if (displayNameMissing) {
-        list.push({
-          message: 'Display name is missing a language entry',
-          hint: 'Add a name (e.g., language "en") to displayName.',
-        })
-        continue
-      }
-      if (preferredNameMissing) {
-        list.push({
-          message: 'Preferred name is missing',
-          hint: 'Add Preferred Name (e.g., English "en") for the IEC 61360 data spec.',
-        })
-        continue
-      }
-      if (keysMissing) {
-        list.push({
-          message: 'A Reference lacks required key entries',
-          hint: 'Add at least one "key" with proper type and value.',
-        })
-        continue
-      }
-      if (specificAssetIdsMissing) {
-        list.push({
-          message: 'AssetInformation › specificAssetIds is empty',
-          hint: 'Add one or more specificAssetId entries in Asset Information.',
-        })
-        continue
-      }
-      if (conceptDescriptionsMissing) {
-        list.push({
-          message: 'Concept Descriptions list is empty',
-          hint: 'Add at least one conceptDescription entry for referenced semantics.',
-        })
-        continue
-      }
-      // Fallback: keep a short version of the message
-      list.push({
-        message: msg.replace(/\s+/g, ' ').trim(),
-      })
     }
-    return list
-   }
+
+    for (const msg of raw) {
+      // idShort pattern issues: pull the offending value and provide simple rule
+      const idShortValueMatch = msg.match(/idShort.*value '([^']+)'/i)
+      if (idShortValueMatch) {
+        const bad = idShortValueMatch[1]
+        const path = findFirstPathForIdShort(bad) || undefined
+        add(
+          `Name "${bad}" doesn't follow naming rules`,
+          'Start with a letter; use letters, digits, "_" or "-".',
+          path
+        )
+        continue
+      }
+
+      // Missing valueType for Property
+      if (/property.*Missing child element.*valueType/i.test(msg)) {
+        add(
+          'A Property is missing its Value Type',
+          'In the Value section, choose a type (e.g., xs:string, xs:integer).'
+        )
+        continue
+      }
+
+      // Description not allowed in Reference-like nodes (schema expects value/valueId)
+      if (/description.*not expected.*Expected.*(value|valueId)/i.test(msg)) {
+        add(
+          'Description is not allowed for this item',
+          'Remove the Description field from this element.'
+        )
+        continue
+      }
+
+      // Qualifiers not allowed in nodes that expect only value/valueId
+      if (/qualifiers.*not expected.*Expected.*(value|valueId)/i.test(msg)) {
+        add(
+          'Extra qualifiers aren’t allowed here',
+          'Remove "Cardinality" or other qualifiers from this element.'
+        )
+        continue
+      }
+
+      // semanticId not expected; schema expects value/valueId (typical for ReferenceElement)
+      if (/semanticId.*not expected.*Expected.*valueId/i.test(msg)) {
+        add(
+          'This item expects a reference value, not a Semantic ID',
+          'Open the element and fill "Reference Keys" under Value, then remove Semantic ID.'
+        )
+        continue
+      }
+
+      // semanticId not expected; schema expects value/valueId (general form)
+      if (/semanticId.*not expected.*Expected.*(value|valueId)/i.test(msg)) {
+        add(
+          'Use a direct value or a reference instead of Semantic ID here',
+          'Fill the Value or the Reference Keys and remove Semantic ID from this item.'
+        )
+        continue
+      }
+
+      // Minimal length (empty required field)
+      if (/value.*minLength/i.test(msg)) {
+        add(
+          'A required field is empty',
+          'Enter at least 1 character; required fields cannot be empty.'
+        )
+        continue
+      }
+
+      // Display name missing (IEC61360)
+      if (/displayName.*Missing child element/i.test(msg)) {
+        add(
+          'Display name is missing a language entry',
+          'Add a name (e.g., language "en") to displayName.'
+        )
+        continue
+      }
+
+      // Preferred name missing (IEC61360)
+      if (/preferredName.*Missing child element/i.test(msg)) {
+        add(
+          'Preferred name is missing',
+          'Add Preferred Name (e.g., English "en") for the IEC 61360 data spec.'
+        )
+        continue
+      }
+
+      // Reference keys missing
+      if (/keys.*Missing child element/i.test(msg)) {
+        add(
+          'A Reference lacks required key entries',
+          'Add at least one "key" with proper type and value.'
+        )
+        continue
+      }
+
+      // AssetInformation › specificAssetIds empty
+      if (/specificAssetIds.*Missing child element/i.test(msg)) {
+        add(
+          'Asset Information › specificAssetIds is empty',
+          'Add one or more specificAssetId entries in Asset Information.'
+        )
+        continue
+      }
+
+      // ConceptDescriptions list empty
+      if (/conceptDescriptions.*Missing child element/i.test(msg)) {
+        add(
+          'Concept Descriptions list is empty',
+          'Add at least one conceptDescription entry for referenced semantics.'
+        )
+        continue
+      }
+
+      // Fallback: keep a short version of the message
+      add(msg.replace(/\s+/g, ' ').trim())
+    }
+
+    // Flatten aggregated messages and add repeat indicator
+    const out: FriendlyError[] = []
+    bucket.forEach(({ message, hint, count, path }) => {
+      const m = count > 1 ? `${message} — repeats ${count} times` : message
+      out.push({ message: m, hint, path })
+    })
+    return out
+  }
 
   const getElementType = (element: any): string => {
     if (!element?.modelType) return "Property"
