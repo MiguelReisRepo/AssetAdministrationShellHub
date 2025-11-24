@@ -182,9 +182,11 @@ interface AASEditorProps {
   initialThumbnail?: string | null
   // NEW: pass original uploaded XML to align Validate and Preview with home/upload
   sourceXml?: string
+  // NEW: attachments from the uploaded AASX (path -> data URL)
+  attachments?: Record<string, string>
 }
 
-export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData, onSave, initialThumbnail, sourceXml }: AASEditorProps) {
+export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData, onSave, initialThumbnail, sourceXml, attachments }: AASEditorProps) {
   const [submodelData, setSubmodelData] = useState<Record<string, SubmodelElement[]>>(() => {
     const initial: Record<string, SubmodelElement[]> = {}
     aasConfig.selectedSubmodels.forEach((sm) => {
@@ -242,23 +244,98 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     return arr
   }
 
+  // Helper: try decode URL-safe base64 strings (used by some file values)
+  const tryDecodeBase64 = (s: string): string | null => {
+    try {
+      const normalized = s.replace(/-/g, "+").replace(/_/g, "/")
+      const pad = normalized.length % 4
+      const padded = pad ? normalized + "=".repeat(4 - pad) : normalized
+      return atob(padded)
+    } catch {
+      return null
+    }
+  }
+  const normalizePath = (p: string) =>
+    p.replace(/^file:\/\//i, "").replace(/^file:\//i, "").replace(/^\/+/, "")
+
   // Collect all PDF files from the current model
   const collectAllPdfs = (): { name: string; bytes: Uint8Array }[] => {
     const pdfs: { name: string; bytes: Uint8Array }[] = []
+
+    const fromAttachments = (raw: string): { name: string; bytes: Uint8Array } | null => {
+      if (!attachments) return null
+      let candidate = raw.trim()
+      if (!candidate) return null
+      const decoded = tryDecodeBase64(candidate)
+      if (decoded) candidate = decoded.trim()
+      // data URL directly
+      if (/^data:/i.test(candidate)) {
+        if (/^data:application\/pdf/i.test(candidate)) {
+          // best-effort name
+          return { name: "document.pdf", bytes: dataUrlToUint8(candidate) }
+        }
+        return null
+      }
+      // Only resolve local/embedded paths against attachments
+      const norm = normalizePath(candidate)
+      let basename = norm.split("/").pop() || norm
+      const candidates = [
+        norm,
+        `/${norm}`,
+        basename,
+        `/${basename}`,
+        `aasx/${basename}`,
+        `/aasx/${basename}`,
+      ]
+      let found: string | undefined
+      for (const key of candidates) {
+        if (attachments[key]) {
+          found = key
+          break
+        }
+      }
+      if (!found) {
+        const kv = Object.entries(attachments).find(([k]) =>
+          k.toLowerCase().endsWith(`/${basename.toLowerCase()}`) || k.toLowerCase() === basename.toLowerCase()
+        )
+        if (kv) found = kv[0]
+      }
+      if (!found) return null
+      const dataUrl = attachments[found]
+      if (!/^data:application\/pdf/i.test(dataUrl)) {
+        // If mime is generic but filename says pdf, still include
+        const looksPdf = /\.pdf$/i.test(found) || /\.pdf$/i.test(basename)
+        if (!looksPdf) return null
+      }
+      const name = basename || "document.pdf"
+      return { name, bytes: dataUrlToUint8(dataUrl) }
+    }
+
     const walk = (els: SubmodelElement[]) => {
       els.forEach((el) => {
         if (el.modelType === "File") {
-          const mime = el.fileData?.mimeType?.toLowerCase() || ""
-          const val = typeof el.value === "string" ? el.value.toLowerCase() : ""
-          const isPdf = mime === "application/pdf" || val.endsWith(".pdf")
-          if (isPdf && el.fileData?.content) {
+          const rawVal = typeof el.value === "string" ? el.value : ""
+          const mime = (el.fileData?.mimeType || "").toLowerCase()
+          const lowerVal = rawVal.toLowerCase()
+
+          // Priority 1: fileData content available from editor uploads
+          if (el.fileData?.content && (mime === "application/pdf" || /\.pdf$/.test(lowerVal))) {
             const name = el.fileData.fileName?.trim() || `${el.idShort || "document"}.pdf`
             pdfs.push({ name, bytes: dataUrlToUint8(el.fileData.content) })
+          } else if (rawVal && /^data:application\/pdf/i.test(rawVal)) {
+            // Priority 2: direct data URL in value
+            const name = `${el.idShort || "document"}.pdf`
+            pdfs.push({ name, bytes: dataUrlToUint8(rawVal) })
+          } else if (rawVal) {
+            // Priority 3: resolve via attachments from original AASX
+            const resolved = fromAttachments(rawVal)
+            if (resolved) pdfs.push(resolved)
           }
         }
         if (el.children && el.children.length) walk(el.children)
       })
     }
+
     aasConfig.selectedSubmodels.forEach((sm) => {
       const elements = submodelData[sm.idShort] || []
       walk(elements)
