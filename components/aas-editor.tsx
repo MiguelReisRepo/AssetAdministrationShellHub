@@ -1401,17 +1401,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         xml += `${indent}  </semanticId>\n`;
       }
 
-      // Qualifiers NEVER on ReferenceElement, otherwise Cardinality only
-      if (element.cardinality && normalizedType !== "ReferenceElement") {
-        xml += `${indent}  <qualifiers>\n`;
-        xml += `${indent}    <qualifier>\n`;
-        xml += `${indent}      <type>Cardinality</type>\n`;
-        xml += `${indent}      <valueType>xs:string</valueType>\n`;
-        xml += `${indent}      <value>${escapeXml(element.cardinality)}</value>\n`;
-        xml += `${indent}    </qualifier>\n`;
-        xml += `${indent}  </qualifiers>\n`;
-      }
-
       // Embedded Data Specifications (IEC 61360)
       const hasIECMeta =
         (typeof element.preferredName === "string" && element.preferredName.trim() !== "") ||
@@ -2008,17 +1997,6 @@ ${conceptXml}
           xml += `${indent}      </key>\n`;
           xml += `${indent}    </keys>\n`;
           xml += `${indent}  </semanticId>\n`;
-        }
-
-        // Qualifiers NEVER on ReferenceElement, otherwise Cardinality only
-        if (element.cardinality && normalizedType !== "ReferenceElement") {
-          xml += `${indent}  <qualifiers>\n`;
-          xml += `${indent}    <qualifier>\n`;
-          xml += `${indent}      <type>Cardinality</type>\n`;
-          xml += `${indent}      <valueType>xs:string</valueType>\n`;
-          xml += `${indent}      <value>${escapeXml(element.cardinality)}</value>\n`;
-          xml += `${indent}    </qualifier>\n`;
-          xml += `${indent}  </qualifiers>\n`;
         }
 
         // Embedded Data Specifications (IEC 61360)
