@@ -912,6 +912,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     siblings: SubmodelElement[] // Added siblings for reordering
   ): React.ReactNode => {
     const nodeId = path.join('.')
+    // Use a unique React key per sibling; keep nodeId for expand/validation logic
+    const reactKey = `${nodeId}#${index}`
     const isExpanded = expandedNodes.has(nodeId)
     const isSelected = selectedElement?.idShort === element.idShort && 
                       JSON.stringify(path) === JSON.stringify([element.idShort])
@@ -940,7 +942,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     const parentPath = path.slice(0, -1) // Get the path to the parent
 
     return (
-      <div key={nodeId} style={{ marginLeft: depth > 0 ? "0px" : "0" }}>
+      <div key={reactKey} style={{ marginLeft: depth > 0 ? "0px" : "0" }}>
         {/* Added draggable, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop attributes */}
         <div
           draggable={selectedSubmodel !== null}
@@ -3249,8 +3251,8 @@ ${indent}</conceptDescription>`
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Prefer validating the original uploaded XML if available
-    const xmlToValidate = (originalXml && originalXml.trim().length > 0) ? originalXml : buildCurrentXml();
+    // Validate the current, generated XML (includes your edits and conceptDescriptions)
+    const xmlToValidate = buildCurrentXml();
     setLastGeneratedXml(xmlToValidate);
     const xmlResult = await validateAASXXml(xmlToValidate);
 
