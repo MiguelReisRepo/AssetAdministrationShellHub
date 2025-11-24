@@ -942,7 +942,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     const parentPath = path.slice(0, -1) // Get the path to the parent
 
     return (
-      <div key={reactKey} style={{ marginLeft: depth > 0 ? "0px" : "0" }}>
+      <div key={nodeId} style={{ marginLeft: depth > 0 ? "0px" : "0" }}>
         {/* Added draggable, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop attributes */}
         <div
           draggable={selectedSubmodel !== null}
@@ -3251,8 +3251,8 @@ ${indent}</conceptDescription>`
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Validate the current, generated XML (includes your edits and conceptDescriptions)
-    const xmlToValidate = buildCurrentXml();
+    // Prefer validating the original uploaded XML if available
+    const xmlToValidate = (originalXml && originalXml.trim().length > 0) ? originalXml : buildCurrentXml();
     setLastGeneratedXml(xmlToValidate);
     const xmlResult = await validateAASXXml(xmlToValidate);
 
