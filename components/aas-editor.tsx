@@ -1337,8 +1337,12 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       if (normalizedType === "Property") {
         const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || "xs:string";
         xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
-        if (typeof element.value === "string" && element.value.trim() !== "") {
-          xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
+        const valStr = typeof element.value === "string" ? element.value.trim() : "";
+        if (valStr) {
+          xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
+        } else {
+          // INSERT: empty value to satisfy 3.1 sequence when neither value nor valueId exists
+          xml += `${indent}  <value/>\n`;
         }
       } else if (normalizedType === "MultiLanguageProperty") {
         const hasLangValues = typeof element.value === "object" && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== "");
@@ -1353,12 +1357,19 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             }
           });
           xml += `${indent}  </value>\n`;
+        } else {
+          // INSERT: empty value element to satisfy schema order
+          xml += `${indent}  <value/>\n`;
         }
       } else if (normalizedType === "File") {
         const contentType = element.fileData?.mimeType || "application/octet-stream";
         xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`;
-        if (typeof element.value === "string" && element.value) {
-          xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
+        const valStr = typeof element.value === "string" ? element.value.trim() : "";
+        if (valStr) {
+          xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
+        } else {
+          // INSERT: empty value element to satisfy schema order
+          xml += `${indent}  <value/>\n`;
         }
       } else if (normalizedType === "SubmodelElementCollection" || normalizedType === "SubmodelElementList") {
         if (element.children && element.children.length > 0) {
@@ -1840,21 +1851,20 @@ ${conceptXml}
     };
 
     try {
-      // Validate before generating
-      const internalValidation = validateAAS()
-      
-      if (!internalValidation.valid) {
-        // ADD: store and toast instead of alert
-        setInternalIssues(internalValidation.missingFields)
-        toast.error(`Please fill all required fields (${internalValidation.missingFields.length} missing).`)
-        console.table(internalValidation.missingFields)
-        setIsGenerating(false)
-        return
+      // VALIDATION: only run internal validation if user hasn't already validated
+      if (!hasValidated) {
+        const internalValidation = validateAAS()
+        if (!internalValidation.valid) {
+          setInternalIssues(internalValidation.missingFields)
+          toast.error(`Please fill all required fields (${internalValidation.missingFields.length} missing).`)
+          console.table(internalValidation.missingFields)
+          setIsGenerating(false)
+          return
+        }
       }
-
-      // Clear internal validation errors after successful validation
+      // Clear internal validation errors after successful validation or when already validated
       setValidationErrors(new Set())
-      setInternalIssues([]) // ADD: clear panel
+      setInternalIssues([])
 
       // Collect all unique concept descriptions
       const collectedConceptDescriptions: Record<string, ConceptDescription> = {};
@@ -1935,8 +1945,12 @@ ${conceptXml}
         if (normalizedType === "Property") {
           const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || "xs:string";
           xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
-          if (typeof element.value === "string" && element.value.trim() !== "") {
-            xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
+          const valStr = typeof element.value === "string" ? element.value.trim() : "";
+          if (valStr) {
+            xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
+          } else {
+            // INSERT: empty value to satisfy 3.1 sequence when neither value nor valueId exists
+            xml += `${indent}  <value/>\n`;
           }
         } else if (normalizedType === "MultiLanguageProperty") {
           const hasLangValues = typeof element.value === "object" && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== "");
@@ -1951,12 +1965,19 @@ ${conceptXml}
               }
             });
             xml += `${indent}  </value>\n`;
+          } else {
+            // INSERT: empty value element to satisfy schema order
+            xml += `${indent}  <value/>\n`;
           }
         } else if (normalizedType === "File") {
           const contentType = element.fileData?.mimeType || "application/octet-stream";
           xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`;
-          if (typeof element.value === "string" && element.value) {
-            xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
+          const valStr = typeof element.value === "string" ? element.value.trim() : "";
+          if (valStr) {
+            xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
+          } else {
+            // INSERT: empty value element to satisfy schema order
+            xml += `${indent}  <value/>\n`;
           }
         } else if (normalizedType === "SubmodelElementCollection" || normalizedType === "SubmodelElementList") {
           if (element.children && element.children.length > 0) {
