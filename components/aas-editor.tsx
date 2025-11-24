@@ -2701,7 +2701,7 @@ ${indent}</conceptDescription>`
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // NEW: prefer validating the original uploaded XML if available
+    // Prefer validating the original uploaded XML if available
     const xmlToValidate = (originalXml && originalXml.trim().length > 0) ? originalXml : buildCurrentXml();
     setLastGeneratedXml(xmlToValidate);
     const xmlResult = await validateAASXXml(xmlToValidate);
