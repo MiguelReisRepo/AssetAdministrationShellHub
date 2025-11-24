@@ -1887,7 +1887,7 @@ ${conceptXml}
 
         // Add thumbnail (if present) to the root
         if (thumbnail) {
-          const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/);
+          const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/)
           if (mimeTypeMatch) {
             const mime = mimeTypeMatch[1];
             const ext = mimeTypeMatch[2] === 'svg+xml' ? 'svg' : mimeTypeMatch[2];
@@ -2815,6 +2815,120 @@ ${indent}</conceptDescription>`
     if (target) setSelectedElement(target)
   }
 
+  // NEW: find the first path for a given idShort across all submodels
+  const findFirstPathForIdShort = (needle: string): string | null => {
+    for (const sm of aasConfig.selectedSubmodels) {
+      const submodelId = sm.idShort
+      const walk = (els: SubmodelElement[], chain: string[] = []): string | null => {
+        for (const el of els || []) {
+          const curChain = [...chain, el.idShort]
+          if (el.idShort === needle) return `${submodelId} > ${curChain.join(' > ')}`
+          if (Array.isArray(el.children) && el.children.length > 0) {
+            const found = walk(el.children, curChain)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const res = walk(submodelData[submodelId] || [], [])
+      if (res) return res
+    }
+    return null
+  }
+
+  // NEW: build friendly XML errors with optional Go to path
+  type FriendlyError = { message: string; hint?: string; path?: string }
+  const buildFriendlyXmlErrors = (source: (string | any)[]): FriendlyError[] => {
+    const raw: string[] = (source || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
+
+    const bucket = new Map<string, { message: string; hint?: string; count: number; path?: string }>()
+    const add = (message: string, hint?: string, path?: string) => {
+      const key = `${message}::${hint ?? ""}::${path ?? ""}`
+      const entry = bucket.get(key)
+      if (entry) entry.count += 1
+      else bucket.set(key, { message, hint, count: 1, path })
+    }
+
+    for (const msg of raw) {
+      // idShort pattern violations: extract offending value and resolve path
+      const idShortMatch = msg.match(/idShort[^']*value '([^']+)'/i)
+      if (idShortMatch) {
+        const bad = idShortMatch[1]
+        const path = findFirstPathForIdShort(bad) || undefined
+        add(
+          `Name "${bad}" doesn't follow naming rules`,
+          'Start with a letter; use letters, digits, "_" or "-".',
+          path
+        )
+        continue
+      }
+
+      // keys missing (common for ReferenceElement)
+      if (/keys.*Missing child element/i.test(msg)) {
+        add(
+          'A Reference lacks required key entries',
+          'Open the element and add at least one key with type and value.'
+        )
+        continue
+      }
+
+      // preferredName missing (IEC61360)
+      if (/preferredName.*Missing child element/i.test(msg)) {
+        add(
+          'Preferred name is missing',
+          'Add Preferred Name (e.g., English "en") under IEC 61360 data.'
+        )
+        continue
+      }
+
+      // displayName missing (IEC61360)
+      if (/displayName.*Missing child element/i.test(msg)) {
+        add(
+          'Display name is missing a language entry',
+          'Add a name entry (e.g., language "en") for displayName.'
+        )
+        continue
+      }
+
+      // value minLength (empty required field)
+      if (/value.*minLength/i.test(msg)) {
+        add(
+          'A required Value field is empty',
+          'Enter at least 1 character in the Value field.'
+        )
+        continue
+      }
+
+      // specificAssetIds missing (shell)
+      if (/specificAssetIds.*Missing child element/i.test(msg)) {
+        add(
+          'Asset Information › specificAssetIds is empty',
+          'Add one or more specificAssetId entries in Asset Information.'
+        )
+        continue
+      }
+
+      // conceptDescriptions list empty
+      if (/conceptDescriptions.*Missing child element/i.test(msg)) {
+        add(
+          'Concept Descriptions list is empty',
+          'Add at least one conceptDescription for referenced semantics.'
+        )
+        continue
+      }
+
+      // Fallback: compact message
+      add(msg.replace(/\s+/g, ' ').trim())
+    }
+
+    const out: FriendlyError[] = []
+    bucket.forEach(({ message, hint, count, path }) => {
+      const m = count > 1 ? `${message} — repeats ${count} times` : message
+      out.push({ message: m, hint, path })
+    })
+    return out
+  }
+
   // ADD: manual validate action (internal)
   const runInternalValidation = async () => {
     // Our internal required-fields/type checks
@@ -3161,11 +3275,38 @@ ${indent}</conceptDescription>`
                     <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="border-x border-b border-yellow-200 dark:border-yellow-700 rounded-b-lg p-3">
-                    <ul className="list-disc list-inside text-sm space-y-2 text-yellow-800 dark:text-yellow-200">
-                      {externalIssues.map((err, idx) => (
-                        <li key={idx} className="break-words">{err}</li>
-                      ))}
-                    </ul>
+                    {(() => {
+                      const friendly = buildFriendlyXmlErrors(externalIssues)
+                      return (
+                        <ul className="space-y-2 text-sm">
+                          {friendly.map((fe, idx) => (
+                            <li key={idx} className="flex items-start justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-yellow-200 dark:border-yellow-700">
+                              <div className="text-yellow-800 dark:text-yellow-200">
+                                <div className="font-medium">{fe.message}</div>
+                                {fe.hint && (
+                                  <div className="text-xs text-yellow-700/80 dark:text-yellow-300/80 mt-0.5">
+                                    {fe.hint}
+                                  </div>
+                                )}
+                                {fe.path && (
+                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                    Path: {fe.path}
+                                  </div>
+                                )}
+                              </div>
+                              {fe.path ? (
+                                <button
+                                  onClick={() => goToIssuePath(fe.path!)}
+                                  className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-yellow-300 dark:border-yellow-600 rounded hover:bg-yellow-100 dark:hover:bg-yellow-800/40"
+                                >
+                                  Go to
+                                </button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )
+                    })()}
                   </CollapsibleContent>
                 </Collapsible>
                 {/* XML preview/analyzer */}
