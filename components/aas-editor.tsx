@@ -1719,9 +1719,7 @@ ${indent}            </langStringShortNameTypeIec61360>
         xml += `${indent}      <dataSpecificationContent>\n`;
         xml += `${indent}        <dataSpecificationIec61360>\n`;
         xml += `${indent}          <preferredName>\n`;
-        xml += preferredNameXml && preferredNameXml.trim().length > 0
-          ? preferredNameXml
-          : `${indent}            <langStringPreferredNameTypeIec61360>
+        xml += `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>en</language>
 ${indent}              <text>${escapeXml(element.idShort)}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>
@@ -3184,11 +3182,48 @@ ${indent}</conceptDescription>`
         continue
       }
 
-      // displayName missing (IEC61360)
+      // displayName missing language entry (on Submodel)
       if (/displayName.*Missing child element/i.test(msg)) {
         add(
           'Display name is missing a language entry',
-          'Add a name entry (e.g., language "en") for displayName.'
+          'Either remove displayName, or add a name (e.g., language "en").'
+        )
+        continue
+      }
+
+      // description empty (must contain langStringTextType)
+      if (/description.*Missing child element.*langStringTextType/i.test(msg)) {
+        add(
+          'Description is empty',
+          'Either remove the Description element or add at least one language entry (e.g., en).',
+          findFirstEmptyDescriptionPath() || undefined
+        )
+        continue
+      }
+
+      // embeddedDataSpecifications empty
+      if (/embeddedDataSpecifications.*Missing child element.*embeddedDataSpecification/i.test(msg)) {
+        add(
+          'Embedded Data Specifications is empty',
+          'Remove the empty embeddedDataSpecifications tag or add IEC 61360 data (preferredName, etc.).'
+        )
+        continue
+      }
+
+      // definition empty in conceptDescription
+      if (/definition.*Missing child element.*langStringDefinitionTypeIec61360/i.test(msg)) {
+        add(
+          'Definition is empty in a concept description',
+          'Either remove the definition element or add a langStringDefinitionTypeIec61360 with language and text.'
+        )
+        continue
+      }
+
+      // valueReferencePairs empty inside valueList
+      if (/valueReferencePairs.*Missing child element.*valueReferencePair/i.test(msg)) {
+        add(
+          'Value list has no entries',
+          'Remove the valueList/valueReferencePairs block or add at least one valueReferencePair.'
         )
         continue
       }
