@@ -122,6 +122,8 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       let parsedContent: any = null
       // ADD: attachments map for AASX embedded files
       const attachments: Record<string, string> = {}
+      // ADDED: keep the raw XML we chose for validation to pass to the editor later
+      let selectedXmlContent: string | null = null
 
       // Try XML candidates until one parses (valid or invalid) so we at least extract data/errors
       if (xmlFiles.length > 0) {
@@ -130,6 +132,8 @@ export async function processFile(file: File, onProgress: (progress: number) => 
           try {
             const xmlContent = await zipContent.files[candidate].async("text")
             triedAny = true
+            // ADDED: remember chosen XML content
+            selectedXmlContent = xmlContent
             const xmlResult = await validateXML(xmlContent, candidate)
             overallValid = overallValid && xmlResult.valid
             if (!xmlResult.valid) {
@@ -210,6 +214,8 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         aasData: aasData,
         parsed: parsedContent,
         attachments: Object.keys(attachments).length ? attachments : undefined,
+        // ADDED: original XML content selected from AASX (if found)
+        originalXml: selectedXmlContent || undefined,
       }
       results.push(aasxResult)
 
@@ -222,7 +228,8 @@ export async function processFile(file: File, onProgress: (progress: number) => 
     } else if (file.name.toLowerCase().endsWith(".xml")) {
       const xmlContent = await file.text()
       const xmlResult = await validateXML(xmlContent, file.name)
-      results.push(xmlResult)
+      // ADDED: attach the raw XML so the editor can validate the exact bytes
+      results.push({ ...xmlResult, originalXml: xmlContent })
 
       if (!xmlResult.valid && xmlResult.errors) {
         console.groupCollapsed(`[v0] XML Validation Errors for ${file.name}`)

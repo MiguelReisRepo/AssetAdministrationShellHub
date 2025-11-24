@@ -8,15 +8,17 @@ export interface ValidationError {
 
 // General validation result structure
 export interface ValidationResult {
-  file: string // Original file name
-  type: "XML" | "JSON" | "AASX" // Type of content validated
+  file: string
+  type: "XML" | "JSON" | "AASX"
   valid: boolean
-  errors?: string[] | ValidationError[] // Array of error messages or detailed errors
-  processingTime: number // Time taken for validation in ms
-  parsed?: any // The parsed content (e.g., XML to JSON, or AAS data structure)
-  thumbnail?: string // Base64 data URL for AASX thumbnail
-  aasData?: any // Structured AAS data extracted from parsed content
+  errors?: string[] | ValidationError[]
+  processingTime: number
+  parsed?: any
+  thumbnail?: string
+  aasData?: any
   attachments?: Record<string, string>
+  // ADDED: raw uploaded XML to allow the editor to validate the exact bytes
+  originalXml?: string
 }
 
 // Interfaces for parsed AAS data (simplified for display)

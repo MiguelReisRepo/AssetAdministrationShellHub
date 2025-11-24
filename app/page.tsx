@@ -259,6 +259,7 @@ export default function VisualizerPage() {
             initialSubmodelData={initialSubmodelData || undefined}
             onSave={handleSaveFile}
             initialThumbnail={editorFileIndex !== null ? uploadedFiles[editorFileIndex]?.thumbnail || null : null}
+            sourceXml={editorFileIndex !== null ? uploadedFiles[editorFileIndex]?.originalXml || undefined : undefined}
           />
         )}
         {/* Visualizer view is no longer reachable from the navbar; kept for internal use if needed */}
