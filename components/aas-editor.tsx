@@ -207,6 +207,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [internalIssues, setInternalIssues] = useState<string[]>([])
   const [externalIssues, setExternalIssues] = useState<string[]>([])
   const [lastGeneratedXml, setLastGeneratedXml] = useState<string | null>(null)
+  // ADD: original uploaded XML if provided
+  const [originalXml, setOriginalXml] = useState<string | null>(sourceXml ?? null)
   // New: gate generation until a successful validation
   const [canGenerate, setCanGenerate] = useState(false)
   // New: track whether validation has been run (and is current)
