@@ -1779,7 +1779,7 @@ ${conceptXml}
         keys: [{
           type: "Submodel",
           value: `${aasConfig.id}/submodels/${sm.idShort}`
-        }]
+        }])
       })),
     };
 
@@ -2710,26 +2710,31 @@ ${indent}</conceptDescription>`
 
   // ADD: manual validate action (internal)
   const runInternalValidation = async () => {
+    // Our internal required-fields/type checks
+    const internal = validateAAS();
+    setInternalIssues(internal.missingFields);
+
+    // Build JSON for structural validation
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Build and validate XML as Export would
+    // Build and validate XML exactly as export does
     const xml = buildCurrentXml();
     setLastGeneratedXml(xml);
     const xmlResult = await validateAASXXml(xml);
-    const xmlErrors = xmlResult.valid ? [] : (xmlResult.errors || []);
 
-    // Surface XML issues panel
+    // Only XML errors go to externalIssues panel
+    const xmlErrors = xmlResult.valid ? [] : (xmlResult.errors || []);
     setExternalIssues(xmlErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e)))));
 
-    if (jsonResult.valid && xmlResult.valid) {
-      setInternalIssues([]);
-      toast.success("Model looks good (JSON + XML).");
+    const allGood = internal.missingFields.length === 0 && jsonResult.valid && xmlResult.valid;
+
+    if (allGood) {
+      toast.success("Model looks good (required fields, JSON, and XML).");
       setCanGenerate(true);
     } else {
-      const errs = (jsonResult.errors || []).concat(xmlErrors as any);
-      setInternalIssues(errs as string[]);
-      toast.error(`Please fix ${errs.length} issue(s).`);
+      const count = internal.missingFields.length + (jsonResult.errors?.length || 0) + xmlErrors.length;
+      toast.error(`Please fix ${count} issue(s).`);
       setCanGenerate(false);
     }
 
