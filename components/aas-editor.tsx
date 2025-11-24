@@ -1527,7 +1527,7 @@ ${indent}            </langStringPreferredNameTypeIec61360>
 
     let defaultThumbnailXml = '';
     if (thumbnail) {
-      const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/);
+      const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/)
       if (mimeTypeMatch) {
         const mime = mimeTypeMatch[1];
         const ext = mimeTypeMatch[2] === 'svg+xml' ? 'svg' : mimeTypeMatch[2];
@@ -1659,6 +1659,180 @@ ${conceptXml}
       toast.success("Changes saved.");
     }
   };
+
+  // ADD: buildJsonEnvironment helper (JSON structure mirrors export)
+  function buildJsonEnvironment() {
+    // Helper to ensure xs:* prefix for common XML Schema types
+    const prefixXs = (type?: string) => {
+      if (!type) return undefined;
+      const t = type.trim();
+      const common = [
+        'string','integer','boolean','float','double','date','dateTime','time',
+        'anyURI','base64Binary','hexBinary','decimal','byte','short','int','long',
+        'unsignedByte','unsignedShort','unsignedInt','unsignedLong','duration',
+        'gDay','gMonth','gMonthDay','gYear','gYearMonth'
+      ];
+      return common.includes(t) && !t.startsWith('xs:') ? `xs:${t}` : t;
+    };
+
+    // Map UI element to AAS JSON submodelElement
+    const mapElementToJson = (element: any): any => {
+      const base: any = {
+        idShort: element.idShort,
+        modelType: element.modelType,
+      };
+
+      if (element.category) base.category = element.category;
+
+      if (element.description) {
+        const descText = typeof element.description === 'string' ? element.description : String(element.description);
+        base.description = [{ language: 'en', text: descText }];
+      }
+
+      if (element.semanticId) {
+        base.semanticId = {
+          keys: [{ type: "GlobalReference", value: element.semanticId }]
+        };
+      }
+
+      // Persist IEC 61360 metadata for visualizer
+      if (element.preferredName) {
+        base.preferredName = typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName;
+      }
+      if (element.shortName) {
+        base.shortName = typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName;
+      }
+      if (element.unit) {
+        base.unit = element.unit;
+      }
+      if (element.dataType) {
+        base.dataType = element.dataType;
+      }
+      if (element.cardinality) {
+        base.cardinality = element.cardinality;
+      }
+
+      switch ((element.modelType || '').toString()) {
+        case "Property":
+          return {
+            ...base,
+            valueType: prefixXs(element.valueType || "string"),
+            value: typeof element.value === 'string' ? element.value : undefined,
+          };
+        case "MultiLanguageProperty": {
+          let valueArr: any[] = [];
+          if (element.value && typeof element.value === 'object') {
+            valueArr = Object.entries(element.value as Record<string, string>)
+              .filter(([_, text]) => text && String(text).trim() !== '')
+              .map(([language, text]) => ({ language, text }));
+          }
+          return { ...base, value: valueArr };
+        }
+        case "File":
+          return {
+            ...base,
+            value: typeof element.value === 'string' ? element.value : '',
+            contentType: element.fileData?.mimeType || 'application/octet-stream',
+          };
+        case "SubmodelElementCollection":
+        case "SubmodelElementList":
+          return {
+            ...base,
+            value: Array.isArray(element.children) ? element.children.map(mapElementToJson) : [],
+          };
+        case "ReferenceElement":
+          // Keep simple form; upload/import side understands both simple and keyed forms
+          return {
+            ...base,
+            value: element.value
+          };
+        default:
+          return base;
+      }
+    };
+
+    // Build submodels
+    const jsonSubmodels = aasConfig.selectedSubmodels.map(sm => {
+      const elements = submodelData[sm.idShort] || [];
+      return {
+        idShort: sm.idShort,
+        id: `${aasConfig.id}/submodels/${sm.idShort}`,
+        kind: "Instance",
+        semanticId: {
+          keys: [{
+            type: "GlobalReference",
+            value: sm.template.url || `https://admin-shell.io/submodels/${sm.idShort}`
+          }]
+        },
+        submodelElements: elements.map(mapElementToJson),
+      };
+    });
+
+    // Shell
+    const jsonShell = {
+      id: aasConfig.id,
+      idShort: aasConfig.idShort,
+      assetInformation: {
+        assetKind: aasConfig.assetKind,
+        globalAssetId: aasConfig.globalAssetId,
+      },
+      submodels: aasConfig.selectedSubmodels.map(sm => ({
+        keys: [{
+          type: "Submodel",
+          value: `${aasConfig.id}/submodels/${sm.idShort}`
+        }]
+      })),
+    };
+
+    // Collect conceptDescriptions from elements with semanticId
+    const collectedConcepts: Record<string, any> = {};
+    const collect = (els: any[]) => {
+      els.forEach(el => {
+        if (el.semanticId) {
+          const id = el.semanticId;
+          if (!collectedConcepts[id]) {
+            const preferredName = typeof el.preferredName === 'string' ? { en: el.preferredName } : el.preferredName;
+            const shortName = typeof el.shortName === 'string' ? { en: el.shortName } : el.shortName;
+            const definitionArr = el.description ? [{ language: "en", text: typeof el.description === 'string' ? el.description : String(el.description) }] : undefined;
+            collectedConcepts[id] = {
+              id,
+              idShort: el.idShort,
+              embeddedDataSpecifications: [
+                {
+                  dataSpecification: {
+                    keys: [
+                      { type: "GlobalReference", value: "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360" }
+                    ]
+                  },
+                  dataSpecificationContent: {
+                    dataSpecificationIec61360: {
+                      preferredName: preferredName ? Object.entries(preferredName).map(([language, text]) => ({ language, text })) : [{ language: "en", text: el.idShort }],
+                      ...(shortName ? { shortName: Object.entries(shortName).map(([language, text]) => ({ language, text })) } : {}),
+                      ...(el.unit ? { unit: el.unit } : {}),
+                      ...(el.dataType ? { dataType: el.dataType } : {}),
+                      ...(definitionArr ? { definition: definitionArr } : {}),
+                    }
+                  }
+                }
+              ]
+            };
+          }
+        }
+        if (Array.isArray(el.children) && el.children.length) collect(el.children);
+      });
+    };
+
+    aasConfig.selectedSubmodels.forEach(sm => {
+      const elements = submodelData[sm.idShort] || [];
+      collect(elements);
+    });
+
+    return {
+      assetAdministrationShells: [jsonShell],
+      submodels: jsonSubmodels,
+      conceptDescriptions: Object.values(collectedConcepts),
+    };
+  }
 
   const generateFinalAAS = async () => {
     setIsGenerating(true)
@@ -2044,8 +2218,8 @@ ${indent}            <langStringDefinitionTypeIec61360>
 ${indent}              <language>en</language>
 ${indent}              <text>${escapeXml(concept.description)}</text>
 ${indent}            </langStringDefinitionTypeIec61360>
-${indent}          </definition>\n` : ''}
-${indent}        </dataSpecificationIec61360>
+${indent}          </definition>
+` : ""}${indent}        </dataSpecificationIec61360>
 ${indent}      </dataSpecificationContent>
 ${indent}    </embeddedDataSpecification>
 ${indent}  </embeddedDataSpecifications>
