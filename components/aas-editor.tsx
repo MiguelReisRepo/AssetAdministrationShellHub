@@ -4,7 +4,17 @@ import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical, Copy } from 'lucide-react'
 // ADD: extra icons and UI + toast
 import { AlertCircle, CheckCircle } from 'lucide-react'
+import { FileDown } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import JSZip from 'jszip'
 import { validateAASXXml } from "@/lib/xml-validator" // Import the XML validation function
@@ -213,12 +223,74 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [canGenerate, setCanGenerate] = useState(false)
   // New: track whether validation has been run (and is current)
   const [hasValidated, setHasValidated] = useState(false)
+  const [downloadingPdfs, setDownloadingPdfs] = useState(false)
+  const [noPdfsDialogOpen, setNoPdfsDialogOpen] = useState(false)
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
     setCanGenerate(false)
     setHasValidated(false)
   }, [submodelData, aasConfig.idShort, aasConfig.id, aasConfig.assetKind, aasConfig.globalAssetId, aasConfig.selectedSubmodels])
+
+  // Helper: convert base64 dataURL to Uint8Array
+  const dataUrlToUint8 = (dataUrl: string): Uint8Array => {
+    const base64 = dataUrl.split(",")[1] || ""
+    const binary = atob(base64)
+    const buf = new ArrayBuffer(binary.length)
+    const arr = new Uint8Array(buf)
+    for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i)
+    return arr
+  }
+
+  // Collect all PDF files from the current model
+  const collectAllPdfs = (): { name: string; bytes: Uint8Array }[] => {
+    const pdfs: { name: string; bytes: Uint8Array }[] = []
+    const walk = (els: SubmodelElement[]) => {
+      els.forEach((el) => {
+        if (el.modelType === "File") {
+          const mime = el.fileData?.mimeType?.toLowerCase() || ""
+          const val = typeof el.value === "string" ? el.value.toLowerCase() : ""
+          const isPdf = mime === "application/pdf" || val.endsWith(".pdf")
+          if (isPdf && el.fileData?.content) {
+            const name = el.fileData.fileName?.trim() || `${el.idShort || "document"}.pdf`
+            pdfs.push({ name, bytes: dataUrlToUint8(el.fileData.content) })
+          }
+        }
+        if (el.children && el.children.length) walk(el.children)
+      })
+    }
+    aasConfig.selectedSubmodels.forEach((sm) => {
+      const elements = submodelData[sm.idShort] || []
+      walk(elements)
+    })
+    return pdfs
+  }
+
+  const downloadAllPdfs = async () => {
+    setDownloadingPdfs(true)
+    const pdfs = collectAllPdfs()
+    if (pdfs.length === 0) {
+      setNoPdfsDialogOpen(true)
+      setDownloadingPdfs(false)
+      return
+    }
+    const zip = new JSZip()
+    pdfs.forEach((p, idx) => {
+      const safeName = p.name || `document-${idx + 1}.pdf`
+      zip.file(`pdfs/${safeName}`, p.bytes)
+    })
+    const blob = await zip.generateAsync({ type: "blob" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${aasConfig.idShort || "model"}-pdfs.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success(`Downloaded ${pdfs.length} PDF${pdfs.length > 1 ? "s" : ""} as a ZIP.`)
+    setDownloadingPdfs(false)
+  }
 
   const loadTemplates = async () => {
     if (availableTemplates.length > 0) return
@@ -3098,6 +3170,26 @@ ${indent}</conceptDescription>`
                >
                  Validate
                </Button>
+               <Button
+                onClick={downloadAllPdfs}
+                size="lg"
+                variant="outline"
+                className="bg-white dark:bg-gray-900 border-gray-300 text-gray-800 hover:bg-gray-50 dark:text-gray-200 shadow-sm"
+                disabled={downloadingPdfs}
+                title="Download all PDFs in this model"
+              >
+                {downloadingPdfs ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-gray-600 dark:border-gray-300 border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-2">Preparing PDFs...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileDown className="w-5 h-5" />
+                    <span className="ml-2">Download PDFs</span>
+                  </>
+                )}
+              </Button>
                {/* REMOVED: Save button per latest requirement */}
                <button
                  onClick={generateFinalAAS}
@@ -3415,6 +3507,22 @@ ${indent}</conceptDescription>`
           </div>
         </div>
       )}
+
+      {/* Popup: No PDFs found */}
+      <AlertDialog open={noPdfsDialogOpen} onOpenChange={setNoPdfsDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No PDFs found</AlertDialogTitle>
+            <AlertDialogDescription>
+              This model does not contain any File elements with PDF content to download.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   )
 }
