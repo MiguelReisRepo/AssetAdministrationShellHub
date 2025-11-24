@@ -232,6 +232,14 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const [pdfEntries, setPdfEntries] = useState<{ name: string; bytes: Uint8Array; url: string }[]>([])
   const [pdfSelected, setPdfSelected] = useState<Set<string>>(new Set())
+  // Validation result dialog state
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false)
+  const [validationDialogStatus, setValidationDialogStatus] = useState<'valid' | 'invalid'>('invalid')
+  const [validationCounts, setValidationCounts] = useState<{ internal: number; json: number; xml: number }>({
+    internal: 0,
+    json: 0,
+    xml: 0,
+  })
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
@@ -3194,16 +3202,17 @@ ${indent}</conceptDescription>`
     const xmlErrors = xmlResult.valid ? [] : (xmlResult.errors || []);
     setExternalIssues(xmlErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e)))));
 
-    const allGood = internal.missingFields.length === 0 && jsonResult.valid && xmlResult.valid;
+    const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
+    const xmlErrCount = xmlErrors.length;
+    const internalCount = internal.missingFields.length;
 
-    if (allGood) {
-      toast.success("Model looks good (required fields, JSON, and XML).");
-      setCanGenerate(true);
-    } else {
-      const count = internal.missingFields.length + (jsonResult.errors?.length || 0) + xmlErrors.length;
-      toast.error(`Please fix ${count} issue(s).`);
-      setCanGenerate(false);
-    }
+    const allGood = internalCount === 0 && jsonResult.valid && xmlResult.valid;
+
+    // Open validation result popup (replacing toasts)
+    setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
+    setValidationDialogStatus(allGood ? 'valid' : 'invalid');
+    setValidationDialogOpen(true);
+    setCanGenerate(allGood);
 
     setHasValidated(true);
   };
@@ -3715,6 +3724,54 @@ ${indent}</conceptDescription>`
             <Button onClick={downloadSelectedPdfs} className="bg-[#61caf3] hover:bg-[#4db6e6] text-white">
               <FileDown className="w-4 h-4 mr-2" />
               Download selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Validation Result Dialog */}
+      <Dialog open={validationDialogOpen} onOpenChange={setValidationDialogOpen}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Validation Result</DialogTitle>
+            <DialogDescription>
+              Summary of checks for required fields, JSON structure, and XML schema compliance.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-start gap-3">
+            {validationDialogStatus === 'valid' ? (
+              <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-base font-semibold ${validationDialogStatus === 'valid' ? 'text-green-700' : 'text-red-700'}`}>
+                  {validationDialogStatus === 'valid' ? 'Valid' : 'Invalid'}
+                </span>
+                {validationDialogStatus === 'valid' && (
+                  <span className="inline-flex flex-col items-center leading-none -mt-0.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-green-600" />
+                    <span className="text-[9px] font-semibold text-green-600 uppercase tracking-tight">IDTA</span>
+                  </span>
+                )}
+              </div>
+              {validationDialogStatus === 'invalid' && (
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  Found {validationCounts.internal + validationCounts.json + validationCounts.xml} issue(s):
+                  <ul className="list-disc list-inside mt-1 space-y-0.5">
+                    <li>Required fields/type: {validationCounts.internal}</li>
+                    <li>JSON validation: {validationCounts.json}</li>
+                    <li>XML schema: {validationCounts.xml}</li>
+                  </ul>
+                  <div className="mt-2 text-xs text-gray-500">Open the panels below to navigate and fix issues.</div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setValidationDialogOpen(false)} autoFocus>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
