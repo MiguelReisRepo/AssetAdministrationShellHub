@@ -122,14 +122,14 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by idShort or file name"
-                className="pl-8"
+                className="pl-8 bg-white dark:bg-gray-900"
                 aria-label="Search models"
               />
             </div>
             {allSubmodelOptions.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2">
+                  <Button variant="outline" className="flex items-center gap-2 bg-white dark:bg-gray-900">
                     <Filter className="h-4 w-4" />
                     Submodels
                     {selectedSubmodels.size > 0 && (
@@ -170,7 +170,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
               </DropdownMenu>
             )}
             <Select value={validityFilter} onValueChange={(v) => setValidityFilter(v as "all" | "valid" | "invalid")}>
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="w-32 bg-white dark:bg-gray-900">
                 <SelectValue placeholder="Validity" />
               </SelectTrigger>
               <SelectContent>
