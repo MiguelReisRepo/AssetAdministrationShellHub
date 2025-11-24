@@ -13,6 +13,7 @@ import { processFile } from "@/lib/process-file"
 import AasEditorDebugXML from "./aas-editor-debug"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { validateAASXJson } from "@/lib/json-validator"
 
 // Add IEC 61360 data types list
 const IEC_DATA_TYPES = [
@@ -2226,16 +2227,21 @@ ${indent}</conceptDescription>`
   }
 
   // ADD: manual validate action (internal)
-  const runInternalValidation = () => {
-    const result = validateAAS()
-    setInternalIssues(result.missingFields)
+  const runInternalValidation = async () => {
+    const env = buildJsonEnvironment()
+    const result = await validateAASXJson(JSON.stringify(env))
+
     if (result.valid) {
-      toast.success("No missing required fields.")
+      setInternalIssues([])
+      toast.success("Model looks good.")
+      setCanGenerate(true)
     } else {
-      toast.error(`Please fill all required fields (${result.missingFields.length} missing).`)
+      const errs = result.errors || ["Unknown validation error"]
+      setInternalIssues(errs)
+      toast.error(`Please fix ${errs.length} issue(s).`)
+      setCanGenerate(false)
     }
-    // Enable generation only after a passing validation
-    setCanGenerate(result.valid)
+
     setHasValidated(true)
   }
 
