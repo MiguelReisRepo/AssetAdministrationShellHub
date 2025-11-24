@@ -3764,7 +3764,57 @@ ${indent}</conceptDescription>`
                     <li>JSON validation: {validationCounts.json}</li>
                     <li>XML schema: {validationCounts.xml}</li>
                   </ul>
-                  <div className="mt-2 text-xs text-gray-500">Open the panels below to navigate and fix issues.</div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    Click Go to to jump directly to a field. Open the panels below for the full list.
+                  </div>
+                  {(() => {
+                    const friendly = buildFriendlyXmlErrors(externalIssues).slice(0, 8);
+                    if (friendly.length === 0) return null;
+                    return (
+                      <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-yellow-200 dark:border-yellow-700">
+                        <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                          Top issues
+                        </div>
+                        <ul className="space-y-2">
+                          {friendly.map((fe, idx) => (
+                            <li key={idx} className="flex items-start justify-between gap-3">
+                              <div className="text-sm">
+                                <div className="font-medium text-gray-900 dark:text-gray-100">
+                                  {fe.message}
+                                </div>
+                                {fe.hint && (
+                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                    {fe.hint}
+                                  </div>
+                                )}
+                                {fe.path && (
+                                  <div className="text-[11px] text-gray-500 mt-0.5">
+                                    Path: {fe.path}
+                                  </div>
+                                )}
+                              </div>
+                              {fe.path ? (
+                                <button
+                                  onClick={() => {
+                                    setValidationDialogOpen(false);
+                                    goToIssuePath(fe.path!);
+                                  }}
+                                  className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                                >
+                                  Go to
+                                </button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                        {buildFriendlyXmlErrors(externalIssues).length > 8 && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            And more… see the XML Schema Errors panel below.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
