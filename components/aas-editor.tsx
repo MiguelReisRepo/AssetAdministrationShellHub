@@ -1427,13 +1427,28 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       });
 
       const generateElementXml = (element: SubmodelElement, indent: string): string => {
-        const tagName = element.modelType === "Property" ? "property" :
-                        element.modelType === "MultiLanguageProperty" ? "multiLanguageProperty" :
-                        element.modelType === "SubmodelElementCollection" ? "submodelElementCollection" :
-                        element.modelType === "SubmodelElementList" ? "submodelElementList" :
-                        element.modelType === "File" ? "file" :
-                        element.modelType === "ReferenceElement" ? "referenceElement" :
-                        "property";
+        // Normalize modelType handling (case-insensitive) and use it consistently
+        const normalizedType = (() => {
+          const t = (element.modelType || "Property").toLowerCase();
+          switch (t) {
+            case "property": return "Property";
+            case "multilanguageproperty": return "MultiLanguageProperty";
+            case "submodelelementcollection": return "SubmodelElementCollection";
+            case "submodelelementlist": return "SubmodelElementList";
+            case "file": return "File";
+            case "referenceelement": return "ReferenceElement";
+            default: return "Property";
+          }
+        })();
+
+        const tagName =
+          normalizedType === "Property" ? "property" :
+          normalizedType === "MultiLanguageProperty" ? "multiLanguageProperty" :
+          normalizedType === "SubmodelElementCollection" ? "submodelElementCollection" :
+          normalizedType === "SubmodelElementList" ? "submodelElementList" :
+          normalizedType === "File" ? "file" :
+          normalizedType === "ReferenceElement" ? "referenceElement" :
+          "property";
 
         let xml = `${indent}<${tagName}>\n`;
 
@@ -1454,19 +1469,19 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </description>\n`;
         }
 
-        // Type-specific content FIRST (schema expects value/valueId/content blocks before semanticId/qualifiers)
-        if (element.modelType === "Property") {
-          const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || 'xs:string';
+        // Type-specific content FIRST (schema expects value/valueId/content before semanticId/qualifiers/EDS)
+        if (normalizedType === "Property") {
+          const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || "xs:string";
           xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
-          if (typeof element.value === 'string' && element.value.trim() !== '') {
+          if (typeof element.value === "string" && element.value.trim() !== "") {
             xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
           }
-        } else if (element.modelType === "MultiLanguageProperty") {
-          const hasLangValues = typeof element.value === 'object' && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== '');
+        } else if (normalizedType === "MultiLanguageProperty") {
+          const hasLangValues = typeof element.value === "object" && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== "");
           if (hasLangValues) {
             xml += `${indent}  <value>\n`;
             Object.entries(element.value as Record<string, string>).forEach(([lang, text]) => {
-              if (text && String(text).trim() !== '') {
+              if (text && String(text).trim() !== "") {
                 xml += `${indent}    <langStringTextType>\n`;
                 xml += `${indent}      <language>${lang}</language>\n`;
                 xml += `${indent}      <text>${escapeXml(text)}</text>\n`;
@@ -1475,13 +1490,13 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             });
             xml += `${indent}  </value>\n`;
           }
-        } else if (element.modelType === "File") {
-          const contentType = element.fileData?.mimeType || 'application/octet-stream';
+        } else if (normalizedType === "File") {
+          const contentType = element.fileData?.mimeType || "application/octet-stream";
           xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`;
-          if (typeof element.value === 'string' && element.value) {
+          if (typeof element.value === "string" && element.value) {
             xml += `${indent}  <value>${escapeXml(element.value)}</value>\n`;
           }
-        } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
+        } else if (normalizedType === "SubmodelElementCollection" || normalizedType === "SubmodelElementList") {
           if (element.children && element.children.length > 0) {
             xml += `${indent}  <value>\n`;
             element.children.forEach(child => {
@@ -1489,7 +1504,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             });
             xml += `${indent}  </value>\n`;
           }
-        } else if (element.modelType === "ReferenceElement") {
+        } else if (normalizedType === "ReferenceElement") {
           // ReferenceElement requires either <value> (Reference with keys) or <valueId> (simple string)
           const val = element.value as any;
           const hasKeys = val && typeof val === "object" && Array.isArray(val.keys);
@@ -1505,15 +1520,19 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
             });
             xml += `${indent}    </keys>\n`;
             xml += `${indent}  </value>\n`;
-          } else if (typeof val === "string" && val.trim() !== "") {
-            xml += `${indent}  <valueId>${escapeXml(val.trim())}</valueId>\n`;
           } else {
-            // No value present; leave out to avoid schema errors
+            const simple = typeof val === "string" ? val.trim() : "";
+            const fallback = simple || (element.semanticId || "").trim();
+            if (fallback) {
+              xml += `${indent}  <valueId>${escapeXml(fallback)}</valueId>\n`;
+            } else {
+              // No value present; ReferenceElement must not emit qualifiers/semanticId before value block
+            }
           }
         }
 
-        // Then semanticId
-        if (element.semanticId && element.modelType !== "ReferenceElement") {
+        // Then semanticId (never for ReferenceElement)
+        if (element.semanticId && normalizedType !== "ReferenceElement") {
           xml += `${indent}  <semanticId>\n`;
           xml += `${indent}    <type>ExternalReference</type>\n`;
           xml += `${indent}    <keys>\n`;
@@ -1526,11 +1545,16 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         }
 
         // Qualifiers -> Cardinality
-        if (element.cardinality) {
+        // For ReferenceElement, only include qualifiers if a value/valueId was emitted
+        const canIncludeQualifiers =
+          normalizedType !== "ReferenceElement" ||
+          (xml.includes("<valueId>") || xml.includes("<value>"));
+
+        if (element.cardinality && canIncludeQualifiers) {
           xml += `${indent}  <qualifiers>\n`;
           xml += `${indent}    <qualifier>\n`;
           xml += `${indent}      <type>Cardinality</type>\n`;
-          xml += `${indent}      <valueType>xs:string</valueType>\n`;
+          xml += `${indent}      <valueType>xs:string</valueType>\n>`;
           xml += `${indent}      <value>${escapeXml(element.cardinality)}</value>\n`;
           xml += `${indent}    </qualifier>\n`;
           xml += `${indent}  </qualifiers>\n`;
@@ -1587,7 +1611,7 @@ ${indent}            </langStringShortNameTypeIec61360>
             ? preferredNameXml
             : `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>en</language>
-${indent}              <text>${element.idShort}</text>
+${indent}              <text>${escapeXml(element.idShort)}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>
 `;
           xml += `${indent}          </preferredName>\n`;
