@@ -170,9 +170,11 @@ interface AASEditorProps {
   initialSubmodelData?: Record<string, SubmodelElement[]>
   onSave?: (file: ValidationResult) => void
   initialThumbnail?: string | null
+  // NEW: pass original uploaded XML to align Validate and Preview with home/upload
+  sourceXml?: string
 }
 
-export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData, onSave, initialThumbnail }: AASEditorProps) {
+export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfig, initialSubmodelData, onSave, initialThumbnail, sourceXml }: AASEditorProps) {
   const [submodelData, setSubmodelData] = useState<Record<string, SubmodelElement[]>>(() => {
     const initial: Record<string, SubmodelElement[]> = {}
     aasConfig.selectedSubmodels.forEach((sm) => {
@@ -2699,10 +2701,10 @@ ${indent}</conceptDescription>`
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Build and validate XML exactly as export does
-    const xml = buildCurrentXml();
-    setLastGeneratedXml(xml);
-    const xmlResult = await validateAASXXml(xml);
+    // NEW: prefer validating the original uploaded XML if available
+    const xmlToValidate = (originalXml && originalXml.trim().length > 0) ? originalXml : buildCurrentXml();
+    setLastGeneratedXml(xmlToValidate);
+    const xmlResult = await validateAASXXml(xmlToValidate);
 
     // Only XML errors go to externalIssues panel
     const xmlErrors = xmlResult.valid ? [] : (xmlResult.errors || []);
