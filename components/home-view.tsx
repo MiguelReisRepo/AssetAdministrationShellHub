@@ -4,6 +4,16 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus, X } from "lucide-react";
+import { Search, Filter } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import type { ValidationResult } from "@/lib/types";
 
 interface HomeViewProps {
@@ -18,6 +28,8 @@ interface HomeViewProps {
 export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder, onDelete }: HomeViewProps) {
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState<string>("");
+  const [selectedSubmodels, setSelectedSubmodels] = React.useState<Set<string>>(new Set());
 
   const getIdShort = (file: ValidationResult): string => {
     const idShort =
@@ -26,6 +38,42 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
       "";
     return idShort || file.file || "AAS";
   };
+
+  const extractSubmodelNames = (file: ValidationResult): string[] => {
+    const subs = ((file.aasData as any)?.submodels || (file.parsed as any)?.submodels || [])
+      .map((sm: any) => sm?.idShort)
+      .filter(Boolean);
+    if (subs.length) return Array.from(new Set(subs));
+    const refs = ((file.aasData as any)?.assetAdministrationShells?.[0]?.submodels ||
+      (file.parsed as any)?.assetAdministrationShells?.[0]?.submodels ||
+      []);
+    const fromRefs = refs
+      .map((ref: any) => ref?.idShort || ref?.keys?.[0]?.value || ref?.keys?.[0]?.idShort)
+      .filter(Boolean);
+    return Array.from(new Set(fromRefs));
+  };
+
+  const allSubmodelOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    files.forEach((f) => {
+      extractSubmodelNames(f).forEach((name) => set.add(name));
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [files]);
+
+  const filteredFiles = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const hasSubmodelFilter = selectedSubmodels.size > 0;
+    return files.filter((file) => {
+      const idShort = getIdShort(file).toLowerCase();
+      const filename = (file.file || "").toLowerCase();
+      const matchesQuery = q === "" ? true : idShort.includes(q) || filename.includes(q);
+      if (!matchesQuery) return false;
+      if (!hasSubmodelFilter) return true;
+      const subs = extractSubmodelNames(file);
+      return subs.some((s) => selectedSubmodels.has(s));
+    });
+  }, [files, searchQuery, selectedSubmodels]);
 
   return (
     <div className="h-full overflow-auto">
@@ -37,7 +85,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
               {files.length > 0
-                ? `Loaded models: ${files.length}`
+                ? `Showing ${filteredFiles.length} of ${files.length} models`
                 : "No models loaded yet — upload or create an AAS to get started."}
             </p>
           </div>
@@ -59,6 +107,65 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
           </div>
         </div>
 
+        {/* Filters */}
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by idShort or file name"
+                className="pl-8"
+                aria-label="Search models"
+              />
+            </div>
+            {allSubmodelOptions.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Submodels
+                    {selectedSubmodels.size > 0 && (
+                      <span className="ml-1 rounded bg-blue-600 text-white px-1.5 py-0.5 text-xs">
+                        {selectedSubmodels.size}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56">
+                  <DropdownMenuLabel>Filter by submodel</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {allSubmodelOptions.map((name) => (
+                    <DropdownMenuCheckboxItem
+                      key={name}
+                      checked={selectedSubmodels.has(name)}
+                      onCheckedChange={(checked) => {
+                        setSelectedSubmodels((prev) => {
+                          const next = new Set(prev);
+                          if (checked) next.add(name);
+                          else next.delete(name);
+                          return next;
+                        });
+                      }}
+                    >
+                      {name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-gray-600 hover:text-gray-900"
+                    onClick={() => setSelectedSubmodels(new Set())}
+                  >
+                    Clear filters
+                  </Button>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+
         {files.length === 0 ? (
           <Card className="bg-white dark:bg-gray-800 border-blue-200/70 dark:border-gray-700">
             <CardContent className="flex items-center gap-3 p-6">
@@ -70,7 +177,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
           </Card>
         ) : (
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {files.map((file, idx) => {
+            {filteredFiles.map((file, idx) => {
               const idShort = getIdShort(file);
               const thumb = file.thumbnail || "/placeholder.svg";
               return (
