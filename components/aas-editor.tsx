@@ -257,6 +257,23 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   }
   const normalizePath = (p: string) =>
     p.replace(/^file:\/\//i, "").replace(/^file:\//i, "").replace(/^\/+/, "")
+  // EXTRA: helpers to strip query/fragment, fix slashes and decode URI components
+  const stripQueryAndFragment = (p: string) => p.replace(/[?#].*$/, "")
+  const fixSlashes = (p: string) => p.replace(/\\/g, "/")
+  const tryDecodeUri = (s: string): string => {
+    try { return decodeURIComponent(s) } catch { return s }
+  }
+  const deriveBasename = (p: string): string => {
+    const cleaned = stripQueryAndFragment(fixSlashes(p))
+    let base = cleaned.split("/").pop() || cleaned
+    // Handle AASX "File-" naming pattern (e.g., ".../File-Manual.pdf")
+    const idx = cleaned.lastIndexOf("File-")
+    if (idx >= 0) {
+      const tail = cleaned.slice(idx + "File-".length)
+      if (/\.[a-z0-9]{2,5}$/i.test(tail)) base = tail
+    }
+    return base
+  }
 
   // Collect all PDF files from the current model
   const collectAllPdfs = (): { name: string; bytes: Uint8Array }[] => {
@@ -266,20 +283,21 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       if (!attachments) return null
       let candidate = raw.trim()
       if (!candidate) return null
+      // decode URL-safe base64 that may encode a path
       const decoded = tryDecodeBase64(candidate)
       if (decoded) candidate = decoded.trim()
-      // data URL directly
+      // direct data URL
       if (/^data:/i.test(candidate)) {
         if (/^data:application\/pdf/i.test(candidate)) {
-          // best-effort name
           return { name: "document.pdf", bytes: dataUrlToUint8(candidate) }
         }
         return null
       }
-      // Only resolve local/embedded paths against attachments
-      const norm = normalizePath(candidate)
-      let basename = norm.split("/").pop() || norm
-      const candidates = [
+      // normalize incoming path
+      candidate = tryDecodeUri(candidate)
+      const norm = normalizePath(stripQueryAndFragment(fixSlashes(candidate)))
+      const basename = deriveBasename(norm)
+      const searchKeys = [
         norm,
         `/${norm}`,
         basename,
@@ -287,27 +305,24 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         `aasx/${basename}`,
         `/aasx/${basename}`,
       ]
-      let found: string | undefined
-      for (const key of candidates) {
-        if (attachments[key]) {
-          found = key
-          break
-        }
+      let foundKey: string | undefined
+      for (const key of searchKeys) {
+        if (attachments[key]) { foundKey = key; break }
       }
-      if (!found) {
-        const kv = Object.entries(attachments).find(([k]) =>
-          k.toLowerCase().endsWith(`/${basename.toLowerCase()}`) || k.toLowerCase() === basename.toLowerCase()
-        )
-        if (kv) found = kv[0]
+      if (!foundKey) {
+        const kv = Object.entries(attachments).find(([k]) => {
+          const lk = k.toLowerCase()
+          const bb = basename.toLowerCase()
+          return lk.endsWith(`/${bb}`) || lk === bb
+        })
+        if (kv) foundKey = kv[0]
       }
-      if (!found) return null
-      const dataUrl = attachments[found]
-      if (!/^data:application\/pdf/i.test(dataUrl)) {
-        // If mime is generic but filename says pdf, still include
-        const looksPdf = /\.pdf$/i.test(found) || /\.pdf$/i.test(basename)
-        if (!looksPdf) return null
-      }
-      const name = basename || "document.pdf"
+      if (!foundKey) return null
+      const dataUrl = attachments[foundKey]
+      const isPdfMime = /^data:application\/pdf/i.test(dataUrl)
+      const looksPdf = /\.pdf$/i.test(foundKey) || /\.pdf$/i.test(basename)
+      if (!isPdfMime && !looksPdf) return null
+      const name = basename || (foundKey.split("/").pop() || "document.pdf")
       return { name, bytes: dataUrlToUint8(dataUrl) }
     }
 
@@ -340,6 +355,16 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       const elements = submodelData[sm.idShort] || []
       walk(elements)
     })
+    // FALLBACK: if no File nodes referenced PDFs but archive contains PDFs, include them
+    if (pdfs.length === 0 && attachments) {
+      Object.entries(attachments).forEach(([path, dataUrl]) => {
+        const isPdf = /^data:application\/pdf/i.test(dataUrl) || /\.pdf$/i.test(path)
+        if (isPdf) {
+          const name = deriveBasename(path) || "document.pdf"
+          pdfs.push({ name, bytes: dataUrlToUint8(dataUrl) })
+        }
+      })
+    }
     return pdfs
   }
 
