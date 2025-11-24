@@ -1851,6 +1851,107 @@ ${conceptXml}
     };
 
     try {
+      // NEW: Option 1 — if the model was validated and we still have the original XML,
+      // package those exact bytes instead of regenerating.
+      const preferOriginalXml = hasValidated && originalXml && originalXml.trim().length > 0;
+      if (preferOriginalXml) {
+        // Build AASX zip with the original XML
+        const zip = new JSZip();
+        const xmlFileName = `${aasConfig.idShort}.xml`;
+        zip.file(xmlFileName, originalXml!);
+        setLastGeneratedXml(originalXml!);
+
+        // Include a JSON model for compatibility (from current in-memory state)
+        const jsonEnvironment = buildJsonEnvironment();
+        zip.file("model.json", JSON.stringify(jsonEnvironment, null, 2));
+
+        // Add any File attachments present in the editor state
+        const addFilesFromElements = (elements: SubmodelElement[]) => {
+          elements.forEach(element => {
+            if (element.modelType === "File" && element.fileData) {
+              const base64Data = element.fileData.content.split(',')[1];
+              const binaryData = atob(base64Data);
+              const arrayBuffer = new ArrayBuffer(binaryData.length);
+              const uint8Array = new Uint8Array(arrayBuffer);
+              for (let i = 0; i < binaryData.length; i++) {
+                uint8Array[i] = binaryData.charCodeAt(i);
+              }
+              zip.file(`files/${element.fileData.fileName}`, uint8Array);
+            }
+            if (element.children) addFilesFromElements(element.children);
+          });
+        };
+        aasConfig.selectedSubmodels.forEach(sm => {
+          addFilesFromElements(submodelData[sm.idShort] || []);
+        });
+
+        // Add thumbnail (if present) to the root
+        if (thumbnail) {
+          const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/);
+          if (mimeTypeMatch) {
+            const mime = mimeTypeMatch[1];
+            const ext = mimeTypeMatch[2] === 'svg+xml' ? 'svg' : mimeTypeMatch[2];
+            const thumbName = `thumbnail.${ext}`;
+            const base64Data = thumbnail.split(',')[1];
+            const binaryData = atob(base64Data);
+            const arrayBuffer = new ArrayBuffer(binaryData.length);
+            const uint8Array = new Uint8Array(arrayBuffer);
+            for (let i = 0; i < binaryData.length; i++) {
+              uint8Array[i] = binaryData.charCodeAt(i);
+            }
+            zip.file(thumbName, uint8Array);
+          }
+        }
+
+        // AASX relationship structure
+        zip.file("aasx/aasx-origin", `<?xml version="1.0" encoding="UTF-8"?>
+<origin xmlns="http://admin-shell.io/aasx/relationships/aasx-origin">
+  <originPath>/${xmlFileName}</originPath>
+</origin>`);
+        zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="aasx-origin" Type="http://admin-shell.io/aasx/relationships/aasx-origin" Target="/aasx/aasx-origin"/>
+</Relationships>`);
+        const relId = "R" + Math.random().toString(16).slice(2);
+        zip.file("_rels/aasx-original.rels", `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="http://admin-shell.io/aasx/relationships/aas-spec" Target="/${xmlFileName}" Id="${relId}" /></Relationships>`);
+        zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="text/xml" /><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" /><Default Extension="png" ContentType="image/png" /><Default Extension="pdf" ContentType="application/pdf" /><Default Extension="json" ContentType="text/plain" /><Override PartName="/aasx/aasx-origin" ContentType="text/plain" /></Types>`);
+
+        // Generate ZIP blob
+        const blob = await zip.generateAsync({ type: "blob" });
+
+        // Parse like Upload so Visualizer receives consistent data
+        if (onFileGenerated) {
+          const aasxFile = new File([blob], `${aasConfig.idShort}.aasx`, { type: "application/zip" });
+          const results = await processFile(aasxFile, () => {});
+          if (results && results.length > 0) {
+            onFileGenerated(results[0]);
+          } else {
+            onFileGenerated({
+              file: aasxFile.name,
+              type: "AASX",
+              valid: true,
+              processingTime: 0,
+              parsed: null,
+              aasData: null,
+              thumbnail: thumbnail || undefined,
+            });
+          }
+        }
+
+        // Download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${aasConfig.idShort}.aasx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast.success("AASX exported using your original XML.");
+        return; // Skip generator path
+      }
+
       // VALIDATION: only run internal validation if user hasn't already validated
       if (!hasValidated) {
         const internalValidation = validateAAS()
