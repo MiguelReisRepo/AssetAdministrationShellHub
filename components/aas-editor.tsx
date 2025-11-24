@@ -3114,6 +3114,29 @@ ${indent}</conceptDescription>`
     return paths
   }
 
+  // NEW: find the first element path that has a semanticId (to help fix conceptDescriptions error)
+  const findFirstSemanticElementPath = (): string | null => {
+    for (const sm of aasConfig.selectedSubmodels) {
+      const submodelId = sm.idShort
+      const walk = (els: SubmodelElement[], chain: string[] = []): string | null => {
+        for (const el of els || []) {
+          const curChain = [...chain, el.idShort]
+          if (el.semanticId && String(el.semanticId).trim() !== "") {
+            return `${submodelId} > ${curChain.join(' > ')}`
+          }
+          if (Array.isArray(el.children) && el.children.length > 0) {
+            const found = walk(el.children, curChain)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const res = walk(submodelData[submodelId] || [], [])
+      if (res) return res
+    }
+    return null
+  }
+
   // NEW: build friendly XML errors with optional Go to path
   type FriendlyError = { message: string; hint?: string; path?: string }
   const buildFriendlyXmlErrors = (source: (string | any)[]): FriendlyError[] => {
@@ -3177,7 +3200,7 @@ ${indent}</conceptDescription>`
         continue
       }
 
-      // specificAssetIds missing (shell)
+      // specificAssetIds missing (shell) — no path in the tree (top-level AAS info)
       if (/specificAssetIds.*Missing child element/i.test(msg)) {
         add(
           'Asset Information › specificAssetIds is empty',
@@ -3186,11 +3209,12 @@ ${indent}</conceptDescription>`
         continue
       }
 
-      // conceptDescriptions list empty
+      // conceptDescriptions list empty → map to first element with semanticId
       if (/conceptDescriptions.*Missing child element/i.test(msg)) {
         add(
           'Concept Descriptions list is empty',
-          'Add at least one conceptDescription for referenced semantics.'
+          'Add at least one conceptDescription for referenced semantics.',
+          findFirstSemanticElementPath() || undefined
         )
         continue
       }
