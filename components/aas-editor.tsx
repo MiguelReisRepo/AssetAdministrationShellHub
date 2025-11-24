@@ -1776,11 +1776,14 @@ ${conceptXml}
         globalAssetId: aasConfig.globalAssetId,
       },
       submodels: aasConfig.selectedSubmodels.map(sm => ({
-        keys: [{
-          type: "Submodel",
-          value: `${aasConfig.id}/submodels/${sm.idShort}`
-        }])
-      })),
+        type: "ModelReference",  // ← this was missing!
+        keys: [
+          {
+            type: "Submodel",
+            value: sm.id  // ← use the actual submodel.id (the identifiable, e.g. URI)
+          }
+        ]
+      }))
     };
 
     // Collect conceptDescriptions from elements with semanticId
