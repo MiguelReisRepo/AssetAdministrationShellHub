@@ -50,13 +50,25 @@ export default function VisualizerPage() {
     console.log("[v0] Generated file received:", fileData)
     
     setUploadedFiles((prev) => {
-      const newFiles = [...prev, fileData]
-      setNewFileIndex(newFiles.length - 1)
-      return newFiles
+      // NEW: If editing an existing file, replace it instead of appending
+      if (editorFileIndex !== null && editorFileIndex >= 0 && editorFileIndex < prev.length) {
+        const next = [...prev]
+        const existing = next[editorFileIndex]
+        next[editorFileIndex] = {
+          ...existing,
+          ...fileData,
+          file: fileData.file || existing.file,
+        }
+        return next
+      }
+      // Otherwise append as new
+      return [...prev, fileData]
     })
     
-    setViewMode("editor")
-    setEditorFileIndex(uploadedFiles.length) // index of newly added file
+    // Keep Editor view; only set editorFileIndex when we appended a new item
+    if (editorFileIndex === null) {
+      setEditorFileIndex(uploadedFiles.length) // index of newly added file
+    }
   }
 
   // Callback to update AASConfig from AASEditor
@@ -80,6 +92,19 @@ export default function VisualizerPage() {
       }
       return next
     })
+  }
+
+  // NEW: Delete a file by index
+  const deleteFileAt = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index))
+    // Optional: adjust editorFileIndex if needed
+    if (editorFileIndex !== null) {
+      if (index === editorFileIndex) {
+        setEditorFileIndex(null)
+      } else if (index < editorFileIndex) {
+        setEditorFileIndex(editorFileIndex - 1)
+      }
+    }
   }
 
   const openVisualizerAt = (index: number) => {
@@ -236,6 +261,7 @@ export default function VisualizerPage() {
             onUploadClick={() => setViewMode("upload")}
             onCreateClick={() => setViewMode("creator")}
             onReorder={reorderFiles}
+            onDelete={deleteFileAt}
           />
         )}
         {viewMode === "upload" && (

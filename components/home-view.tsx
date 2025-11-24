@@ -3,7 +3,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus } from "lucide-react";
+import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus, X } from "lucide-react";
 import type { ValidationResult } from "@/lib/types";
 
 interface HomeViewProps {
@@ -12,9 +12,10 @@ interface HomeViewProps {
   onUploadClick: () => void;
   onCreateClick: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  onDelete: (index: number) => void;
 }
 
-export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder }: HomeViewProps) {
+export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder, onDelete }: HomeViewProps) {
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
 
@@ -100,6 +101,20 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
                     setDragOverIndex(null);
                   }}
                 >
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(idx);
+                    }}
+                    aria-label={`Remove ${idShort}`}
+                    draggable={false}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+
                   {file.valid !== undefined && (
                     <div className="absolute top-2 right-2">
                       {file.valid ? (
