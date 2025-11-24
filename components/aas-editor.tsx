@@ -593,22 +593,41 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   }
 
   const getTypeBadge = (type: string) => {
+    const key = (type || "").toString().toLowerCase();
+
     const badgeMap: Record<string, { label: string; color: string }> = {
-      SubmodelElementCollection: { label: "SMC", color: "#61caf3" },
-      Property: { label: "Prop", color: "#6662b4" },
-      MultiLanguageProperty: { label: "MLP", color: "#ffa500" },
-      File: { label: "File", color: "#10b981" },
-      SubmodelElementList: { label: "SML", color: "#61caf3" },
-    }
-    const badge = badgeMap[type] || { label: "Node", color: "#1793b8" }
+      // core
+      property: { label: "Prop", color: "#6662b4" },
+      multilanguageproperty: { label: "MLP", color: "#ffa500" },
+      submodelelementcollection: { label: "SMC", color: "#61caf3" },
+      submodelelementlist: { label: "SML", color: "#61caf3" },
+      file: { label: "File", color: "#10b981" },
+      referenceelement: { label: "REF", color: "#1793b8" },
+      range: { label: "RNG", color: "#8b5cf6" },
+      operation: { label: "OP", color: "#ef4444" },
+
+      // events
+      basiceventelement: { label: "EVT", color: "#0ea5e9" },
+      event: { label: "EVT", color: "#0ea5e9" },
+      eventelement: { label: "EVT", color: "#0ea5e9" },
+
+      // other common types
+      blob: { label: "BLOB", color: "#14b8a6" },
+      entity: { label: "ENT", color: "#f59e0b" },
+      relationshipelement: { label: "REL", color: "#7c3aed" },
+      annotatedrelationshipelement: { label: "AREL", color: "#7c3aed" },
+      capability: { label: "CAP", color: "#22c55e" },
+    };
+
+    const badge = badgeMap[key] || { label: "Node", color: "#1793b8" };
     return (
-      <span 
+      <span
         className="px-2 py-0.5 text-white text-xs font-semibold rounded"
         style={{ backgroundColor: badge.color }}
       >
         {badge.label}
       </span>
-    )
+    );
   }
 
   const getCardinalityBadge = (cardinality: string) => {

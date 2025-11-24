@@ -136,7 +136,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
                         <img
                           src={thumb}
                           alt={`${idShort} thumbnail`}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       ) : (
                         <FileText className="w-6 h-6 text-gray-500" />
