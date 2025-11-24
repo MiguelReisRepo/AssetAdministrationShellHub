@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical, Copy } from 'lucide-react'
+import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical, Copy, Eye } from 'lucide-react'
 // ADD: extra icons and UI + toast
 import { AlertCircle, CheckCircle } from 'lucide-react'
 import { FileDown } from 'lucide-react'
@@ -24,6 +24,8 @@ import AasEditorDebugXML from "./aas-editor-debug"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { validateAASXJson } from "@/lib/json-validator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 
 // Add IEC 61360 data types list
 const IEC_DATA_TYPES = [
@@ -225,8 +227,11 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [canGenerate, setCanGenerate] = useState(false)
   // New: track whether validation has been run (and is current)
   const [hasValidated, setHasValidated] = useState(false)
-  const [downloadingPdfs, setDownloadingPdfs] = useState(false)
+  const [downloadingPdfs, setDownloadingPdfs] = useState(false) // used as "preparing" spinner
   const [noPdfsDialogOpen, setNoPdfsDialogOpen] = useState(false)
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  const [pdfEntries, setPdfEntries] = useState<{ name: string; bytes: Uint8Array; url: string }[]>([])
+  const [pdfSelected, setPdfSelected] = useState<Set<string>>(new Set())
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
@@ -368,7 +373,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     return pdfs
   }
 
-  const downloadAllPdfs = async () => {
+  // Prepare and open the PDF selection dialog
+  const openPdfDialog = async () => {
     setDownloadingPdfs(true)
     const pdfs = collectAllPdfs()
     if (pdfs.length === 0) {
@@ -376,22 +382,69 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
       setDownloadingPdfs(false)
       return
     }
+    // Build blob URLs for preview
+    const entries = pdfs.map((p) => {
+      const blob = new Blob([p.bytes], { type: "application/pdf" })
+      const url = URL.createObjectURL(blob)
+      return { name: p.name, bytes: p.bytes, url }
+    })
+    setPdfEntries(entries)
+    setPdfSelected(new Set(entries.map(e => e.name))) // default: select all
+    setPdfDialogOpen(true)
+    setDownloadingPdfs(false)
+  }
+
+  // Revoke blob URLs when dialog closes
+  const closePdfDialog = () => {
+    pdfEntries.forEach((e) => URL.revokeObjectURL(e.url))
+    setPdfEntries([])
+    setPdfSelected(new Set())
+    setPdfDialogOpen(false)
+  }
+
+  // Toggle selection for a single PDF
+  const togglePdfSelection = (name: string, checked: boolean) => {
+    setPdfSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(name)
+      else next.delete(name)
+      return next
+    })
+  }
+
+  // Toggle select all
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setPdfSelected(new Set(pdfEntries.map(e => e.name)))
+    } else {
+      setPdfSelected(new Set())
+    }
+  }
+
+  // Download only selected PDFs
+  const downloadSelectedPdfs = async () => {
+    const selectedNames = Array.from(pdfSelected)
+    if (selectedNames.length === 0) {
+      toast.error("Select at least one PDF to download.")
+      return
+    }
     const zip = new JSZip()
-    pdfs.forEach((p, idx) => {
-      const safeName = p.name || `document-${idx + 1}.pdf`
-      zip.file(`pdfs/${safeName}`, p.bytes)
+    pdfEntries.forEach((e) => {
+      if (pdfSelected.has(e.name)) {
+        zip.file(`pdfs/${e.name}`, e.bytes)
+      }
     })
     const blob = await zip.generateAsync({ type: "blob" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `${aasConfig.idShort || "model"}-pdfs.zip`
+    a.download = `${aasConfig.idShort || "model"}-pdfs-selected.zip`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success(`Downloaded ${pdfs.length} PDF${pdfs.length > 1 ? "s" : ""} as a ZIP.`)
-    setDownloadingPdfs(false)
+    toast.success(`Downloaded ${selectedNames.length} PDF${selectedNames.length > 1 ? "s" : ""}.`)
+    closePdfDialog()
   }
 
   const loadTemplates = async () => {
@@ -3273,7 +3326,7 @@ ${indent}</conceptDescription>`
                  Validate
                </Button>
                <Button
-                onClick={downloadAllPdfs}
+                onClick={openPdfDialog}
                 size="lg"
                 variant="outline"
                 className="bg-white dark:bg-gray-900 border-gray-300 text-gray-800 hover:bg-gray-50 dark:text-gray-200 shadow-sm"
@@ -3609,6 +3662,63 @@ ${indent}</conceptDescription>`
           </div>
         </div>
       )}
+
+      {/* PDF Selection Dialog */}
+      <Dialog open={pdfDialogOpen} onOpenChange={(open) => open ? setPdfDialogOpen(true) : closePdfDialog()}>
+        <DialogContent showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Select PDFs to download</DialogTitle>
+            <DialogDescription>
+              Found {pdfEntries.length} PDF{pdfEntries.length > 1 ? "s" : ""}. Preview files and choose which to download.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={pdfSelected.size === pdfEntries.length && pdfEntries.length > 0}
+                  onCheckedChange={(v) => toggleSelectAll(!!v)}
+                />
+                <span className="text-sm">Select all</span>
+              </div>
+              <div className="text-xs text-gray-500">
+                Selected {pdfSelected.size}/{pdfEntries.length}
+              </div>
+            </div>
+            <div className="max-h-72 overflow-y-auto space-y-2">
+              {pdfEntries.map((e) => (
+                <div key={e.name} className="flex items-center justify-between rounded border px-3 py-2 bg-white dark:bg-gray-900">
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={pdfSelected.has(e.name)}
+                      onCheckedChange={(v) => togglePdfSelection(e.name, !!v)}
+                    />
+                    <div>
+                      <div className="text-sm font-medium">{e.name}</div>
+                      <div className="text-xs text-gray-500">{Math.max(1, Math.round(e.bytes.length / 1024))} KB</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => window.open(e.url, "_blank")}
+                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    title="Open preview"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span className="text-sm">Preview</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePdfDialog}>Cancel</Button>
+            <Button onClick={downloadSelectedPdfs} className="bg-[#61caf3] hover:bg-[#4db6e6] text-white">
+              <FileDown className="w-4 h-4 mr-2" />
+              Download selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Popup: No PDFs found */}
       <AlertDialog open={noPdfsDialogOpen} onOpenChange={setNoPdfsDialogOpen}>
