@@ -14,6 +14,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import type { ValidationResult } from "@/lib/types";
 
 interface HomeViewProps {
@@ -30,6 +31,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [selectedSubmodels, setSelectedSubmodels] = React.useState<Set<string>>(new Set());
+  const [validityFilter, setValidityFilter] = React.useState<"all" | "valid" | "invalid">("all");
 
   const getIdShort = (file: ValidationResult): string => {
     const idShort =
@@ -69,11 +71,15 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
       const filename = (file.file || "").toLowerCase();
       const matchesQuery = q === "" ? true : idShort.includes(q) || filename.includes(q);
       if (!matchesQuery) return false;
-      if (!hasSubmodelFilter) return true;
-      const subs = extractSubmodelNames(file);
-      return subs.some((s) => selectedSubmodels.has(s));
+      if (hasSubmodelFilter) {
+        const subs = extractSubmodelNames(file);
+        if (!subs.some((s) => selectedSubmodels.has(s))) return false;
+      }
+      if (validityFilter === "valid" && file.valid !== true) return false;
+      if (validityFilter === "invalid" && file.valid !== false) return false;
+      return true;
     });
-  }, [files, searchQuery, selectedSubmodels]);
+  }, [files, searchQuery, selectedSubmodels, validityFilter]);
 
   return (
     <div className="h-full overflow-auto">
@@ -163,6 +169,16 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            <Select value={validityFilter} onValueChange={(v) => setValidityFilter(v as "all" | "valid" | "invalid")}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Validity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="valid">Valid</SelectItem>
+                <SelectItem value="invalid">Invalid</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
