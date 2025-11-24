@@ -3090,6 +3090,30 @@ ${indent}</conceptDescription>`
     return null
   }
 
+  // NEW: gather paths for ReferenceElements missing keys to enable Go to buttons
+  const findReferenceElementsMissingKeys = (): string[] => {
+    const paths: string[] = []
+    const walk = (els: SubmodelElement[], smId: string, chain: string[] = []) => {
+      els.forEach((el) => {
+        const nextChain = [...chain, el.idShort]
+        if (el.modelType === "ReferenceElement") {
+          const v: any = el.value
+          const missing = !v || typeof v !== "object" || !Array.isArray(v.keys) || v.keys.length === 0
+          if (missing) {
+            paths.push(`${smId} > ${nextChain.join(' > ')}`)
+          }
+        }
+        if (Array.isArray(el.children) && el.children.length) {
+          walk(el.children, smId, nextChain)
+        }
+      })
+    }
+    aasConfig.selectedSubmodels.forEach((sm) => {
+      walk(submodelData[sm.idShort] || [], sm.idShort, [])
+    })
+    return paths
+  }
+
   // NEW: build friendly XML errors with optional Go to path
   type FriendlyError = { message: string; hint?: string; path?: string }
   const buildFriendlyXmlErrors = (source: (string | any)[]): FriendlyError[] => {
@@ -3181,6 +3205,14 @@ ${indent}</conceptDescription>`
       out.push({ message: m, hint, path })
     })
     return out
+  }
+
+  // NEW: pick the first actionable issue to jump to
+  const firstFixPath = (): string | null => {
+    if (internalIssues.length > 0) return internalIssues[0]
+    const friendly = buildFriendlyXmlErrors(externalIssues)
+    const withPath = friendly.find((f) => !!f.path)
+    return withPath?.path || null
   }
 
   // ADD: manual validate action (internal)
@@ -3764,11 +3796,71 @@ ${indent}</conceptDescription>`
                     <li>JSON validation: {validationCounts.json}</li>
                     <li>XML schema: {validationCounts.xml}</li>
                   </ul>
+                  <div className="mt-2">
+                    {firstFixPath() && (
+                      <button
+                        onClick={() => {
+                          const p = firstFixPath()
+                          if (p) {
+                            setValidationDialogOpen(false)
+                            goToIssuePath(p)
+                          }
+                        }}
+                        className="inline-flex items-center px-2.5 py-1.5 rounded border text-xs bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        Fix next
+                      </button>
+                    )}
+                  </div>
                   <div className="mt-2 text-xs text-gray-500">
                     Click Go to to jump directly to a field. Open the panels below for the full list.
                   </div>
+
+                  {/* Fields to fill now (actionable internal issues) */}
+                  {internalIssues.length > 0 && (
+                    <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-red-200 dark:border-red-700">
+                      <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                        Fields to fill now
+                      </div>
+                      <ul className="space-y-2">
+                        {internalIssues.slice(0, 8).map((msg, idx) => (
+                          <li key={idx} className="flex items-start justify-between gap-3">
+                            <div className="text-sm text-gray-900 dark:text-gray-100">{msg}</div>
+                            <button
+                              onClick={() => {
+                                setValidationDialogOpen(false)
+                                goToIssuePath(msg)
+                              }}
+                              className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                              Go to
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {internalIssues.length > 8 && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          And more… see the Missing Required Fields panel below.
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Quick, actionable list with Go to buttons */}
                   {(() => {
-                    const friendly = buildFriendlyXmlErrors(externalIssues).slice(0, 8);
+                    // Enhance friendly errors with paths for missing Reference keys when possible
+                    const friendlyRaw = buildFriendlyXmlErrors(externalIssues)
+                    const missingRefPaths = findReferenceElementsMissingKeys()
+                    let refIdx = 0
+                    const enriched = friendlyRaw.map((fe) => {
+                      if (!fe.path && fe.message.startsWith('A Reference lacks required key entries') && refIdx < missingRefPaths.length) {
+                        const withPath = { ...fe, path: missingRefPaths[refIdx] }
+                        refIdx += 1
+                        return withPath
+                      }
+                      return fe
+                    })
+                    const friendly = enriched.slice(0, 8);
                     if (friendly.length === 0) return null;
                     return (
                       <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-yellow-200 dark:border-yellow-700">
@@ -3807,7 +3899,7 @@ ${indent}</conceptDescription>`
                             </li>
                           ))}
                         </ul>
-                        {buildFriendlyXmlErrors(externalIssues).length > 8 && (
+                        {enriched.length > 8 && (
                           <div className="mt-2 text-xs text-gray-500">
                             And more… see the XML Schema Errors panel below.
                           </div>
