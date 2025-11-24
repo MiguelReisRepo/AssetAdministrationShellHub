@@ -131,7 +131,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
                   )}
                   <div className="flex h-full">
                     {/* Left: Square thumbnail with full card height */}
-                    <div className="h-full aspect-square rounded-l overflow-hidden bg-gray-100 flex items-center justify-center">
+                    <div className="ml-12 h-full aspect-square rounded-l overflow-hidden bg-gray-100 flex items-center justify-center">
                       {file.thumbnail ? (
                         <img
                           src={thumb}
