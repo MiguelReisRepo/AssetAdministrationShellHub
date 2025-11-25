@@ -4032,7 +4032,7 @@ ${indent}</conceptDescription>`
                 </div>
 
                 <div className="mt-2 text-xs text-gray-500">
-                  Click “Go to” to jump directly to a field. Open the panels below for the full list.
+                  Click "Go to" to jump directly to a field. Open the panels below for the full list.
                 </div>
               </div>
 
@@ -4124,51 +4124,30 @@ ${indent}</conceptDescription>`
 
               {/* Guided fixes section */}
               {(() => {
-                const reqEmpty = listRequiredEmptyValuePaths();
                 const descEmpty = listEmptyDescriptionPaths();
-                const semPath = findFirstSemanticElementPath();
+                const hasXmlDescErrors = (externalIssues || []).some((e: any) => {
+                  const msg = typeof e === "string" ? e : (e?.message || "");
+                  const lower = msg.toLowerCase();
+                  return lower.includes("description") &&
+                    (lower.includes("missing") || lower.includes("empty") || lower.includes("langstringtexttype"));
+                });
+
+                const showDescCard = descEmpty.length > 0 || hasXmlDescErrors;
+                if (!showDescCard) return null;
 
                 return (
                   <div className="mt-5 space-y-4">
-                    {/* Required Value field is empty */}
+                    {/* Description is empty */}
                     <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold">A required Value field is empty</div>
-                        <div className="text-xs text-gray-500">Items: {reqEmpty.length}</div>
+                        <div className="text-sm font-semibold">Description is empty</div>
+                        <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        Enter a meaningful value. For quick progress, you can auto-fill safe placeholders.
+                        Either remove empty descriptions or add at least one language entry (e.g., English).
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const p = reqEmpty[0];
-                            if (p) {
-                              setValidationDialogOpen(false);
-                              goToIssuePath(p);
-                            }
-                          }}
-                        >
-                          Go to first
-                        </Button>
-                        <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={autoFillRequiredValues}>
-                          Auto-fill placeholders
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Description is empty */}
-                    {descEmpty.length > 0 && (
-                      <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-semibold">Description is empty</div>
-                          <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
-                        </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                          Either remove empty descriptions or add at least one language entry (e.g., English).
-                        </div>
-                        <div className="flex gap-2">
+                        {descEmpty.length > 0 && (
                           <Button
                             variant="outline"
                             onClick={() => {
@@ -4181,50 +4160,34 @@ ${indent}</conceptDescription>`
                           >
                             Go to first
                           </Button>
-                          <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={removeEmptyDescriptionsAll}>
-                            Remove empty descriptions
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Embedded Data Specifications is empty */}
-                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
-                      <div className="text-sm font-semibold mb-2">Embedded Data Specifications is empty</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        Add IEC 61360 metadata: Preferred Name (en), optionally Short Name, Unit, Data Type, Definition. Use the right panel under "Property Metadata".
-                      </div>
-                      {semPath ? (
+                        )}
                         <Button
-                          variant="outline"
-                          onClick={() => {
-                            setValidationDialogOpen(false);
-                            goToIssuePath(semPath);
-                          }}
+                          className="bg-[#61caf3] hover:bg-[#4db6e6] text-white"
+                          onClick={removeEmptyDescriptionsAll}
                         >
-                          Go to an element with semantics
+                          Remove empty descriptions
                         </Button>
-                      ) : null}
-                    </div>
-
-                    {/* Display name missing language entry */}
-                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
-                      <div className="text-sm font-semibold mb-2">Display name is missing a language entry</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        This concerns the Submodel/Shell displayName. Add a language-tagged entry (e.g., en: "Nameplate") in your source model. Our generated XML omits displayName to avoid this error.
-                      </div>
-                    </div>
-
-                    {/* Value list has no entries */}
-                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
-                      <div className="text-sm font-semibold mb-2">Value list has no entries</div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        If using IEC 61360 valueList/valueReferencePairs, add at least one valueReferencePair or remove an empty valueList to comply with the schema.
                       </div>
                     </div>
                   </div>
                 );
               })()}
+
+              {/* Display name missing language entry */}
+              <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                <div className="text-sm font-semibold mb-2">Display name is missing a language entry</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  This concerns the Submodel/Shell displayName. Add a language-tagged entry (e.g., en: "Nameplate") in your source model. Our generated XML omits displayName to avoid this error.
+                </div>
+              </div>
+
+              {/* Value list has no entries */}
+              <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                <div className="text-sm font-semibold mb-2">Value list has no entries</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">
+                  If using IEC 61360 valueList/valueReferencePairs, add at least one valueReferencePair or remove an empty valueList to comply with the schema.
+                </div>
+              </div>
             </div>
           )}
 
