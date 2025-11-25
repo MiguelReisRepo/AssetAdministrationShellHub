@@ -3196,9 +3196,9 @@ ${indent}</conceptDescription>`
         add(
           'Description is empty',
           'Either remove the Description element or add at least one language entry (e.g., en).',
-          findFirstEmptyDescriptionPath() || undefined
+          findFirstEmptyDescriptionPath() ?? undefined
         )
-        continue
+        // continue removed – keep processing other errors
       }
 
       // embeddedDataSpecifications empty
