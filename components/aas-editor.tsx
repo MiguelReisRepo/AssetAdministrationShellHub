@@ -4134,16 +4134,15 @@ ${indent}</conceptDescription>`
                     (lower.includes("missing") || lower.includes("empty") || lower.includes("langstringtexttype"));
                 });
 
-                const showDescCard = descEmpty.length > 0 || hasXmlDescErrors;
-                if (!showDescCard) return null;
-
+                // Always show the card; enable actions only if we have related errors
                 return (
                   <div className="mt-5 space-y-4">
-                    {/* Description is empty */}
                     <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-semibold">Description is empty</div>
-                        <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
+                        <div className="text-xs text-gray-500">
+                          Items: {descEmpty.length}{hasXmlDescErrors && descEmpty.length === 0 ? " (from schema)" : ""}
+                        </div>
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                         Either remove empty descriptions or add at least one language entry (e.g., English).
@@ -4163,12 +4162,18 @@ ${indent}</conceptDescription>`
                             Go to first
                           </Button>
                         )}
-                        <Button
-                          className="bg-[#61caf3] hover:bg-[#4db6e6] text-white"
-                          onClick={removeEmptyDescriptionsAll}
-                        >
-                          Remove empty descriptions
-                        </Button>
+                        {(descEmpty.length > 0 || hasXmlDescErrors) ? (
+                          <Button
+                            className="bg-[#61caf3] hover:bg-[#4db6e6] text-white"
+                            onClick={removeEmptyDescriptionsAll}
+                          >
+                            Remove empty descriptions
+                          </Button>
+                        ) : (
+                          <Button variant="outline" disabled>
+                            No empty descriptions detected
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
