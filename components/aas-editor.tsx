@@ -3466,34 +3466,7 @@ ${indent}</conceptDescription>`
                  )}
                </button>
             </div>
-            {/* Status badge below buttons */}
-            <div className="w-full flex justify-end">
-              {(externalIssues.length > 0) ? (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 text-red-800 border border-red-300 dark:bg-red-900/20 dark:text-red-200 dark:border-red-700">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-semibold">Invalid</span>
-                  <span className="text-xs">({externalIssues.length} XML errors)</span>
-                </div>
-              ) : !hasValidated ? (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-800 border border-gray-300 dark:bg-gray-800/40 dark:text-gray-200 dark:border-gray-700">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-semibold">Unvalidated</span>
-                  <span className="text-xs">(run Validate)</span>
-                </div>
-              ) : canGenerate ? (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 text-green-800 border border-green-300 dark:bg-green-900/20 dark:text-green-200 dark:border-green-700">
-                  <CheckCircle className="w-4 h-4" />
-                  <span className="text-sm font-semibold">Valid</span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/20 dark:text-yellow-200 dark:border-yellow-700">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-semibold">Incomplete</span>
-                  <span className="text-xs">({internalIssues.length} missing)</span>
-                </div>
-              )}
-            </div>
-           </div>
+          </div>
         </div>
       </div>
 
