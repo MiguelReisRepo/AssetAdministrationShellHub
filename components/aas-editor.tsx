@@ -3324,6 +3324,150 @@ ${indent}</conceptDescription>`
     toast.success(`${label} copied`)
   }
 
+  // NEW: list paths for required elements with empty values
+  const listRequiredEmptyValuePaths = (): string[] => {
+    const paths: string[] = [];
+    const isReq = (c: SubmodelElement["cardinality"]) => c === "One" || c === "OneToMany";
+
+    const walk = (els: SubmodelElement[], smId: string, chain: string[] = []) => {
+      els.forEach((el) => {
+        const nextChain = [...chain, el.idShort];
+        if (isReq(el.cardinality)) {
+          let empty = false;
+          if (el.modelType === "Property") {
+            empty = !(typeof el.value === "string" && el.value.trim() !== "");
+          } else if (el.modelType === "MultiLanguageProperty") {
+            const obj = el.value && typeof el.value === "object" ? el.value as Record<string, string> : {};
+            const hasAny = Object.values(obj).some((t) => t && String(t).trim() !== "");
+            empty = !hasAny;
+          } else if (el.modelType === "SubmodelElementCollection" || el.modelType === "SubmodelElementList") {
+            empty = !(Array.isArray(el.children) && el.children.length > 0);
+          }
+          if (empty) paths.push(`${smId} > ${nextChain.join(" > ")}`);
+        }
+        if (Array.isArray(el.children) && el.children.length) walk(el.children, smId, nextChain);
+      });
+    };
+
+    aasConfig.selectedSubmodels.forEach((sm) => {
+      walk(submodelData[sm.idShort] || [], sm.idShort, []);
+    });
+
+    return paths;
+  };
+
+  // NEW: gather paths with empty Description fields
+  const listEmptyDescriptionPaths = (): string[] => {
+    const paths: string[] = [];
+
+    const walk = (els: SubmodelElement[], smId: string, chain: string[] = []) => {
+      els.forEach((el) => {
+        const nextChain = [...chain, el.idShort];
+        const hasDescField = el.description != null;
+        const isEmpty = typeof el.description === "string" ? el.description.trim() === "" : !el.description;
+        if (hasDescField && isEmpty) {
+          paths.push(`${smId} > ${nextChain.join(" > ")}`);
+        }
+        if (Array.isArray(el.children) && el.children.length) walk(el.children, smId, nextChain);
+      });
+    };
+
+    aasConfig.selectedSubmodels.forEach((sm) => {
+      walk(submodelData[sm.idShort] || [], sm.idShort, []);
+    });
+
+    return paths;
+  };
+
+  // NEW: auto-fill placeholders for required empty values (safe, minimal placeholders)
+  const autoFillRequiredValues = () => {
+    const choosePlaceholder = (el: SubmodelElement): string | undefined => {
+      const vt = normalizeValueType(el.valueType) || deriveValueTypeFromIEC(el.dataType);
+      switch (vt) {
+        case "xs:boolean": return "false";
+        case "xs:integer":
+        case "xs:int":
+        case "xs:long":
+        case "xs:short":
+        case "xs:byte":
+        case "xs:unsignedLong":
+        case "xs:unsignedInt":
+        case "xs:unsignedShort":
+        case "xs:unsignedByte":
+        case "xs:float":
+        case "xs:double":
+        case "xs:decimal":
+          return "0";
+        case "xs:anyURI": return "about:blank";
+        default: return "—"; // simple, non-ambiguous string placeholder
+      }
+    };
+
+    setSubmodelData((prev) => {
+      const next = { ...prev };
+
+      const fill = (els: SubmodelElement[]) => {
+        return els.map((el) => {
+          // Only fill Property and MultiLanguageProperty
+          if ((el.cardinality === "One" || el.cardinality === "OneToMany")) {
+            if (el.modelType === "Property") {
+              const cur = typeof el.value === "string" ? el.value : "";
+              if (!cur || cur.trim() === "") {
+                const ph = choosePlaceholder(el);
+                if (ph != null) {
+                  return { ...el, value: ph };
+                }
+              }
+            } else if (el.modelType === "MultiLanguageProperty") {
+              const obj = el.value && typeof el.value === "object" ? { ...(el.value as Record<string, string>) } : {};
+              const hasAny = Object.values(obj).some((t) => t && String(t).trim() !== "");
+              if (!hasAny) {
+                // Ensure English exists, set minimal placeholder
+                obj.en = obj.en && obj.en.trim() !== "" ? obj.en : "—";
+                return { ...el, value: obj };
+              }
+            }
+          }
+          if (Array.isArray(el.children) && el.children.length) {
+            return { ...el, children: fill(el.children) };
+          }
+          return el;
+        });
+      };
+
+      aasConfig.selectedSubmodels.forEach((sm) => {
+        next[sm.idShort] = fill(next[sm.idShort] || []);
+      });
+
+      return next;
+    });
+
+    toast.success("Filled placeholders for required empty values.");
+  };
+
+  // NEW: remove all empty Description fields
+  const removeEmptyDescriptionsAll = () => {
+    setSubmodelData((prev) => {
+      const next = { ...prev };
+      const clean = (els: SubmodelElement[]): SubmodelElement[] => {
+        return els.map((el) => {
+          const hasDescField = el.description != null;
+          const isEmpty = typeof el.description === "string" ? el.description.trim() === "" : !el.description;
+          const cleaned = hasDescField && isEmpty ? { ...el, description: undefined } : el;
+          if (Array.isArray(cleaned.children) && cleaned.children.length) {
+            return { ...cleaned, children: clean(cleaned.children) };
+          }
+          return cleaned;
+        });
+      };
+      aasConfig.selectedSubmodels.forEach((sm) => {
+        next[sm.idShort] = clean(next[sm.idShort] || []);
+      });
+      return next;
+    });
+    toast.success("Removed empty descriptions.");
+  };
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
@@ -3947,14 +4091,92 @@ ${indent}</conceptDescription>`
                     </div>
                   )
                 })()}
+
+                {/* NEW: Guided fixes section */}
+                {(() => {
+                  const reqEmpty = listRequiredEmptyValuePaths();
+                  const descEmpty = listEmptyDescriptionPaths();
+                  const semPath = findFirstSemanticElementPath();
+
+                  return (
+                    <div className="mt-3 space-y-3">
+                      {/* Required Value field is empty */}
+                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-semibold">A required Value field is empty</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              Enter a meaningful value. For quick progress, you can auto-fill safe placeholders.
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">Items: {reqEmpty.length}</div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button variant="outline" onClick={() => { const p = reqEmpty[0]; if (p) { setValidationDialogOpen(false); goToIssuePath(p); } }}>
+                            Go to first
+                          </Button>
+                          <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={autoFillRequiredValues}>
+                            Auto-fill placeholders
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Description is empty */}
+                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-semibold">Description is empty</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">
+                              Either remove empty descriptions or add at least one language entry (e.g., English).
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button variant="outline" onClick={() => { const p = descEmpty[0]; if (p) { setValidationDialogOpen(false); goToIssuePath(p); } }}>
+                            Go to first
+                          </Button>
+                          <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={removeEmptyDescriptionsAll}>
+                            Remove empty descriptions
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Embedded Data Specifications is empty */}
+                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
+                        <div className="text-sm font-semibold">Embedded Data Specifications is empty</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          Add IEC 61360 metadata: Preferred Name (en), optionally Short Name, Unit, Data Type, Definition. Use the right panel under "Property Metadata".
+                        </div>
+                        <div className="mt-2">
+                          {semPath ? (
+                            <Button variant="outline" onClick={() => { setValidationDialogOpen(false); goToIssuePath(semPath); }}>
+                              Go to an element with semantics
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Display name missing language entry */}
+                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
+                        <div className="text-sm font-semibold">Display name is missing a language entry</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          This concerns the Submodel/Shell displayName. Add a language-tagged entry (e.g., en: "Nameplate") in your source model. Our generated XML omits displayName to avoid this error; if validating your original upload, edit it in the source file or remove an empty displayName block.
+                        </div>
+                      </div>
+
+                      {/* Value list has no entries */}
+                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
+                        <div className="text-sm font-semibold">Value list has no entries</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          If using IEC 61360 valueList/valueReferencePairs, add at least one valueReferencePair or remove an empty valueList to comply with the schema.
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
-          )}
-
-          <DialogFooter>
-            <Button onClick={() => setValidationDialogOpen(false)} autoFocus>
-              Close
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
