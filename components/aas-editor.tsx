@@ -4005,21 +4005,23 @@ ${indent}</conceptDescription>`
           </div>
 
           {validationDialogStatus === 'invalid' && (
-            <div className="space-y-2">
+            <div className="space-y-4">
+              {/* Summary list */}
               <div className="text-sm text-gray-600 dark:text-gray-300">
                 <ul className="list-disc list-inside mt-1 space-y-0.5">
                   <li>Required fields/type: {validationCounts.internal}</li>
                   <li>JSON validation: {validationCounts.json}</li>
                   <li>XML schema: {validationCounts.xml}</li>
                 </ul>
-                <div className="mt-2">
+
+                <div className="mt-3">
                   {firstFixPath() && (
                     <button
                       onClick={() => {
-                        const p = firstFixPath()
+                        const p = firstFixPath();
                         if (p) {
-                          setValidationDialogOpen(false)
-                          goToIssuePath(p)
+                          setValidationDialogOpen(false);
+                          goToIssuePath(p);
                         }
                       }}
                       className="inline-flex items-center px-2.5 py-1.5 rounded border text-xs bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -4028,187 +4030,203 @@ ${indent}</conceptDescription>`
                     </button>
                   )}
                 </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  Click Go to to jump directly to a field. Open the panels below for the full list.
-                </div>
 
-                {/* Fields to fill now (actionable internal issues) */}
-                {internalIssues.length > 0 && (
-                  <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-red-200 dark:border-red-700">
-                    <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                      Fields to fill now
+                <div className="mt-2 text-xs text-gray-500">
+                  Click “Go to” to jump directly to a field. Open the panels below for the full list.
+                </div>
+              </div>
+
+              {/* Fields to fill now (actionable internal issues) */}
+              {internalIssues.length > 0 && (
+                <div className="mt-4 border rounded-md p-3 bg-white dark:bg-gray-900 border-red-200 dark:border-red-700">
+                  <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                    Fields to fill now
+                  </div>
+                  <ul className="space-y-2">
+                    {internalIssues.slice(0, 8).map((msg, idx) => (
+                      <li key={idx} className="flex items-start justify-between gap-3">
+                        <div className="text-sm text-gray-900 dark:text-gray-100">{msg}</div>
+                        <button
+                          onClick={() => {
+                            setValidationDialogOpen(false);
+                            goToIssuePath(msg);
+                          }}
+                          className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                        >
+                          Go to
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {internalIssues.length > 8 && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      And more… see the Missing Required Fields panel below.
                     </div>
-                    <ul className="space-y-2">
-                      {internalIssues.slice(0, 8).map((msg, idx) => (
+                  )}
+                </div>
+              )}
+
+              {/* Top issues (friendly XML errors) */}
+              {(() => {
+                const friendlyRaw = buildFriendlyXmlErrors(externalIssues);
+                const missingRefPaths = findReferenceElementsMissingKeys();
+                let refIdx = 0;
+                const enriched = friendlyRaw.map((fe) => {
+                  if (!fe.path && fe.message.startsWith('A Reference lacks required key entries') && refIdx < missingRefPaths.length) {
+                    const withPath = { ...fe, path: missingRefPaths[refIdx] };
+                    refIdx += 1;
+                    return withPath;
+                  }
+                  return fe;
+                });
+                const friendly = enriched.slice(0, 8);
+                if (friendly.length === 0) return null;
+
+                return (
+                  <div className="mt-4 border rounded-md p-3 bg-white dark:bg-gray-900 border-yellow-200 dark:border-yellow-700">
+                    <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                      Top issues
+                    </div>
+                    <ul className="space-y-3">
+                      {friendly.map((fe, idx) => (
                         <li key={idx} className="flex items-start justify-between gap-3">
-                          <div className="text-sm text-gray-900 dark:text-gray-100">{msg}</div>
-                          <button
-                            onClick={() => {
-                              setValidationDialogOpen(false)
-                              goToIssuePath(msg)
-                            }}
-                            className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
-                          >
-                            Go to
-                          </button>
+                          <div className="text-sm">
+                            <div className="font-medium text-gray-900 dark:text-gray-100">{fe.message}</div>
+                            {fe.hint && (
+                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{fe.hint}</div>
+                            )}
+                            {fe.path && (
+                              <div className="text-[11px] text-gray-500 mt-0.5">Path: {fe.path}</div>
+                            )}
+                          </div>
+                          {fe.path ? (
+                            <button
+                              onClick={() => {
+                                setValidationDialogOpen(false);
+                                goToIssuePath(fe.path!);
+                              }}
+                              className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                            >
+                              Go to
+                            </button>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
-                    {internalIssues.length > 8 && (
+                    {enriched.length > 8 && (
                       <div className="mt-2 text-xs text-gray-500">
-                        And more… see the Missing Required Fields panel below.
+                        And more… see the XML Schema Errors panel below.
                       </div>
                     )}
                   </div>
-                )}
+                );
+              })()}
 
-                {/* Top issues (friendly XML errors with Go to) */}
-                {(() => {
-                  const friendlyRaw = buildFriendlyXmlErrors(externalIssues)
-                  const missingRefPaths = findReferenceElementsMissingKeys()
-                  let refIdx = 0
-                  const enriched = friendlyRaw.map((fe) => {
-                    if (!fe.path && fe.message.startsWith('A Reference lacks required key entries') && refIdx < missingRefPaths.length) {
-                      const withPath = { ...fe, path: missingRefPaths[refIdx] }
-                      refIdx += 1
-                      return withPath
-                    }
-                    return fe
-                  })
-                  const friendly = enriched.slice(0, 8)
-                  if (friendly.length === 0) return null
-                  return (
-                    <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-yellow-200 dark:border-yellow-700">
-                      <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                        Top issues
+              {/* Guided fixes section */}
+              {(() => {
+                const reqEmpty = listRequiredEmptyValuePaths();
+                const descEmpty = listEmptyDescriptionPaths();
+                const semPath = findFirstSemanticElementPath();
+
+                return (
+                  <div className="mt-5 space-y-4">
+                    {/* Required Value field is empty */}
+                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-semibold">A required Value field is empty</div>
+                        <div className="text-xs text-gray-500">Items: {reqEmpty.length}</div>
                       </div>
-                      <ul className="space-y-2">
-                        {friendly.map((fe, idx) => (
-                          <li key={idx} className="flex items-start justify-between gap-3">
-                            <div className="text-sm">
-                              <div className="font-medium text-gray-900 dark:text-gray-100">
-                                {fe.message}
-                              </div>
-                              {fe.hint && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                  {fe.hint}
-                                </div>
-                              )}
-                              {fe.path && (
-                                <div className="text-[11px] text-gray-500 mt-0.5">
-                                  Path: {fe.path}
-                                </div>
-                              )}
-                            </div>
-                            {fe.path ? (
-                              <button
-                                onClick={() => {
-                                  setValidationDialogOpen(false)
-                                  goToIssuePath(fe.path!)
-                                }}
-                                className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
-                              >
-                                Go to
-                              </button>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                      {enriched.length > 8 && (
-                        <div className="mt-2 text-xs text-gray-500">
-                          And more… see the XML Schema Errors panel below.
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* NEW: Guided fixes section */}
-                {(() => {
-                  const reqEmpty = listRequiredEmptyValuePaths();
-                  const descEmpty = listEmptyDescriptionPaths();
-                  const semPath = findFirstSemanticElementPath();
-
-                  return (
-                    <div className="mt-3 space-y-3">
-                      {/* Required Value field is empty */}
-                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-semibold">A required Value field is empty</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">
-                              Enter a meaningful value. For quick progress, you can auto-fill safe placeholders.
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-500">Items: {reqEmpty.length}</div>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Button variant="outline" onClick={() => { const p = reqEmpty[0]; if (p) { setValidationDialogOpen(false); goToIssuePath(p); } }}>
-                            Go to first
-                          </Button>
-                          <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={autoFillRequiredValues}>
-                            Auto-fill placeholders
-                          </Button>
-                        </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        Enter a meaningful value. For quick progress, you can auto-fill safe placeholders.
                       </div>
-
-                      {/* Description is empty */}
-                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-semibold">Description is empty</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400">
-                              Either remove empty descriptions or add at least one language entry (e.g., English).
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <Button variant="outline" onClick={() => { const p = descEmpty[0]; if (p) { setValidationDialogOpen(false); goToIssuePath(p); } }}>
-                            Go to first
-                          </Button>
-                          <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={removeEmptyDescriptionsAll}>
-                            Remove empty descriptions
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Embedded Data Specifications is empty */}
-                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
-                        <div className="text-sm font-semibold">Embedded Data Specifications is empty</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">
-                          Add IEC 61360 metadata: Preferred Name (en), optionally Short Name, Unit, Data Type, Definition. Use the right panel under "Property Metadata".
-                        </div>
-                        <div className="mt-2">
-                          {semPath ? (
-                            <Button variant="outline" onClick={() => { setValidationDialogOpen(false); goToIssuePath(semPath); }}>
-                              Go to an element with semantics
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {/* Display name missing language entry */}
-                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
-                        <div className="text-sm font-semibold">Display name is missing a language entry</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">
-                          This concerns the Submodel/Shell displayName. Add a language-tagged entry (e.g., en: "Nameplate") in your source model. Our generated XML omits displayName to avoid this error; if validating your original upload, edit it in the source file or remove an empty displayName block.
-                        </div>
-                      </div>
-
-                      {/* Value list has no entries */}
-                      <div className="border rounded-md p-2 bg-white dark:bg-gray-900">
-                        <div className="text-sm font-semibold">Value list has no entries</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">
-                          If using IEC 61360 valueList/valueReferencePairs, add at least one valueReferencePair or remove an empty valueList to comply with the schema.
-                        </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const p = reqEmpty[0];
+                            if (p) {
+                              setValidationDialogOpen(false);
+                              goToIssuePath(p);
+                            }
+                          }}
+                        >
+                          Go to first
+                        </Button>
+                        <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={autoFillRequiredValues}>
+                          Auto-fill placeholders
+                        </Button>
                       </div>
                     </div>
-                  );
-                })()}
-              </div>
-            </div>)}
-          </DialogFooter>
+
+                    {/* Description is empty */}
+                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="text-sm font-semibold">Description is empty</div>
+                        <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        Either remove empty descriptions or add at least one language entry (e.g., English).
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const p = descEmpty[0];
+                            if (p) {
+                              setValidationDialogOpen(false);
+                              goToIssuePath(p);
+                            }
+                          }}
+                        >
+                          Go to first
+                        </Button>
+                        <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={removeEmptyDescriptionsAll}>
+                          Remove empty descriptions
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Embedded Data Specifications is empty */}
+                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                      <div className="text-sm font-semibold mb-2">Embedded Data Specifications is empty</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                        Add IEC 61360 metadata: Preferred Name (en), optionally Short Name, Unit, Data Type, Definition. Use the right panel under "Property Metadata".
+                      </div>
+                      {semPath ? (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setValidationDialogOpen(false);
+                            goToIssuePath(semPath);
+                          }}
+                        >
+                          Go to an element with semantics
+                        </Button>
+                      ) : null}
+                    </div>
+
+                    {/* Display name missing language entry */}
+                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                      <div className="text-sm font-semibold mb-2">Display name is missing a language entry</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        This concerns the Submodel/Shell displayName. Add a language-tagged entry (e.g., en: "Nameplate") in your source model. Our generated XML omits displayName to avoid this error.
+                      </div>
+                    </div>
+
+                    {/* Value list has no entries */}
+                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                      <div className="text-sm font-semibold mb-2">Value list has no entries</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        If using IEC 61360 valueList/valueReferencePairs, add at least one valueReferencePair or remove an empty valueList to comply with the schema.
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          <DialogFooter />
         </DialogContent>
       </Dialog>
 
