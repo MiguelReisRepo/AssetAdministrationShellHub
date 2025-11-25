@@ -4159,32 +4159,34 @@ ${indent}</conceptDescription>`
                     </div>
 
                     {/* Description is empty */}
-                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold">Description is empty</div>
-                        <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
+                    {descEmpty.length > 0 && (
+                      <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-semibold">Description is empty</div>
+                          <div className="text-xs text-gray-500">Items: {descEmpty.length}</div>
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                          Either remove empty descriptions or add at least one language entry (e.g., English).
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              const p = descEmpty[0];
+                              if (p) {
+                                setValidationDialogOpen(false);
+                                goToIssuePath(p);
+                              }
+                            }}
+                          >
+                            Go to first
+                          </Button>
+                          <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={removeEmptyDescriptionsAll}>
+                            Remove empty descriptions
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        Either remove empty descriptions or add at least one language entry (e.g., English).
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const p = descEmpty[0];
-                            if (p) {
-                              setValidationDialogOpen(false);
-                              goToIssuePath(p);
-                            }
-                          }}
-                        >
-                          Go to first
-                        </Button>
-                        <Button className="bg-[#61caf3] hover:bg-[#4db6e6] text-white" onClick={removeEmptyDescriptionsAll}>
-                          Remove empty descriptions
-                        </Button>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Embedded Data Specifications is empty */}
                     <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
