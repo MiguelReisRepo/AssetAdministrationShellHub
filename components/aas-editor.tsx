@@ -3468,6 +3468,37 @@ ${indent}</conceptDescription>`
     toast.success("Removed empty descriptions.");
   };
 
+  // NEW: find the first element path that has an empty Description (for XML friendly error hints)
+  const findFirstEmptyDescriptionPath = (): string | null => {
+    for (const sm of aasConfig.selectedSubmodels) {
+      const submodelId = sm.idShort;
+      const walk = (els: SubmodelElement[], chain: string[] = []): string | null => {
+        for (const el of els || []) {
+          const curChain = [...chain, el.idShort];
+          const hasDescField = el.description != null;
+          const isEmpty =
+            typeof el.description === "string"
+              ? el.description.trim() === ""
+              : !el.description;
+
+          if (hasDescField && isEmpty) {
+            return `${submodelId} > ${curChain.join(" > ")}`;
+          }
+
+          if (Array.isArray(el.children) && el.children.length > 0) {
+            const found = walk(el.children, curChain);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const res = walk(submodelData[submodelId] || [], []);
+      if (res) return res;
+    }
+    return null;
+  };
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
