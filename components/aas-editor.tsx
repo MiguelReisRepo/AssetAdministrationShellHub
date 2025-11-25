@@ -3927,20 +3927,22 @@ ${indent}</conceptDescription>`
                 </ul>
 
                 <div className="mt-3">
-                  {firstFixPath() && (
-                    <button
-                      onClick={() => {
-                        const p = firstFixPath();
-                        if (p) {
+                  {(() => {
+                    const path = firstFixPath();
+                    if (!path) return null;
+
+                    return (
+                      <button
+                        onClick={() => {
                           setValidationDialogOpen(false);
-                          goToIssuePath(p);
-                        }
-                      }}
-                      className="inline-flex items-center px-2.5 py-1.5 rounded border text-xs bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    >
-                      Fix next
-                    </button>
-                  )}
+                          goToIssuePath(path);
+                        }}
+                        className="inline-flex items-center px-2.5 py-1.5 rounded border text-xs bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        Fix next
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 <div className="mt-2 text-xs text-gray-500">
