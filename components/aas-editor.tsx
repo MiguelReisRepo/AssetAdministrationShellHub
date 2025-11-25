@@ -3411,6 +3411,46 @@ ${indent}</conceptDescription>`
     setTimeout(() => runInternalValidation(), 0);
   }
 
+  // NEW: pick the next fixable path for the "Fix next" button
+  const firstFixPath = (): string | null => {
+    // 1) Prioritize internal required/type issues
+    if (internalIssues.length > 0) return internalIssues[0];
+
+    // 2) Try friendly XML errors if available and they provide a path
+    try {
+      // buildFriendlyXmlErrors may exist in this scope; guard in case it doesn't
+      const friendly = typeof (globalThis as any).buildFriendlyXmlErrors === "function"
+        ? (globalThis as any).buildFriendlyXmlErrors(externalIssues)
+        : (typeof buildFriendlyXmlErrors === "function" ? buildFriendlyXmlErrors(externalIssues) : []);
+      const withPath = Array.isArray(friendly) ? friendly.find((fe: any) => fe?.path) : null;
+      if (withPath?.path) return withPath.path as string;
+    } catch {
+      // ignore
+    }
+
+    // 3) ReferenceElements missing keys (if helper exists)
+    const refMissing = typeof findReferenceElementsMissingKeys === "function" ? findReferenceElementsMissingKeys() : [];
+    if (Array.isArray(refMissing) && refMissing.length > 0) return refMissing[0];
+
+    // 4) First element with semanticId (if helper exists)
+    const semantic = typeof findFirstSemanticElementPath === "function" ? findFirstSemanticElementPath() : null;
+    if (semantic) return semantic;
+
+    // 5) Required elements with empty values
+    const reqEmpty = typeof listRequiredEmptyValuePaths === "function" ? listRequiredEmptyValuePaths() : [];
+    if (Array.isArray(reqEmpty) && reqEmpty.length > 0) return reqEmpty[0];
+
+    // 6) Empty descriptions
+    const descEmpty = typeof listEmptyDescriptionPaths === "function" ? listEmptyDescriptionPaths() : [];
+    if (Array.isArray(descEmpty) && descEmpty.length > 0) return descEmpty[0];
+
+    // 7) XML-derived empty descriptions (if present)
+    const descXml = typeof listXmlEmptyDescriptionPaths === "function" ? listXmlEmptyDescriptionPaths() : [];
+    if (Array.isArray(descXml) && descXml.length > 0) return descXml[0];
+
+    return null;
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
