@@ -3140,149 +3140,6 @@ ${indent}</conceptDescription>`
     return null
   }
 
-  // NEW: build friendly XML errors with optional Go to path
-  type FriendlyError = { message: string; hint?: string; path?: string }
-  const buildFriendlyXmlErrors = (source: (string | any)[]): FriendlyError[] => {
-    const raw: string[] = (source || []).map((e: any) => (typeof e === 'string' ? e : e?.message || ''))
-
-    const bucket = new Map<string, { message: string; hint?: string; count: number; path?: string }>()
-    const add = (message: string, hint?: string, path?: string) => {
-      const key = `${message}::${hint ?? ""}::${path ?? ""}`
-      const entry = bucket.get(key)
-      if (entry) entry.count += 1
-      else bucket.set(key, { message, hint, count: 1, path })
-    }
-
-    for (const msg of raw) {
-      // idShort pattern violations: extract offending value and resolve path
-      const idShortMatch = msg.match(/idShort[^']*value '([^']+)'/i)
-      if (idShortMatch) {
-        const bad = idShortMatch[1]
-        const path = findFirstPathForIdShort(bad) || undefined
-        add(
-          `Name "${bad}" doesn't follow naming rules`,
-          'Start with a letter; use letters, digits, "_" or "-".',
-          path
-        )
-        continue
-      }
-
-      // keys missing (common for ReferenceElement)
-      if (/keys.*Missing child element/i.test(msg)) {
-        add(
-          'A Reference lacks required key entries',
-          'Open the element and add at least one key with type and value.'
-        )
-        continue
-      }
-
-      // preferredName missing (IEC61360)
-      if (/preferredName.*Missing child element/i.test(msg)) {
-        add(
-          'Preferred name is missing',
-          'Add Preferred Name (e.g., English "en") under IEC 61360 data.'
-        )
-        continue
-      }
-
-      // displayName missing language entry (on Submodel)
-      if (/displayName.*Missing child element/i.test(msg)) {
-        add(
-          'Display name is missing a language entry',
-          'Either remove displayName, or add a name (e.g., language "en").'
-        )
-        continue
-      }
-
-      // description empty (must contain langStringTextType)
-      if (/description.*Missing child element.*langStringTextType/i.test(msg)) {
-        const path =
-          typeof findFirstEmptyDescriptionPath === 'function'
-            ? findFirstEmptyDescriptionPath()
-            : undefined
-
-        add(
-          'Description is empty',
-          'Either remove the Description element or add at least one language entry (e.g., en).',
-          path ?? undefined
-        )
-      }
-
-      // embeddedDataSpecifications empty
-      if (/embeddedDataSpecifications.*Missing child element.*embeddedDataSpecification/i.test(msg)) {
-        add(
-          'Embedded Data Specifications is empty',
-          'Remove the empty embeddedDataSpecifications tag or add IEC 61360 data (preferredName, etc.).'
-        )
-        continue
-      }
-
-      // definition empty in conceptDescription
-      if (/definition.*Missing child element.*langStringDefinitionTypeIec61360/i.test(msg)) {
-        add(
-          'Definition is empty in a concept description',
-          'Either remove the definition element or add a langStringDefinitionTypeIec61360 with language and text.'
-        )
-        continue
-      }
-
-      // valueReferencePairs empty inside valueList
-      if (/valueReferencePairs.*Missing child element.*valueReferencePair/i.test(msg)) {
-        add(
-          'Value list has no entries',
-          'Remove the valueList/valueReferencePairs block or add at least one valueReferencePair.'
-        )
-        continue
-      }
-
-      // value minLength (empty required field)
-      if (/value.*minLength/i.test(msg)) {
-        add(
-          'A required Value field is empty',
-          'Enter at least 1 character in the Value field.'
-        )
-        continue
-      }
-
-      // specificAssetIds missing (shell) — no path in the tree (top-level AAS info)
-      if (/specificAssetIds.*Missing child element/i.test(msg)) {
-        add(
-          'Asset Information › specificAssetIds is empty',
-          'Add one or more specificAssetId entries in Asset Information.'
-        )
-        continue
-      }
-
-      // conceptDescriptions list empty → map to first element with semanticId
-      if (/conceptDescriptions.*Missing child element/i.test(msg)) {
-        add(
-          'Concept Descriptions list is empty',
-          'Add at least one conceptDescription for referenced semantics.',
-          findFirstSemanticElementPath() || undefined
-        )
-        continue
-      }
-
-      // Fallback: compact message
-      add(msg.replace(/\s+/g, ' ').trim())
-    }
-
-    const out: FriendlyError[] = []
-    bucket.forEach(({ message, hint, count, path }) => {
-      const m = count > 1 ? `${message} — repeats ${count} times` : message
-      out.push({ message: m, hint, path })
-    })
-    return out
-  }
-
-  // NEW: pick the first actionable issue to jump to
-  const firstFixPath = (): string | null => {
-    if (internalIssues.length > 0) return internalIssues[0]
-    const friendly = buildFriendlyXmlErrors(externalIssues)
-    const withPath = friendly.find((f) => !!f.path)
-    return withPath?.path || null
-  }
-
   // ADD: manual validate action (internal)
   const runInternalValidation = async () => {
     // Our internal required-fields/type checks
@@ -3303,9 +3160,8 @@ ${indent}</conceptDescription>`
     setExternalIssues(xmlErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e)))));
 
     const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
-    // NEW: use grouped friendly errors for the headline count
-    const friendlyXml = buildFriendlyXmlErrors(xmlErrors);
-    const xmlErrCount = friendlyXml.length;
+    // REVERT: use raw XML error count (no grouping)
+    const xmlErrCount = xmlErrors.length;
     const internalCount = internal.missingFields.length;
 
     const allGood = internalCount === 0 && jsonResult.valid && xmlResult.valid;
@@ -4040,11 +3896,6 @@ ${indent}</conceptDescription>`
             </DialogDescription>
           </DialogHeader>
 
-          {/* NEW: small caption clarifying source */}
-          <div className="text-[11px] text-gray-500 dark:text-gray-400 -mt-2 mb-2 text-center">
-            Showing issues for the current editor-built XML.
-          </div>
-
           <div className="flex items-center justify-center mb-3">
             {validationDialogStatus === 'valid' ? (
               <div className="flex items-center gap-2 rounded-full bg-green-50 border border-green-300 px-3 py-1.5 shadow-sm">
@@ -4181,64 +4032,6 @@ ${indent}</conceptDescription>`
                     )}
                   </div>
                 );
-              })()}
-
-              {/* Guided fixes section */}
-              {(() => {
-                const descEmptyStatePaths = listEmptyDescriptionPaths()
-                const descEmptyXmlPaths = listXmlEmptyDescriptionPaths()
-                const allDescEmptyPaths = Array.from(new Set([...descEmptyStatePaths, ...descEmptyXmlPaths]))
-
-                const hasXmlDescErrors = (externalIssues || []).some((e: any) => {
-                  const msg = typeof e === "string" ? e : (e?.message || "");
-                  const lower = msg.toLowerCase();
-                  return lower.includes("description") &&
-                    (lower.includes("missing") || lower.includes("empty") || lower.includes("langstringtexttype"));
-                })
-
-                return (
-                  <div className="mt-5 space-y-4">
-                    <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="text-sm font-semibold">Description is empty</div>
-                        <div className="text-xs text-gray-500">
-                          Items: {allDescEmptyPaths.length}{hasXmlDescErrors && allDescEmptyPaths.length === 0 ? " (from schema)" : ""}
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                        Either remove empty descriptions or add at least one language entry (e.g., English).
-                      </div>
-                      <div className="flex gap-2">
-                        {allDescEmptyPaths.length > 0 ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              const p = allDescEmptyPaths[0]
-                              if (p) {
-                                setValidationDialogOpen(false)
-                                goToIssuePath(p)
-                              }
-                            }}
-                          >
-                            Go to first
-                          </Button>
-                        ) : (
-                          <Button variant="outline" disabled>
-                            No empty descriptions detected
-                          </Button>
-                        )}
-                        {(allDescEmptyPaths.length > 0 || hasXmlDescErrors) && (
-                          <Button
-                            className="bg-[#61caf3] hover:bg-[#4db6e6] text-white"
-                            onClick={removeEmptyDescriptionsAll}
-                          >
-                            Remove empty descriptions
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
               })()}
 
               {/* Display name missing language entry */}
