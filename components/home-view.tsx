@@ -240,11 +240,18 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
 
                   {file.valid !== undefined && (
                     <div className="absolute top-2 right-2">
-                      {file.valid ? (
-                        <div className="flex items-center gap-1.5 rounded-full bg-green-50 border border-green-300 px-2.5 py-1 shadow-sm">
-                          <CheckCircle className="w-5 h-5 text-green-700" />
-                          <span className="text-[10px] font-semibold text-green-700 uppercase tracking-wide">
+                      {file.valid === true ? (
+                        <div className="flex items-center gap-2 rounded-full bg-green-50 border border-green-300 px-3 py-1.5 shadow-sm">
+                          <CheckCircle className="w-6 h-6 text-green-700" />
+                          <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">
                             IDTA
+                          </span>
+                        </div>
+                      ) : file.valid === false ? (
+                        <div className="flex items-center gap-2 rounded-full bg-red-50 border border-red-300 px-3 py-1.5 shadow-sm">
+                          <AlertCircle className="w-6 h-6 text-red-700" />
+                          <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                            Invalid
                           </span>
                         </div>
                       ) : null}
