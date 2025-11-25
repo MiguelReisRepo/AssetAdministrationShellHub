@@ -3290,10 +3290,10 @@ ${indent}</conceptDescription>`
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Prefer validating the original uploaded XML if available
-    const xmlToValidate = (originalXml && originalXml.trim().length > 0) ? originalXml : buildCurrentXml();
-    setLastGeneratedXml(xmlToValidate);
-    const xmlResult = await validateAASXXml(xmlToValidate);
+    // Always validate the editor-built XML (not the original upload)
+    const xmlBuilt = buildCurrentXml();
+    setLastGeneratedXml(xmlBuilt);
+    const xmlResult = await validateAASXXml(xmlBuilt);
 
     // Only XML errors go to externalIssues panel
     const xmlErrors = xmlResult.valid ? [] : (xmlResult.errors || []);
@@ -3305,7 +3305,7 @@ ${indent}</conceptDescription>`
 
     const allGood = internalCount === 0 && jsonResult.valid && xmlResult.valid;
 
-    // Open validation result popup (replacing toasts)
+    // Open validation result popup
     setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
     setValidationDialogStatus(allGood ? 'valid' : 'invalid');
     setValidationDialogOpen(true);
@@ -3466,6 +3466,8 @@ ${indent}</conceptDescription>`
       return next;
     });
     toast.success("Removed empty descriptions.");
+    // Auto re-validate against current editor state
+    runInternalValidation();
   };
 
   // NEW: find the first element path that has an empty Description (for XML friendly error hints)
