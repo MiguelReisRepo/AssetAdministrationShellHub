@@ -1838,10 +1838,10 @@ ${indent}      </dataSpecification>
 ${indent}      <dataSpecificationContent>
 ${indent}        <dataSpecificationIec61360>
 ${indent}          <preferredName>
-${Object.entries(ensuredPreferredName).map(([lang, text]) => text ? `${indent}            <langStringPreferredNameTypeIec61360>
-${indent}              <language>${lang}</language>
-${indent}              <text>${escapeXml(text)}</text>
-${indent}            </langStringPreferredNameTypeIec61360>` : '').join('\n')}
+${indent}            <langStringPreferredNameTypeIec61360>
+${indent}              <language>en</language>
+${indent}              <text>${escapeXml(concept.idShort)}</text>
+${indent}            </langStringPreferredNameTypeIec61360>
 ${indent}          </preferredName>
 ${concept.shortName ? `${indent}          <shortName>
 ${Object.entries(concept.shortName).map(([lang, text]) => text ? `${indent}            <langStringShortNameTypeIec61360>
@@ -3831,147 +3831,149 @@ ${indent}</conceptDescription>`
               Summary of checks for required fields, JSON structure, and XML schema compliance.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-start gap-3">
+
+          <div className="flex items-center justify-center mb-3">
             {validationDialogStatus === 'valid' ? (
-              <CheckCircle className="w-6 h-6 text-green-600 shrink-0 mt-0.5" />
-            ) : (
-              <AlertCircle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
-            )}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className={`text-base font-semibold ${validationDialogStatus === 'valid' ? 'text-green-700' : 'text-red-700'}`}>
-                  {validationDialogStatus === 'valid' ? 'Valid' : 'Invalid'}
-                </span>
-                {validationDialogStatus === 'valid' && (
-                  <span className="inline-flex flex-col items-center leading-none -mt-0.5">
-                    <CheckCircle className="w-3.5 h-3.5 text-green-600" />
-                    <span className="text-[9px] font-semibold text-green-600 uppercase tracking-tight">IDTA</span>
-                  </span>
-                )}
+              <div className="flex items-center gap-2 rounded-full bg-green-50 border border-green-300 px-3 py-1.5 shadow-sm">
+                <CheckCircle className="w-6 h-6 text-green-700" />
+                <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">IDTA</span>
               </div>
-              {validationDialogStatus === 'invalid' && (
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  Found {validationCounts.internal + validationCounts.json + validationCounts.xml} issue(s):
-                  <ul className="list-disc list-inside mt-1 space-y-0.5">
-                    <li>Required fields/type: {validationCounts.internal}</li>
-                    <li>JSON validation: {validationCounts.json}</li>
-                    <li>XML schema: {validationCounts.xml}</li>
-                  </ul>
-                  <div className="mt-2">
-                    {firstFixPath() && (
-                      <button
-                        onClick={() => {
-                          const p = firstFixPath()
-                          if (p) {
-                            setValidationDialogOpen(false)
-                            goToIssuePath(p)
-                          }
-                        }}
-                        className="inline-flex items-center px-2.5 py-1.5 rounded border text-xs bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      >
-                        Fix next
-                      </button>
+            ) : (
+              <div className="flex items-center gap-2 rounded-full bg-red-50 border border-red-300 px-3 py-1.5 shadow-sm">
+                <AlertCircle className="w-6 h-6 text-red-700" />
+                <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Invalid</span>
+              </div>
+            )}
+          </div>
+
+          <div className="text-sm text-gray-600 dark:text-gray-300 text-center mb-2">
+            {validationDialogStatus === 'valid'
+              ? 'All checks passed.'
+              : `Found ${validationCounts.internal + validationCounts.json + validationCounts.xml} issue(s).`}
+          </div>
+
+          {validationDialogStatus === 'invalid' && (
+            <div className="space-y-2">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>Required fields/type: {validationCounts.internal}</li>
+                  <li>JSON validation: {validationCounts.json}</li>
+                  <li>XML schema: {validationCounts.xml}</li>
+                </ul>
+                <div className="mt-2">
+                  {firstFixPath() && (
+                    <button
+                      onClick={() => {
+                        const p = firstFixPath()
+                        if (p) {
+                          setValidationDialogOpen(false)
+                          goToIssuePath(p)
+                        }
+                      }}
+                      className="inline-flex items-center px-2.5 py-1.5 rounded border text-xs bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      Fix next
+                    </button>
+                  )}
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Click Go to to jump directly to a field. Open the panels below for the full list.
+                </div>
+
+                {/* Fields to fill now (actionable internal issues) */}
+                {internalIssues.length > 0 && (
+                  <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-red-200 dark:border-red-700">
+                    <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
+                      Fields to fill now
+                    </div>
+                    <ul className="space-y-2">
+                      {internalIssues.slice(0, 8).map((msg, idx) => (
+                        <li key={idx} className="flex items-start justify-between gap-3">
+                          <div className="text-sm text-gray-900 dark:text-gray-100">{msg}</div>
+                          <button
+                            onClick={() => {
+                              setValidationDialogOpen(false)
+                              goToIssuePath(msg)
+                            }}
+                            className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                          >
+                            Go to
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {internalIssues.length > 8 && (
+                      <div className="mt-2 text-xs text-gray-500">
+                        And more… see the Missing Required Fields panel below.
+                      </div>
                     )}
                   </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    Click Go to to jump directly to a field. Open the panels below for the full list.
-                  </div>
+                )}
 
-                  {/* Fields to fill now (actionable internal issues) */}
-                  {internalIssues.length > 0 && (
-                    <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-red-200 dark:border-red-700">
+                {/* Top issues (friendly XML errors with Go to) */}
+                {(() => {
+                  const friendlyRaw = buildFriendlyXmlErrors(externalIssues)
+                  const missingRefPaths = findReferenceElementsMissingKeys()
+                  let refIdx = 0
+                  const enriched = friendlyRaw.map((fe) => {
+                    if (!fe.path && fe.message.startsWith('A Reference lacks required key entries') && refIdx < missingRefPaths.length) {
+                      const withPath = { ...fe, path: missingRefPaths[refIdx] }
+                      refIdx += 1
+                      return withPath
+                    }
+                    return fe
+                  })
+                  const friendly = enriched.slice(0, 8)
+                  if (friendly.length === 0) return null
+                  return (
+                    <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-yellow-200 dark:border-yellow-700">
                       <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                        Fields to fill now
+                        Top issues
                       </div>
                       <ul className="space-y-2">
-                        {internalIssues.slice(0, 8).map((msg, idx) => (
+                        {friendly.map((fe, idx) => (
                           <li key={idx} className="flex items-start justify-between gap-3">
-                            <div className="text-sm text-gray-900 dark:text-gray-100">{msg}</div>
-                            <button
-                              onClick={() => {
-                                setValidationDialogOpen(false)
-                                goToIssuePath(msg)
-                              }}
-                              className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
-                            >
-                              Go to
-                            </button>
+                            <div className="text-sm">
+                              <div className="font-medium text-gray-900 dark:text-gray-100">
+                                {fe.message}
+                              </div>
+                              {fe.hint && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                                  {fe.hint}
+                                </div>
+                              )}
+                              {fe.path && (
+                                <div className="text-[11px] text-gray-500 mt-0.5">
+                                  Path: {fe.path}
+                                </div>
+                              )}
+                            </div>
+                            {fe.path ? (
+                              <button
+                                onClick={() => {
+                                  setValidationDialogOpen(false)
+                                  goToIssuePath(fe.path!)
+                                }}
+                                className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                              >
+                                Go to
+                              </button>
+                            ) : null}
                           </li>
                         ))}
                       </ul>
-                      {internalIssues.length > 8 && (
+                      {enriched.length > 8 && (
                         <div className="mt-2 text-xs text-gray-500">
-                          And more… see the Missing Required Fields panel below.
+                          And more… see the XML Schema Errors panel below.
                         </div>
                       )}
                     </div>
-                  )}
-
-                  {/* Quick, actionable list with Go to buttons */}
-                  {(() => {
-                    // Enhance friendly errors with paths for missing Reference keys when possible
-                    const friendlyRaw = buildFriendlyXmlErrors(externalIssues)
-                    const missingRefPaths = findReferenceElementsMissingKeys()
-                    let refIdx = 0
-                    const enriched = friendlyRaw.map((fe) => {
-                      if (!fe.path && fe.message.startsWith('A Reference lacks required key entries') && refIdx < missingRefPaths.length) {
-                        const withPath = { ...fe, path: missingRefPaths[refIdx] }
-                        refIdx += 1
-                        return withPath
-                      }
-                      return fe
-                    })
-                    const friendly = enriched.slice(0, 8);
-                    if (friendly.length === 0) return null;
-                    return (
-                      <div className="mt-3 border rounded-md p-2 bg-white dark:bg-gray-900 border-yellow-200 dark:border-yellow-700">
-                        <div className="text-xs font-semibold mb-2 text-gray-800 dark:text-gray-200">
-                          Top issues
-                        </div>
-                        <ul className="space-y-2">
-                          {friendly.map((fe, idx) => (
-                            <li key={idx} className="flex items-start justify-between gap-3">
-                              <div className="text-sm">
-                                <div className="font-medium text-gray-900 dark:text-gray-100">
-                                  {fe.message}
-                                </div>
-                                {fe.hint && (
-                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                                    {fe.hint}
-                                  </div>
-                                )}
-                                {fe.path && (
-                                  <div className="text-[11px] text-gray-500 mt-0.5">
-                                    Path: {fe.path}
-                                  </div>
-                                )}
-                              </div>
-                              {fe.path ? (
-                                <button
-                                  onClick={() => {
-                                    setValidationDialogOpen(false);
-                                    goToIssuePath(fe.path!);
-                                  }}
-                                  className="shrink-0 px-2 py-1 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
-                                >
-                                  Go to
-                                </button>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                        {enriched.length > 8 && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            And more… see the XML Schema Errors panel below.
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
+                  )
+                })()}
+              </div>
             </div>
-          </div>
+          )}
+
           <DialogFooter>
             <Button onClick={() => setValidationDialogOpen(false)} autoFocus>
               Close
