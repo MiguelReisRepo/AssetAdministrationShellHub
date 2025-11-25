@@ -3501,6 +3501,42 @@ ${indent}</conceptDescription>`
     return null;
   };
 
+  // NEW: detect empty descriptions directly from the last generated XML preview
+  const listXmlEmptyDescriptionPaths = (): string[] => {
+    if (!lastGeneratedXml) return []
+    try {
+      const doc = new DOMParser().parseFromString(lastGeneratedXml, "application/xml")
+      const parserError = doc.querySelector("parsererror")
+      if (parserError) return []
+
+      const paths: string[] = []
+      const submodels = Array.from(doc.getElementsByTagName("submodel"))
+      submodels.forEach((smEl) => {
+        const smIdShort = smEl.querySelector(":scope > idShort")?.textContent?.trim() || "Submodel"
+
+        // Submodel-level description empty
+        const smDesc = smEl.querySelector(":scope > description")
+        if (smDesc && smDesc.children.length === 0) {
+          paths.push(`${smIdShort} > (submodel description)`)
+        }
+
+        const smeContainer = smEl.querySelector(":scope > submodelElements")
+        const children = smeContainer ? Array.from(smeContainer.children) : []
+        children.forEach((sme) => {
+          const idShort = sme.querySelector(":scope > idShort")?.textContent?.trim() || "Element"
+          const desc = sme.querySelector(":scope > description")
+          if (desc && desc.children.length === 0) {
+            paths.push(`${smIdShort} > ${idShort}`)
+          }
+        })
+      })
+
+      return paths
+    } catch {
+      return []
+    }
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
@@ -4126,58 +4162,60 @@ ${indent}</conceptDescription>`
 
               {/* Guided fixes section */}
               {(() => {
-                const descEmpty = listEmptyDescriptionPaths();
+                const descEmptyStatePaths = listEmptyDescriptionPaths()
+                const descEmptyXmlPaths = listXmlEmptyDescriptionPaths()
+                const allDescEmptyPaths = Array.from(new Set([...descEmptyStatePaths, ...descEmptyXmlPaths]))
+
                 const hasXmlDescErrors = (externalIssues || []).some((e: any) => {
                   const msg = typeof e === "string" ? e : (e?.message || "");
                   const lower = msg.toLowerCase();
                   return lower.includes("description") &&
                     (lower.includes("missing") || lower.includes("empty") || lower.includes("langstringtexttype"));
-                });
+                })
 
-                // Always show the card; enable actions only if we have related errors
                 return (
                   <div className="mt-5 space-y-4">
                     <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-sm font-semibold">Description is empty</div>
                         <div className="text-xs text-gray-500">
-                          Items: {descEmpty.length}{hasXmlDescErrors && descEmpty.length === 0 ? " (from schema)" : ""}
+                          Items: {allDescEmptyPaths.length}{hasXmlDescErrors && allDescEmptyPaths.length === 0 ? " (from schema)" : ""}
                         </div>
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
                         Either remove empty descriptions or add at least one language entry (e.g., English).
                       </div>
                       <div className="flex gap-2">
-                        {descEmpty.length > 0 && (
+                        {allDescEmptyPaths.length > 0 ? (
                           <Button
                             variant="outline"
                             onClick={() => {
-                              const p = descEmpty[0];
+                              const p = allDescEmptyPaths[0]
                               if (p) {
-                                setValidationDialogOpen(false);
-                                goToIssuePath(p);
+                                setValidationDialogOpen(false)
+                                goToIssuePath(p)
                               }
                             }}
                           >
                             Go to first
-                          </Button>
-                        )}
-                        {(descEmpty.length > 0 || hasXmlDescErrors) ? (
-                          <Button
-                            className="bg-[#61caf3] hover:bg-[#4db6e6] text-white"
-                            onClick={removeEmptyDescriptionsAll}
-                          >
-                            Remove empty descriptions
                           </Button>
                         ) : (
                           <Button variant="outline" disabled>
                             No empty descriptions detected
                           </Button>
                         )}
+                        {(allDescEmptyPaths.length > 0 || hasXmlDescErrors) && (
+                          <Button
+                            className="bg-[#61caf3] hover:bg-[#4db6e6] text-white"
+                            onClick={removeEmptyDescriptionsAll}
+                          >
+                            Remove empty descriptions
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
-                );
+                )
               })()}
 
               {/* Display name missing language entry */}
