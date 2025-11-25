@@ -232,6 +232,8 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const [pdfEntries, setPdfEntries] = useState<{ name: string; bytes: Uint8Array; url: string }[]>([])
   const [pdfSelected, setPdfSelected] = useState<Set<string>>(new Set())
+  // ADD: keep raw XML errors (objects with message + loc.lineNumber) to derive paths and hints
+  const [xmlErrorsRaw, setXmlErrorsRaw] = useState<any[]>([])
   // Validation result dialog state
   const [validationDialogOpen, setValidationDialogOpen] = useState(false)
   const [validationDialogStatus, setValidationDialogStatus] = useState<'valid' | 'invalid'>('invalid')
@@ -3155,12 +3157,17 @@ ${indent}</conceptDescription>`
     setLastGeneratedXml(xmlBuilt);
     const xmlResult = await validateAASXXml(xmlBuilt);
 
-    // Only XML errors go to externalIssues panel
-    const xmlErrors = xmlResult.valid ? [] : (xmlResult.errors || []);
-    setExternalIssues(xmlErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e)))));
+    // Preserve raw XML errors so we can show line number + friendlier hints
+    const rawErrors = (xmlResult as any)?.errors || [];
+    setXmlErrorsRaw(Array.isArray(rawErrors) ? rawErrors : []);
+    // Also keep a normalized string list for legacy UI bits
+    const xmlErrorsNormalized = Array.isArray(rawErrors)
+      ? rawErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e))))
+      : [];
+    setExternalIssues(xmlErrorsNormalized);
 
     const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
-    const xmlErrCount = xmlErrors.length;
+    const xmlErrCount = Array.isArray(rawErrors) ? rawErrors.length : xmlErrorsNormalized.length;
     const internalCount = internal.missingFields.length;
 
     const allGood = internalCount === 0 && jsonResult.valid && xmlResult.valid;
@@ -3417,43 +3424,41 @@ ${indent}</conceptDescription>`
 
     // 2) Try friendly XML errors if available and they provide a path
     try {
-      // buildFriendlyXmlErrors may exist in this scope; guard in case it doesn't
-      const friendly = typeof (globalThis as any).buildFriendlyXmlErrors === "function"
-        ? (globalThis as any).buildFriendlyXmlErrors(externalIssues)
-        : (typeof buildFriendlyXmlErrors === "function" ? buildFriendlyXmlErrors(externalIssues) : []);
+      const source = xmlErrorsRaw.length ? xmlErrorsRaw : externalIssues;
+      const friendly = buildFriendlyXmlErrors(source as any);
       const withPath = Array.isArray(friendly) ? friendly.find((fe: any) => fe?.path) : null;
       if (withPath?.path) return withPath.path as string;
     } catch {
       // ignore
     }
 
-    // 3) ReferenceElements missing keys (if helper exists)
-    const refMissing = typeof findReferenceElementsMissingKeys === "function" ? findReferenceElementsMissingKeys() : [];
+    // 3) ReferenceElements missing keys
+    const refMissing = findReferenceElementsMissingKeys();
     if (Array.isArray(refMissing) && refMissing.length > 0) return refMissing[0];
 
-    // 4) First element with semanticId (if helper exists)
-    const semantic = typeof findFirstSemanticElementPath === "function" ? findFirstSemanticElementPath() : null;
+    // 4) First element with semanticId
+    const semantic = findFirstSemanticElementPath();
     if (semantic) return semantic;
 
     // 5) Required elements with empty values
-    const reqEmpty = typeof listRequiredEmptyValuePaths === "function" ? listRequiredEmptyValuePaths() : [];
+    const reqEmpty = listRequiredEmptyValuePaths();
     if (Array.isArray(reqEmpty) && reqEmpty.length > 0) return reqEmpty[0];
 
     // 6) Empty descriptions
-    const descEmpty = typeof listEmptyDescriptionPaths === "function" ? listEmptyDescriptionPaths() : [];
+    const descEmpty = listEmptyDescriptionPaths();
     if (Array.isArray(descEmpty) && descEmpty.length > 0) return descEmpty[0];
 
     // 7) XML-derived empty descriptions (if present)
-    const descXml = typeof listXmlEmptyDescriptionPaths === "function" ? listXmlEmptyDescriptionPaths() : [];
+    const descXml = listXmlEmptyDescriptionPaths();
     if (Array.isArray(descXml) && descXml.length > 0) return descXml[0];
 
     return null;
   }
 
-  // NEW: Friendly XML error formatter (local helper)
+  // NEW: Friendly XML error formatter (local helper) — now includes line numbers and guessed path
   type FriendlyXmlError = { message: string; hint?: string; path?: string };
 
-  function buildFriendlyXmlErrors(errs: (string | { message?: string })[]): FriendlyXmlError[] {
+  function buildFriendlyXmlErrors(errs: (string | { message?: string; loc?: { lineNumber?: number } })[]): FriendlyXmlError[] {
     return (errs || []).map((raw) => {
       const text = typeof raw === "string" ? raw : (raw?.message ? String(raw.message) : String(raw));
       const lower = text.toLowerCase();
@@ -3462,30 +3467,105 @@ ${indent}</conceptDescription>`
       let hint: string | undefined;
       let path: string | undefined;
 
-      if (lower.includes("displayname")) {
-        msg = "Display name is missing a language entry";
-        hint = 'Add a language-tagged entry (e.g., en: "Nameplate") in the source model.';
-      } else if (lower.includes("valuelist") && (lower.includes("no entries") || lower.includes("empty"))) {
-        msg = "Value list has no entries";
-        hint = "Add at least one valueReferencePair or remove the empty valueList.";
-      } else if (lower.includes("reference") && lower.includes("keys") && (lower.includes("minoccurs") || lower.includes("0..*"))) {
-        msg = "A Reference lacks required key entries";
-        hint = "Provide one or more keys under the reference value.";
+      // Derive path from line number using the last generated XML
+      const line = typeof raw === "object" ? (raw?.loc?.lineNumber ?? undefined) : undefined;
+      if (line && lastGeneratedXml) {
+        const guessed = guessPathFromXmlLine(lastGeneratedXml, line);
+        if (guessed) path = guessed;
+        // Append "(Line N)" for quick reference
+        msg = `${msg} (Line ${line})`;
+      }
+
+      if (lower.includes("minlength") && lower.includes("{https://admin-shell.io/aas/3/1}value")) {
+        hint = "Provide a non-empty value or remove the empty <value/> for required elements.";
+      } else if (lower.includes("displayname") && lower.includes("langstringnametype")) {
+        hint = "Add a language-tagged displayName entry (e.g., langStringNameType with language=en).";
+      } else if (lower.includes("description") && lower.includes("langstringtexttype")) {
+        hint = "Descriptions must include langStringTextType; add language and text.";
+      } else if (lower.includes("embeddeddataspecifications") && lower.includes("embeddeddataspecification")) {
+        hint = "If embeddedDataSpecifications is present, it must contain at least one embeddedDataSpecification.";
+      } else if (lower.includes("definition") && lower.includes("langstringdefinitiontypeiec61360")) {
+        hint = "IEC61360 definition must include langStringDefinitionTypeIec61360 with language and text.";
+      } else if (lower.includes("valuereferencepairs") && lower.includes("valuereferencepair")) {
+        hint = "Value list must include at least one valueReferencePair entry or remove the empty list.";
       } else if (lower.includes("valuetype") || lower.includes("sequence")) {
-        hint = "Ensure valueType appears before value for Property and MultiLanguageProperty.";
+        hint = "Ensure valueType appears before value for Property / MultiLanguageProperty.";
       } else if (lower.includes("contenttype") && lower.includes("file")) {
-        hint = "File elements must include contentType and a value (path or URL).";
+        hint = "File elements must include contentType and a valid value (path or URL).";
       } else if (lower.includes("semanticid")) {
         hint = "Use ExternalReference with keys -> GlobalReference -> value containing the semantic ID.";
       }
 
-      const pathMatch = text.match(/Path:\s*(.+)$/);
-      if (pathMatch) {
-        path = pathMatch[1].trim();
-      }
-
       return { message: msg, hint, path };
     });
+  }
+
+  // NEW: guess a model path from an XML line by scanning for nearby idShorts
+  function guessPathFromXmlLine(xml: string, lineNumber: number): string | null {
+    try {
+      const lines = xml.split(/\r?\n/);
+      const idx = Math.max(0, Math.min(lines.length - 1, (lineNumber || 1) - 1));
+      const start = Math.max(0, idx - 80);
+      const end = Math.min(lines.length - 1, idx + 20);
+      const windowText = lines.slice(start, end + 1).join("\n");
+
+      const idShortRegex = /<idShort>([^<]+)<\/idShort>/g;
+      const submodelRegex = /<submodel>([\s\S]*?)<\/submodel>/g;
+      const conceptRegex = /<conceptDescription>([\s\S]*?)<\/conceptDescription>/g;
+
+      const lastIdShorts: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = idShortRegex.exec(windowText))) {
+        lastIdShorts.push(m[1].trim());
+      }
+
+      // Try conceptDescription context first
+      let conceptMatch: RegExpExecArray | null = null;
+      while ((m = conceptRegex.exec(windowText))) {
+        conceptMatch = m;
+      }
+      if (conceptMatch) {
+        const idsInConcept: string[] = [];
+        const local = conceptMatch[1];
+        let cm: RegExpExecArray | null;
+        const re = /<idShort>([^<]+)<\/idShort>/g;
+        while ((cm = re.exec(local))) idsInConcept.push(cm[1].trim());
+        if (idsInConcept.length > 0) {
+          return `Concept > ${idsInConcept[idsInConcept.length - 1]}`;
+        }
+      }
+
+      // Try submodel context
+      let submodelMatch: RegExpExecArray | null = null;
+      while ((m = submodelRegex.exec(windowText))) {
+        submodelMatch = m;
+      }
+      if (submodelMatch) {
+        const idsInSubmodel: string[] = [];
+        const local = submodelMatch[1];
+        let sm: RegExpExecArray | null;
+        const re = /<idShort>([^<]+)<\/idShort>/g;
+        while ((sm = re.exec(local))) idsInSubmodel.push(sm[1].trim());
+        const submodelIdShort = idsInSubmodel.length > 0 ? idsInSubmodel[0] : null;
+        const elementIdShort = idsInSubmodel.length > 1 ? idsInSubmodel[idsInSubmodel.length - 1] : null;
+        if (submodelIdShort && elementIdShort && submodelIdShort !== elementIdShort) {
+          return `${submodelIdShort} > ${elementIdShort}`;
+        }
+        if (submodelIdShort) return submodelIdShort;
+      }
+
+      // Fallback: last idShort in window
+      if (lastIdShorts.length > 0) {
+        const leaf = lastIdShorts[lastIdShorts.length - 1];
+        const parent = lastIdShorts.length > 1 ? lastIdShorts[lastIdShorts.length - 2] : null;
+        if (parent && parent !== leaf) return `${parent} > ${leaf}`;
+        return leaf;
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   return (
@@ -3779,13 +3859,14 @@ ${indent}</conceptDescription>`
                   <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200">
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-4 h-4" />
-                      <span>XML Schema Errors ({externalIssues.length})</span>
+                      <span>XML Schema Errors ({xmlErrorsRaw.length || externalIssues.length})</span>
                     </div>
                     <ChevronDown className="w-4 h-4 transition-transform data-[state=open]:rotate-180" />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="border-x border-b border-yellow-200 dark:border-yellow-700 rounded-b-lg p-3">
                     {(() => {
-                      const friendly = buildFriendlyXmlErrors(externalIssues)
+                      const source = xmlErrorsRaw.length ? xmlErrorsRaw : externalIssues;
+                      const friendly = buildFriendlyXmlErrors(source as any);
                       return (
                         <ul className="space-y-2 text-sm">
                           {friendly.map((fe, idx) => (
@@ -3818,7 +3899,6 @@ ${indent}</conceptDescription>`
                     })()}
                   </CollapsibleContent>
                 </Collapsible>
-                {/* XML preview/analyzer */}
                 <AasEditorDebugXML xml={lastGeneratedXml} />
               </div>
             )}
@@ -4059,7 +4139,8 @@ ${indent}</conceptDescription>`
 
               {/* Top issues (friendly XML errors) */}
               {(() => {
-                const friendlyRaw = buildFriendlyXmlErrors(externalIssues);
+                const source = xmlErrorsRaw.length ? xmlErrorsRaw : externalIssues;
+                const friendlyRaw = buildFriendlyXmlErrors(source as any);
                 const missingRefPaths = findReferenceElementsMissingKeys();
                 let refIdx = 0;
                 const enriched = friendlyRaw.map((fe) => {
@@ -4113,7 +4194,7 @@ ${indent}</conceptDescription>`
                 );
               })()}
 
-              {/* Display name missing language entry */}
+              {/* Display name is missing a language entry */}
               <div className="border rounded-md p-3 bg-white dark:bg-gray-900">
                 <div className="text-sm font-semibold mb-2">Display name is missing a language entry</div>
                 <div className="text-xs text-gray-600 dark:text-gray-400">
