@@ -2870,7 +2870,7 @@ ${indent}</conceptDescription>`
         const nodeId = currentPath.join('.')
         const isRequired = element.cardinality === "One" || element.cardinality === "OneToMany"
 
-        // NEW: Property must have valueType for schema compliance
+        // NEW: Property must have valueType or IEC Data Type
         if (element.modelType === "Property") {
           const hasValueType = !!normalizeValueType(element.valueType);
           const hasIECType = !!element.dataType && String(element.dataType).trim() !== "";
@@ -2909,9 +2909,12 @@ ${indent}</conceptDescription>`
             }
           } else if (element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList") {
             hasValue = (element.children && element.children.length > 0)
+          } else if (element.modelType === "File") {
+            // NEW: File required -> need a path or uploaded file
+            hasValue = (typeof element.value === 'string' && element.value.trim() !== '') || !!element.fileData
           }
           
-          if (!hasValue && (element.modelType === "Property" || element.modelType === "MultiLanguageProperty" || element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList")) {
+          if (!hasValue && (element.modelType === "Property" || element.modelType === "MultiLanguageProperty" || element.modelType === "SubmodelElementCollection" || element.modelType === "SubmodelElementList" || element.modelType === "File")) {
             missingFields.push(`${submodelId} > ${currentPath.join(' > ')}`)
             errors.add(nodeId)
             
@@ -3300,7 +3303,9 @@ ${indent}</conceptDescription>`
     setExternalIssues(xmlErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e)))));
 
     const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
-    const xmlErrCount = xmlErrors.length;
+    // NEW: use grouped friendly errors for the headline count
+    const friendlyXml = buildFriendlyXmlErrors(xmlErrors);
+    const xmlErrCount = friendlyXml.length;
     const internalCount = internal.missingFields.length;
 
     const allGood = internalCount === 0 && jsonResult.valid && xmlResult.valid;
@@ -3408,7 +3413,7 @@ ${indent}</conceptDescription>`
 
       const fill = (els: SubmodelElement[]) => {
         return els.map((el) => {
-          // Only fill Property and MultiLanguageProperty
+          // Only fill Property, MLP, File
           if ((el.cardinality === "One" || el.cardinality === "OneToMany")) {
             if (el.modelType === "Property") {
               const cur = typeof el.value === "string" ? el.value : "";
@@ -3422,9 +3427,14 @@ ${indent}</conceptDescription>`
               const obj = el.value && typeof el.value === "object" ? { ...(el.value as Record<string, string>) } : {};
               const hasAny = Object.values(obj).some((t) => t && String(t).trim() !== "");
               if (!hasAny) {
-                // Ensure English exists, set minimal placeholder
                 obj.en = obj.en && obj.en.trim() !== "" ? obj.en : "—";
                 return { ...el, value: obj };
+              }
+            } else if (el.modelType === "File") {
+              const cur = typeof el.value === "string" ? el.value : "";
+              if ((!cur || cur.trim() === "") && !el.fileData) {
+                // NEW: set a minimal safe URI placeholder
+                return { ...el, value: "about:blank" };
               }
             }
           }
@@ -3442,7 +3452,7 @@ ${indent}</conceptDescription>`
       return next;
     });
 
-    toast.success("Filled placeholders for required empty values.");
+    toast.success("Filled placeholders for required values.");
   };
 
   // NEW: remove all empty Description fields
@@ -3535,6 +3545,14 @@ ${indent}</conceptDescription>`
     } catch {
       return []
     }
+  }
+
+  // NEW: easy one-click fixer for safe changes
+  const fixAllSafe = async () => {
+    autoFillRequiredValues();
+    removeEmptyDescriptionsAll();
+    // Re-validate after state updates settle
+    setTimeout(() => runInternalValidation(), 0);
   }
 
   return (
@@ -4021,6 +4039,11 @@ ${indent}</conceptDescription>`
               Summary of checks for required fields, JSON structure, and XML schema compliance.
             </DialogDescription>
           </DialogHeader>
+
+          {/* NEW: small caption clarifying source */}
+          <div className="text-[11px] text-gray-500 dark:text-gray-400 -mt-2 mb-2 text-center">
+            Showing issues for the current editor-built XML.
+          </div>
 
           <div className="flex items-center justify-center mb-3">
             {validationDialogStatus === 'valid' ? (
