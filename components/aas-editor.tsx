@@ -3193,12 +3193,16 @@ ${indent}</conceptDescription>`
 
       // description empty (must contain langStringTextType)
       if (/description.*Missing child element.*langStringTextType/i.test(msg)) {
+        const path =
+          typeof findFirstEmptyDescriptionPath === 'function'
+            ? findFirstEmptyDescriptionPath()
+            : undefined
+
         add(
           'Description is empty',
           'Either remove the Description element or add at least one language entry (e.g., en).',
-          findFirstEmptyDescriptionPath() ?? undefined
+          path ?? undefined
         )
-        // continue removed – keep processing other errors
       }
 
       // embeddedDataSpecifications empty
