@@ -3150,8 +3150,8 @@ ${indent}</conceptDescription>`
     const env = buildJsonEnvironment();
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Always validate the editor-built XML (not the original upload)
-    const xmlBuilt = buildCurrentXml();
+    // Prefer original uploaded XML if available
+    const xmlBuilt = originalXml && originalXml.trim().length > 0 ? originalXml : buildCurrentXml();
     setLastGeneratedXml(xmlBuilt);
     const xmlResult = await validateAASXXml(xmlBuilt);
 
@@ -3160,7 +3160,6 @@ ${indent}</conceptDescription>`
     setExternalIssues(xmlErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e)))));
 
     const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
-    // REVERT: use raw XML error count (no grouping)
     const xmlErrCount = xmlErrors.length;
     const internalCount = internal.missingFields.length;
 

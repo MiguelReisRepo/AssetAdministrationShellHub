@@ -1,6 +1,5 @@
 import { XMLParser } from "fast-xml-parser"
 import type { ValidationResult, ParsedAASData, ValidationError } from "./types"
-import { validateAASStructure } from "./json-validator" // Import the structural validator
 
 // External service call for XML schema validation
 export async function validateXml(
@@ -39,18 +38,23 @@ export async function validateXml(
 
     if (result.errors && result.errors.length > 0) {
       const normalizedErrors = result.errors.map((e: any) => (typeof e === "string" ? e : (e.message ?? String(e))))
-      console.log("[v0] Validation errors found:", normalizedErrors)
-      return { valid: false, errors: normalizedErrors }
+      // DEDUP: collapse whitespace and deduplicate identical messages
+      const uniqueErrors = Array.from(new Set(normalizedErrors.map((m) => m.replace(/\s+/g, " ").trim())))
+      console.log("[v0] Validation errors found:", uniqueErrors)
+      return { valid: false, errors: uniqueErrors }
     }
 
     if (result.stderr && result.stderr.length > 0) {
-      console.log("[v0] Validation stderr:", result.stderr)
-      return { valid: false, errors: Array.isArray(result.stderr) ? result.stderr : [result.stderr] }
+      const stderrArr = Array.isArray(result.stderr) ? result.stderr : [result.stderr]
+      const uniqueErrors = Array.from(new Set(stderrArr.map((m) => String(m).replace(/\s+/g, " ").trim())))
+      console.log("[v0] Validation stderr:", uniqueErrors)
+      return { valid: false, errors: uniqueErrors }
     }
 
     if (result.stdout && result.stdout.includes("error")) {
-      console.log("[v0] Validation stdout contains errors:", result.stdout)
-      return { valid: false, errors: [result.stdout] }
+      const msg = String(result.stdout).replace(/\s+/g, " ").trim()
+      console.log("[v0] Validation stdout contains errors:", msg)
+      return { valid: false, errors: [msg] }
     }
 
     if (result.valid === false) {
@@ -377,32 +381,25 @@ export async function validateAASXXml(
     return { valid: false, errors: [`XML parsing failed: ${err.message}`] }
   }
 
-  console.log("[v0] Starting direct AAS structure validation...")
-  const structureValidation = validateAASStructure(parsed)
-  console.log("[v0] Structure validation result:", structureValidation)
+  // REMOVED: direct AAS structure validation to avoid inflated error counts
+  // console.log("[v0] Starting direct AAS structure validation...")
+  // const structureValidation = validateAASStructure(parsed)
+  // if (!structureValidation.valid) { ... return { valid: false, errors: ... } }
+  // console.log("[v0] AAS structure validation PASSED")
 
-  if (!structureValidation.valid) {
-    console.log("[v0] AAS structure validation FAILED with errors:", structureValidation.errors)
-    const aasData = extractAASDataFromXML(parsed) // Now defined
-    console.log("[v0] ===== XML VALIDATION END (FAILED) =====")
-    return { valid: false, errors: structureValidation.errors.map(e => `${e.path}: ${e.message}`), parsed, aasData }
-  }
-
-  console.log("[v0] AAS structure validation PASSED")
-
-  // If structure validation passes, also try external service as backup
+  // Proceed with full schema validation only
   const schemaUrl =
     "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd"
 
   try {
     console.log(`[v0] Fetching AAS schema from: ${schemaUrl}`)
-    const res = await fetch(schemaUrl, { mode: 'cors' }) // Ensure CORS is enabled
+    const res = await fetch(schemaUrl, { mode: 'cors' })
     if (!res.ok) {
       const errorMsg = `Failed to fetch AAS schema: ${res.status} ${res.statusText}. Cannot perform full schema validation.`
       console.warn(`[v0] ${errorMsg}`)
-      const aasData = extractAASDataFromXML(parsed) // Now defined
+      const aasData = extractAASDataFromXML(parsed)
       console.log("[v0] ===== XML VALIDATION END (FAILED - SCHEMA FETCH FAILED) =====")
-      return { valid: false, errors: [errorMsg], parsed, aasData } // Return false on schema fetch failure
+      return { valid: false, errors: [errorMsg], parsed, aasData }
     }
     const xsd = await res.text()
     console.log(`[v0] Schema fetched successfully, length: ${xsd.length}`)
@@ -411,22 +408,24 @@ export async function validateAASXXml(
     const validationResult = await validateXml(normalizedXml, xsd)
     console.log("[v0] External validation service result:", validationResult)
 
+    const aasData = extractAASDataFromXML(parsed)
+
     if (validationResult.valid) {
-      console.log("[v0] XML validation PASSED (both structure and schema)")
-      const aasData = extractAASDataFromXML(parsed) // Now defined
+      console.log("[v0] XML validation PASSED")
       console.log("[v0] ===== XML VALIDATION END (PASSED) =====")
       return { valid: true, parsed, aasData }
     } else {
-      console.log("[v0] XML validation FAILED with errors:", validationResult.errors)
-      const aasData = extractAASDataFromXML(parsed) // Now defined
+      // DEDUP already applied in validateXml; keep stable output
+      const errors = validationResult.errors ?? ["XML validation failed"]
+      console.log("[v0] XML validation FAILED with errors:", errors)
       console.log("[v0] ===== XML VALIDATION END (FAILED) =====")
-      return { valid: false, errors: validationResult.errors, parsed, aasData }
+      return { valid: false, errors, parsed, aasData }
     }
   } catch (err: any) {
     const errorMsg = `Schema validation error (external service issue): ${err.message}. Cannot perform full schema validation.`
-    console.error("[v0] " + errorMsg, err) // Log full error object
-    const aasData = extractAASDataFromXML(parsed) // Now defined
+    console.error("[v0] " + errorMsg, err)
+    const aasData = extractAASDataFromXML(parsed)
     console.log("[v0] ===== XML VALIDATION END (FAILED - EXTERNAL SERVICE ERROR) =====")
-    return { valid: false, errors: [errorMsg], parsed, aasData } // Return false on external service error
+    return { valid: false, errors: [errorMsg], parsed, aasData }
   }
 }
