@@ -3451,6 +3451,44 @@ ${indent}</conceptDescription>`
     return null;
   }
 
+  // NEW: Friendly XML error formatter (local helper)
+  type FriendlyXmlError = { message: string; hint?: string; path?: string };
+
+  function buildFriendlyXmlErrors(errs: (string | { message?: string })[]): FriendlyXmlError[] {
+    return (errs || []).map((raw) => {
+      const text = typeof raw === "string" ? raw : (raw?.message ? String(raw.message) : String(raw));
+      const lower = text.toLowerCase();
+
+      let msg = text;
+      let hint: string | undefined;
+      let path: string | undefined;
+
+      if (lower.includes("displayname")) {
+        msg = "Display name is missing a language entry";
+        hint = 'Add a language-tagged entry (e.g., en: "Nameplate") in the source model.';
+      } else if (lower.includes("valuelist") && (lower.includes("no entries") || lower.includes("empty"))) {
+        msg = "Value list has no entries";
+        hint = "Add at least one valueReferencePair or remove the empty valueList.";
+      } else if (lower.includes("reference") && lower.includes("keys") && (lower.includes("minoccurs") || lower.includes("0..*"))) {
+        msg = "A Reference lacks required key entries";
+        hint = "Provide one or more keys under the reference value.";
+      } else if (lower.includes("valuetype") || lower.includes("sequence")) {
+        hint = "Ensure valueType appears before value for Property and MultiLanguageProperty.";
+      } else if (lower.includes("contenttype") && lower.includes("file")) {
+        hint = "File elements must include contentType and a value (path or URL).";
+      } else if (lower.includes("semanticid")) {
+        hint = "Use ExternalReference with keys -> GlobalReference -> value containing the semantic ID.";
+      }
+
+      const pathMatch = text.match(/Path:\s*(.+)$/);
+      if (pathMatch) {
+        path = pathMatch[1].trim();
+      }
+
+      return { message: msg, hint, path };
+    });
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
