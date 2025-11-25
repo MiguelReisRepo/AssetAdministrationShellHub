@@ -4208,6 +4208,7 @@ ${indent}</conceptDescription>`
                 })()}
               </div>
             </div>
+          </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
