@@ -3179,6 +3179,23 @@ ${indent}</conceptDescription>`
     setCanGenerate(allGood);
 
     setHasValidated(true);
+
+    // NEW: When validation passes, save the fixed XML to the current file entry so Home shows valid
+    if (allGood && onSave) {
+      const resultToSave: ValidationResult = {
+        file: `${aasConfig.idShort}.aasx`, // will be overridden by existing.file in parent merge
+        type: "AASX",                      // keep AASX type in listing
+        valid: true,
+        processingTime: 0,
+        parsed: xmlResult.parsed,
+        aasData: xmlResult.aasData,
+        originalXml: xmlBuilt,             // fixed XML bytes
+        thumbnail: initialThumbnail || undefined,
+        attachments,                       // preserve attachments from original AASX
+      };
+      onSave(resultToSave);
+      toast.success("Model fixed and saved; it will show as valid on Home and export with the corrected XML.");
+    }
   };
 
   const setAASFieldValue = (field: 'idShort'|'id'|'assetKind'|'globalAssetId', value: string) => {
