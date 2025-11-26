@@ -2036,7 +2036,7 @@ ${conceptXml}
         keys: [{
           type: "Submodel",
           value: sm.id
-        }]
+        }])
       }))
     };
 
