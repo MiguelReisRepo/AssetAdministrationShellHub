@@ -2033,10 +2033,12 @@ ${conceptXml}
         globalAssetId: aasConfig.globalAssetId,
       },
       submodels: jsonSubmodels.map(sm => ({
-        keys: [{
-          type: "Submodel",
-          value: sm.id
-        }])
+        keys: [
+          {
+            type: "Submodel",
+            value: sm.id
+          }
+        ]
       }))
     };
 
