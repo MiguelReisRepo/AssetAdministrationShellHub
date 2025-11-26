@@ -3191,7 +3191,7 @@ ${indent}</conceptDescription>`
         aasData: xmlResult.aasData,
         originalXml: xmlBuilt,             // fixed XML bytes
         thumbnail: initialThumbnail || undefined,
-        attachments,                       // preserve attachments from original AASX
+        attachments: attachmentsState || attachments, // UPDATED: use fixed JSON from attachmentsState
       };
       onSave(resultToSave);
       toast.success("Model fixed and saved; it will show as valid on Home and export with the corrected XML.");
@@ -4074,11 +4074,119 @@ ${indent}</conceptDescription>`
     setOriginalXml(withHeader);
     setLastGeneratedXml(withHeader);
 
-    // Auto-validate to enable export immediately if valid
+    // NEW: also fix model.json in attachments
+    fixJsonEnvironment();
+
     toast.success("Applied fixes; validating...");
     setTimeout(() => {
       runInternalValidation();
     }, 0);
+  }
+
+  // ADD: keep an editable attachments state so we can replace model.json
+  const [attachmentsState, setAttachmentsState] = useState<Record<string, string> | undefined>(attachments);
+
+  // Helper: base64 encode/decode for JSON data URLs
+  function toBase64Utf8(str: string): string {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  function fromBase64Utf8(b64: string): string {
+    return decodeURIComponent(escape(atob(b64)));
+  }
+  function jsonToDataUrl(obj: any): string {
+    const s = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    return "data:application/json;base64," + toBase64Utf8(s);
+  }
+  function dataUrlToString(dataUrl: string): string {
+    const base64 = (dataUrl || "").split(",")[1] || "";
+    return fromBase64Utf8(base64);
+  }
+
+  // Reuse XML idShort sanitizer for JSON
+  const idShortPattern = /^[A-Za-z][A-Za-z0-9_-]*[A-Za-z0-9_]$/;
+  function sanitizeIdShortJson(val: string): string {
+    let s = (val || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+    if (!/^[A-Za-z]/.test(s)) s = "X" + s.replace(/^[^A-Za-z]+/, "");
+    s = s.replace(/-+$/, "");
+    if (!s) s = "X1";
+    if (!idShortPattern.test(s)) {
+      if (!/[A-Za-z0-9_]$/.test(s)) s = s + "1";
+      if (!idShortPattern.test(s)) s = "X1";
+    }
+    return s;
+  }
+
+  // Walk JSON object and sanitize idShorts; also fill assetType/specificAssetIds
+  function fixJsonEnvironment() {
+    try {
+      const att = attachmentsState || attachments;
+      if (!att) return;
+
+      // Find a JSON entry; prefer model.json
+      const jsonKey =
+        Object.keys(att).find((k) => k.toLowerCase().endsWith("model.json")) ||
+        Object.keys(att).find((k) => /\.json$/i.test(k));
+      if (!jsonKey) return;
+
+      const rawDataUrl = att[jsonKey];
+      if (!/^data:.*\/json/.test(rawDataUrl) && !/^data:.*text\/plain/.test(rawDataUrl)) {
+        // Still try to parse in case it's plain text
+      }
+      const jsonText = dataUrlToString(rawDataUrl);
+      const env = JSON.parse(jsonText);
+
+      // 1) Sanitize all idShort fields recursively
+      const sanitizeAllIdShorts = (node: any) => {
+        if (!node || typeof node !== "object") return;
+        for (const [k, v] of Object.entries(node)) {
+          if (k === "idShort" && typeof v === "string") {
+            (node as any)[k] = sanitizeIdShortJson(v);
+          } else if (Array.isArray(v)) {
+            v.forEach(sanitizeAllIdShorts);
+          } else if (v && typeof v === "object") {
+            sanitizeAllIdShorts(v);
+          }
+        }
+      };
+      sanitizeAllIdShorts(env);
+
+      // 2) Ensure assetType is non-empty and specificAssetIds has content
+      const shells = Array.isArray(env.assetAdministrationShells) ? env.assetAdministrationShells : [];
+      if (shells.length > 0) {
+        const shell = shells[0];
+        if (shell && shell.assetInformation) {
+          const ai = shell.assetInformation;
+          const atxt = (ai.assetType || "").trim();
+          if (atxt.length === 0) {
+            ai.assetType = "Product";
+          }
+          // specificAssetIds: array expected; if missing/empty, add one
+          let sai = ai.specificAssetIds;
+          if (!Array.isArray(sai)) {
+            // Some inputs use "" — replace with array
+            sai = [];
+          }
+          if (sai.length === 0) {
+            ai.specificAssetIds = [
+              {
+                name: shell.idShort || "asset",
+                value: ai.globalAssetId || shell.idShort || "asset",
+              },
+            ];
+          } else {
+            ai.specificAssetIds = sai;
+          }
+        }
+      }
+
+      // Build updated data URL and store in attachments state
+      const fixedDataUrl = jsonToDataUrl(env);
+      const next = { ...(attachmentsState || attachments) };
+      next[jsonKey] = fixedDataUrl;
+      setAttachmentsState(next);
+    } catch (err) {
+      console.warn("[v0] Fix JSON failed:", err);
+    }
   }
 
   return (
