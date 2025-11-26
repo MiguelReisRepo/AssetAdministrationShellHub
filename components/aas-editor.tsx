@@ -3792,32 +3792,53 @@ ${indent}</conceptDescription>`
       return false;
     };
 
-    // Snapshot list so removals don't affect iteration
+    // Helper: get global asset ID from XML
+    const getGlobalAssetId = (): string | null => {
+      const gai = doc.getElementsByTagName("globalAssetId")[0];
+      const txt = gai?.textContent?.trim();
+      return txt && txt.length > 0 ? txt : null;
+    };
+
+    // Helper: sanitize idShort to match pattern
+    const idShortRe = /^[A-Za-z][A-Za-z0-9_-]*[A-Za-z0-9_]$/;
+    const sanitizeIdShort = (val: string): string => {
+      let s = (val || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+      // ensure starts with a letter
+      if (!/^[A-Za-z]/.test(s)) s = "X" + s.replace(/^[^A-Za-z]+/, "");
+      // ensure doesn't end with hyphen
+      s = s.replace(/-+$/, "");
+      // fallback if becomes empty
+      if (!s) s = "X1";
+      // if still invalid, force safe ending
+      if (!idShortRe.test(s)) {
+        if (!/[A-Za-z0-9_]$/.test(s)) s = s + "1";
+        if (!idShortRe.test(s)) s = "X1";
+      }
+      return s;
+    };
+
+    // Pass 1: fix empty texts and required child blocks
     const all = Array.from(doc.getElementsByTagName("*"));
     all.forEach((el) => {
       const ln = el.localName;
 
-      // 1) Empty <value/> handling — choose placeholder based on context
+      // 1) Empty <value/>: choose placeholder based on context (kept)
       if (ln === "value" && el.children.length === 0 && (!el.textContent || el.textContent.trim() === "")) {
         const parent = el.parentElement;
         let placeholder = "—";
-
-        // File.value must be a valid anyURI
         if (parent?.localName === "file") {
           placeholder = "urn:placeholder";
         } else {
-          // Property with valueType xs:anyURI must be a valid anyURI
           const vtEl = parent?.getElementsByTagName("valueType")?.[0];
           const vtText = vtEl?.textContent?.trim()?.toLowerCase();
           if (vtText === "xs:anyuri") {
             placeholder = "urn:placeholder";
           }
         }
-
         el.textContent = placeholder;
       }
 
-      // 2) displayName must have langStringNameType
+      // 2) displayName must have langStringNameType (kept)
       if (ln === "displayName" && el.children.length === 0) {
         const block = create("langStringNameType");
         const language = create("language");
@@ -3829,7 +3850,7 @@ ${indent}</conceptDescription>`
         el.appendChild(block);
       }
 
-      // 3) description must have langStringTextType
+      // 3) description must have langStringTextType (kept)
       if (ln === "description" && el.children.length === 0) {
         const block = create("langStringTextType");
         const language = create("language");
@@ -3841,12 +3862,12 @@ ${indent}</conceptDescription>`
         el.appendChild(block);
       }
 
-      // 4) embeddedDataSpecifications empty -> remove
+      // 4) embeddedDataSpecifications empty -> remove (kept)
       if (ln === "embeddedDataSpecifications" && el.children.length === 0) {
         el.parentElement?.removeChild(el);
       }
 
-      // 5) definition under IEC61360 must contain langStringDefinitionTypeIec61360
+      // 5) definition under IEC61360 must contain langStringDefinitionTypeIec61360 (kept)
       if (ln === "definition" && el.children.length === 0 && isUnderIec61360(el)) {
         const block = create("langStringDefinitionTypeIec61360");
         const language = create("language");
@@ -3871,27 +3892,95 @@ ${indent}</conceptDescription>`
         }
       }
 
-      // 7) valueList with no valueReferencePairs -> remove
+      // 7) valueList with no valueReferencePairs -> remove (kept)
       if (ln === "valueList") {
         const hasVrp = Array.from(el.children).some((c) => c.localName === "valueReferencePairs");
         if (!hasVrp) {
           el.parentElement?.removeChild(el);
         }
       }
+
+      // 8) preferredName under IEC61360 must have langStringPreferredNameTypeIec61360
+      if (ln === "preferredName" && el.children.length === 0 && isUnderIec61360(el)) {
+        const block = create("langStringPreferredNameTypeIec61360");
+        const language = create("language");
+        language.textContent = "en";
+        const text = create("text");
+        text.textContent = findNearestIdShort(el) || "Name";
+        block.appendChild(language);
+        block.appendChild(text);
+        el.appendChild(block);
+      }
+
+      // 9) keys must contain at least one key
+      if (ln === "keys") {
+        const hasKey = Array.from(el.children).some((c) => c.localName === "key");
+        if (!hasKey) {
+          const key = create("key");
+          const typeEl = create("type");
+          const valueEl = create("value");
+          // Choose type based on context
+          const parentName = el.parentElement?.localName;
+          if (parentName === "semanticId" || parentName === "dataSpecification") {
+            typeEl.textContent = "GlobalReference";
+          } else if (parentName === "reference") {
+            // If under submodels > reference, it's likely a Submodel reference
+            typeEl.textContent = "Submodel";
+          } else {
+            typeEl.textContent = "GlobalReference";
+          }
+          valueEl.textContent = "urn:placeholder";
+          key.appendChild(typeEl);
+          key.appendChild(valueEl);
+          el.appendChild(key);
+        }
+      }
     });
 
-    // Serialize back with XML header if missing
+    // Pass 2: specificAssetIds must contain specificAssetId with name/value
+    Array.from(doc.getElementsByTagName("specificAssetIds")).forEach((container) => {
+      const hasSpecificAssetId = Array.from(container.children).some((c) => c.localName === "specificAssetId");
+      if (!hasSpecificAssetId) {
+        const sai = create("specificAssetId");
+        const name = create("name");
+        const value = create("value");
+        const nearest = findNearestIdShort(container) || "asset";
+        const gai = getGlobalAssetId() || nearest;
+        name.textContent = nearest;
+        value.textContent = gai;
+        sai.appendChild(name);
+        sai.appendChild(value);
+        container.appendChild(sai);
+      }
+    });
+
+    // Pass 3: conceptDescriptions container — remove if empty to satisfy schema
+    Array.from(doc.getElementsByTagName("conceptDescriptions")).forEach((cds) => {
+      const hasAny = Array.from(cds.children).some((c) => c.localName === "conceptDescription");
+      if (!hasAny) {
+        cds.parentElement?.removeChild(cds);
+      }
+    });
+
+    // Pass 4: normalize all idShort values to match pattern
+    Array.from(doc.getElementsByTagName("idShort")).forEach((idEl) => {
+      const raw = idEl.textContent || "";
+      const cleaned = sanitizeIdShort(raw);
+      idEl.textContent = cleaned;
+    });
+
     const fixed = new XMLSerializer().serializeToString(doc);
     const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
 
     // Update editor state to use the fixed XML for next validation/export
     setOriginalXml(withHeader);
     setLastGeneratedXml(withHeader);
-    setHasValidated(false);
-    setCanGenerate(false);
 
-    toast.success("Applied fixes; please Validate again.");
-    setValidationDialogOpen(false);
+    // Auto-validate to enable export immediately if valid
+    toast.success("Applied fixes; validating...");
+    setTimeout(() => {
+      runInternalValidation();
+    }, 0);
   }
 
   return (
