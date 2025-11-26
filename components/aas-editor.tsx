@@ -3493,13 +3493,13 @@ ${indent}</conceptDescription>`
       // Contextual hints
       if (lower.includes("minlength") && lower.includes("{https://admin-shell.io/aas/3/1}value")) {
         hint = "Provide a non-empty value or remove the empty <value/> for required elements.";
-      } else if (lower.includes("displayname") && lower.includes("langstringnametype")) {
+      } else if (lower.includes("displayname") && lower.includes("langStringNameType")) {
         hint = "Add a language-tagged displayName entry (e.g., langStringNameType with language=en).";
-      } else if (lower.includes("description") && lower.includes("langstringtexttype")) {
+      } else if (lower.includes("description") && lower.includes("langStringTextType")) {
         hint = "Descriptions must include langStringTextType; add language and text.";
       } else if (lower.includes("embeddeddataspecifications") && lower.includes("embeddeddataspecification")) {
         hint = "If embeddedDataSpecifications is present, it must contain at least one embeddedDataSpecification.";
-      } else if (lower.includes("definition") && lower.includes("langstringdefinitiontypeiec61360")) {
+      } else if (lower.includes("definition") && lower.includes("langStringDefinitionTypeIec61360")) {
         hint = "IEC61360 definition must include langStringDefinitionTypeIec61360 with language and text.";
       } else if (lower.includes("valuereferencepairs") && lower.includes("valueReferencePair".toLowerCase())) {
         hint = "Value list must include at least one valueReferencePair entry or remove the empty list.";
@@ -3775,14 +3775,29 @@ ${indent}</conceptDescription>`
       return false;
     };
 
-    // Walk and fix
+    // Snapshot list so removals don't affect iteration
     const all = Array.from(doc.getElementsByTagName("*"));
     all.forEach((el) => {
       const ln = el.localName;
 
-      // 1) Empty <value/> not allowed -> insert minimal placeholder
+      // 1) Empty <value/> handling — choose placeholder based on context
       if (ln === "value" && el.children.length === 0 && (!el.textContent || el.textContent.trim() === "")) {
-        el.textContent = "—";
+        const parent = el.parentElement;
+        let placeholder = "—";
+
+        // File.value must be a valid anyURI
+        if (parent?.localName === "file") {
+          placeholder = "urn:placeholder";
+        } else {
+          // Property with valueType xs:anyURI must be a valid anyURI
+          const vtEl = parent?.getElementsByTagName("valueType")?.[0];
+          const vtText = vtEl?.textContent?.trim()?.toLowerCase();
+          if (vtText === "xs:anyuri") {
+            placeholder = "urn:placeholder";
+          }
+        }
+
+        el.textContent = placeholder;
       }
 
       // 2) displayName must have langStringNameType
@@ -3809,7 +3824,7 @@ ${indent}</conceptDescription>`
         el.appendChild(block);
       }
 
-      // 4) embeddedDataSpecifications must contain at least one embeddedDataSpecification -> remove if empty
+      // 4) embeddedDataSpecifications empty -> remove
       if (ln === "embeddedDataSpecifications" && el.children.length === 0) {
         el.parentElement?.removeChild(el);
       }
@@ -3826,9 +3841,25 @@ ${indent}</conceptDescription>`
         el.appendChild(block);
       }
 
-      // 6) valueReferencePairs must contain at least one valueReferencePair -> remove if empty
-      if (ln === "valueReferencePairs" && el.children.length === 0) {
-        el.parentElement?.removeChild(el);
+      // 6) valueReferencePairs: if empty, remove its parent valueList (schema requires it)
+      if (ln === "valueReferencePairs") {
+        const hasChildPair = Array.from(el.children).some((c) => c.localName === "valueReferencePair");
+        if (!hasChildPair) {
+          const parent = el.parentElement;
+          if (parent?.localName === "valueList") {
+            parent.parentElement?.removeChild(parent);
+          } else {
+            el.parentElement?.removeChild(el);
+          }
+        }
+      }
+
+      // 7) valueList with no valueReferencePairs -> remove
+      if (ln === "valueList") {
+        const hasVrp = Array.from(el.children).some((c) => c.localName === "valueReferencePairs");
+        if (!hasVrp) {
+          el.parentElement?.removeChild(el);
+        }
       }
     });
 
@@ -3842,7 +3873,7 @@ ${indent}</conceptDescription>`
     setHasValidated(false);
     setCanGenerate(false);
 
-    toast.success("Applied automatic fixes; please Validate again to confirm.");
+    toast.success("Applied fixes; please Validate again.");
     setValidationDialogOpen(false);
   }
 
