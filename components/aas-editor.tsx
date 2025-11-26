@@ -3954,7 +3954,15 @@ ${indent}</conceptDescription>`
       }
     });
 
-    // Pass 3: conceptDescriptions container — remove if empty to satisfy schema
+    // Pass 3: assetType must be non-empty (schema minLength=1)
+    Array.from(doc.getElementsByTagName("assetType")).forEach((el) => {
+      const txt = el.textContent?.trim() || "";
+      if (txt.length === 0) {
+        el.textContent = "Product";
+      }
+    });
+
+    // Pass 4: conceptDescriptions container — remove if empty
     Array.from(doc.getElementsByTagName("conceptDescriptions")).forEach((cds) => {
       const hasAny = Array.from(cds.children).some((c) => c.localName === "conceptDescription");
       if (!hasAny) {
@@ -3962,11 +3970,101 @@ ${indent}</conceptDescription>`
       }
     });
 
-    // Pass 4: normalize all idShort values to match pattern
+    // Pass 5: normalize all idShort values to match pattern
     Array.from(doc.getElementsByTagName("idShort")).forEach((idEl) => {
       const raw = idEl.textContent || "";
       const cleaned = sanitizeIdShort(raw);
       idEl.textContent = cleaned;
+    });
+
+    // Pass 6: Ensure embeddedDataSpecifications has a minimal valid child if present
+    Array.from(doc.getElementsByTagName("embeddedDataSpecifications")).forEach((eds) => {
+      const embedded = Array.from(eds.children).filter((c) => c.localName === "embeddedDataSpecification");
+      // If container has other content but no embeddedDataSpecification, add one
+      if (embedded.length === 0 && eds.children.length > 0) {
+        const e = create("embeddedDataSpecification");
+        eds.appendChild(e);
+        embedded.push(e);
+      } else if (embedded.length === 0 && eds.children.length === 0) {
+        // already handled earlier (container removed), skip
+        return;
+      }
+      embedded.forEach((e) => {
+        let dataSpec = Array.from(e.children).find((c) => c.localName === "dataSpecification");
+        if (!dataSpec) {
+          dataSpec = create("dataSpecification");
+          e.appendChild(dataSpec);
+        }
+        let keys = Array.from(dataSpec.children).find((c) => c.localName === "keys");
+        if (!keys) {
+          keys = create("keys");
+          dataSpec.appendChild(keys);
+        }
+        // Ensure at least one key GlobalReference → IEC61360 template
+        const hasKey = Array.from(keys.children).some((c) => c.localName === "key");
+        if (!hasKey) {
+          const key = create("key");
+          const typeEl = create("type");
+          const valueEl = create("value");
+          typeEl.textContent = "GlobalReference";
+          valueEl.textContent = "https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360";
+          key.appendChild(typeEl);
+          key.appendChild(valueEl);
+          keys.appendChild(key);
+        }
+
+        let dsc = Array.from(e.children).find((c) => c.localName === "dataSpecificationContent");
+        if (!dsc) {
+          dsc = create("dataSpecificationContent");
+          e.appendChild(dsc);
+        }
+        let iec = Array.from(dsc.children).find((c) => c.localName === "dataSpecificationIec61360");
+        if (!iec) {
+          iec = create("dataSpecificationIec61360");
+          dsc.appendChild(iec);
+        }
+        // Ensure preferredName exists with at least one language entry
+        let preferredName = Array.from(iec.children).find((c) => c.localName === "preferredName");
+        if (!preferredName) {
+          preferredName = create("preferredName");
+          iec.appendChild(preferredName);
+        }
+        const hasLangPref = Array.from(preferredName.children).some((c) => c.localName === "langStringPreferredNameTypeIec61360");
+        if (!hasLangPref) {
+          const block = create("langStringPreferredNameTypeIec61360");
+          const language = create("language");
+          language.textContent = "en";
+          const text = create("text");
+          text.textContent = findNearestIdShort(e) || "Name";
+          block.appendChild(language);
+          block.appendChild(text);
+          preferredName.appendChild(block);
+        }
+        // If shortName exists but empty, add language block
+        let shortName = Array.from(iec.children).find((c) => c.localName === "shortName");
+        if (shortName && shortName.children.length === 0) {
+          const block = create("langStringShortNameTypeIec61360");
+          const language = create("language");
+          language.textContent = "en";
+          const text = create("text");
+          text.textContent = findNearestIdShort(e) || "Short";
+          block.appendChild(language);
+          block.appendChild(text);
+          shortName.appendChild(block);
+        }
+        // If definition exists but empty, add language block (kept by earlier pass if under IEC61360)
+        let definition = Array.from(iec.children).find((c) => c.localName === "definition");
+        if (definition && definition.children.length === 0) {
+          const block = create("langStringDefinitionTypeIec61360");
+          const language = create("language");
+          language.textContent = "en";
+          const text = create("text");
+          text.textContent = "—";
+          block.appendChild(language);
+          block.appendChild(text);
+          definition.appendChild(block);
+        }
+      });
     });
 
     const fixed = new XMLSerializer().serializeToString(doc);
