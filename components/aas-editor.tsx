@@ -3734,6 +3734,118 @@ ${indent}</conceptDescription>`
     }
   }
 
+  // NEW: Auto-fix XML errors in original XML (or current XML preview) by adding/removing minimal content to satisfy schema
+  function fixXmlErrors() {
+    // Use original uploaded XML if present; else fall back to latest built XML
+    const xml =
+      (originalXml && originalXml.trim()) ||
+      (lastGeneratedXml && lastGeneratedXml.trim()) ||
+      buildCurrentXml();
+
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    const parserError = doc.querySelector("parsererror");
+    if (parserError) {
+      // If XML can't be parsed, bubble the error so we can address it
+      throw new Error("Unable to parse XML for fixing.");
+    }
+
+    const ns = doc.documentElement.namespaceURI || "https://admin-shell.io/aas/3/1";
+    const create = (local: string) => doc.createElementNS(ns, local);
+
+    // Helper: find nearest idShort text for a friendly default
+    const findNearestIdShort = (el: Element): string | null => {
+      let cur: Element | null = el;
+      while (cur) {
+        const idShortChild = Array.from(cur.children).find((c) => c.localName === "idShort");
+        if (idShortChild && idShortChild.textContent && idShortChild.textContent.trim()) {
+          return idShortChild.textContent.trim();
+        }
+        cur = cur.parentElement;
+      }
+      return null;
+    };
+
+    // Helper: determine if a node is under dataSpecificationIec61360
+    const isUnderIec61360 = (el: Element): boolean => {
+      let cur: Element | null = el.parentElement;
+      while (cur) {
+        if (cur.localName === "dataSpecificationIec61360") return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    // Walk and fix
+    const all = Array.from(doc.getElementsByTagName("*"));
+    all.forEach((el) => {
+      const ln = el.localName;
+
+      // 1) Empty <value/> not allowed -> insert minimal placeholder
+      if (ln === "value" && el.children.length === 0 && (!el.textContent || el.textContent.trim() === "")) {
+        el.textContent = "—";
+      }
+
+      // 2) displayName must have langStringNameType
+      if (ln === "displayName" && el.children.length === 0) {
+        const block = create("langStringNameType");
+        const language = create("language");
+        language.textContent = "en";
+        const text = create("text");
+        text.textContent = findNearestIdShort(el) || "Display Name";
+        block.appendChild(language);
+        block.appendChild(text);
+        el.appendChild(block);
+      }
+
+      // 3) description must have langStringTextType
+      if (ln === "description" && el.children.length === 0) {
+        const block = create("langStringTextType");
+        const language = create("language");
+        language.textContent = "en";
+        const text = create("text");
+        text.textContent = "—";
+        block.appendChild(language);
+        block.appendChild(text);
+        el.appendChild(block);
+      }
+
+      // 4) embeddedDataSpecifications must contain at least one embeddedDataSpecification -> remove if empty
+      if (ln === "embeddedDataSpecifications" && el.children.length === 0) {
+        el.parentElement?.removeChild(el);
+      }
+
+      // 5) definition under IEC61360 must contain langStringDefinitionTypeIec61360
+      if (ln === "definition" && el.children.length === 0 && isUnderIec61360(el)) {
+        const block = create("langStringDefinitionTypeIec61360");
+        const language = create("language");
+        language.textContent = "en";
+        const text = create("text");
+        text.textContent = "—";
+        block.appendChild(language);
+        block.appendChild(text);
+        el.appendChild(block);
+      }
+
+      // 6) valueReferencePairs must contain at least one valueReferencePair -> remove if empty
+      if (ln === "valueReferencePairs" && el.children.length === 0) {
+        el.parentElement?.removeChild(el);
+      }
+    });
+
+    // Serialize back with XML header if missing
+    const fixed = new XMLSerializer().serializeToString(doc);
+    const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
+
+    // Update editor state to use the fixed XML for next validation/export
+    setOriginalXml(withHeader);
+    setLastGeneratedXml(withHeader);
+    setHasValidated(false);
+    setCanGenerate(false);
+
+    toast.success("Applied automatic fixes; please Validate again to confirm.");
+    setValidationDialogOpen(false);
+  }
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
@@ -4224,27 +4336,27 @@ ${indent}</conceptDescription>`
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-center justify-center mb-3">
-            {validationDialogStatus === 'valid' ? (
-              <div className="flex items-center gap-2 rounded-full bg-green-50 border border-green-300 px-3 py-1.5 shadow-sm">
-                <CheckCircle className="w-6 h-6 text-green-700" />
-                <span className="text-xs font-semibold text-green-700 uppercase tracking-wide">IDTA</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 rounded-full bg-red-50 border border-red-300 px-3 py-1.5 shadow-sm">
-                <AlertCircle className="w-6 h-6 text-red-700" />
-                <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Invalid</span>
-              </div>
-            )}
+          <div className="space-y-3 text-center">
+            <div className="text-lg font-semibold">
+              {validationDialogStatus === 'valid' ? 'Valid' : 'Invalid'}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              Found {validationCounts.internal + validationCounts.json + validationCounts.xml} issue(s).
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              <ul className="list-none space-y-1">
+                <li>Required fields/type: {validationCounts.internal}</li>
+                <li>JSON validation: {validationCounts.json}</li>
+                <li>XML schema: {validationCounts.xml}</li>
+              </ul>
+            </div>
           </div>
 
-          <div className="text-sm text-gray-600 dark:text-gray-300 text-center mb-2">
-            {validationDialogStatus === 'valid'
-              ? 'All checks passed.'
-              : `Found ${validationCounts.internal + validationCounts.json + validationCounts.xml} issue(s).`}
-          </div>
-
-          <DialogFooter />
+          <DialogFooter>
+            <Button onClick={fixXmlErrors} className="bg-[#61caf3] hover:bg-[#4db6e6] text-white">
+              Fix Errors
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
