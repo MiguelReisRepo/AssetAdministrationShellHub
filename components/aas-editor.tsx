@@ -1,3 +1,4 @@
+Element path using an index of the XML; show full display field.">
 "use client"
 
 import { useState, useEffect } from "react"
@@ -3629,6 +3630,99 @@ ${indent}</conceptDescription>`
       return { submodel, element, path };
     } catch {
       return {};
+    }
+  }
+
+  // NEW: Robust XML indexer to locate Submodel and element blocks with positions
+  type XmlBlock = { type: string; idShort: string; start: number; end: number; parent?: string };
+  let xmlIndexCache: { xml?: string; submodels: XmlBlock[]; elements: XmlBlock[]; concepts: XmlBlock[] } | null = null;
+
+  function buildXmlIndex(xml: string) {
+    if (xmlIndexCache?.xml === xml) return xmlIndexCache;
+
+    const submodels: XmlBlock[] = [];
+    const elements: XmlBlock[] = [];
+    const concepts: XmlBlock[] = [];
+
+    // Index submodels
+    {
+      const re = /<submodel>[\s\S]*?<\/submodel>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(xml))) {
+        const block = m[0];
+        const start = m.index;
+        const end = m.index + block.length;
+        const idMatch = /<idShort>([^<]+)<\/idShort>/i.exec(block);
+        const idShort = (idMatch?.[1] || "Submodel").trim();
+        submodels.push({ type: "submodel", idShort, start, end });
+      }
+    }
+
+    // Index conceptDescriptions
+    {
+      const re = /<conceptDescription>[\s\S]*?<\/conceptDescription>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(xml))) {
+        const block = m[0];
+        const start = m.index;
+        const end = m.index + block.length;
+        const idMatch = /<idShort>([^<]+)<\/idShort>/i.exec(block);
+        const idShort = (idMatch?.[1] || "Concept").trim();
+        concepts.push({ type: "conceptDescription", idShort, start, end });
+      }
+    }
+
+    // Index elements and attach parent submodel by containment
+    {
+      const re = /<(property|multiLanguageProperty|file|submodelElementCollection|submodelElementList|referenceElement|blob|range|basicEventElement|operation|entity|capability)[^>]*>[\s\S]*?<idShort>([^<]+)<\/idShort>[\s\S]*?<\/\1>/gi;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(xml))) {
+        const type = m[1];
+        const idShort = (m[2] || "Element").trim();
+        const block = m[0];
+        const start = m.index;
+        const end = m.index + block.length;
+
+        // Find parent submodel containing this element
+        let parent: string | undefined;
+        for (const sm of submodels) {
+          if (sm.start <= start && end <= sm.end) {
+            parent = sm.idShort;
+            break;
+          }
+        }
+        elements.push({ type, idShort, start, end, parent });
+      }
+    }
+
+    xmlIndexCache = { xml, submodels, elements, concepts };
+    return xmlIndexCache;
+  }
+
+  // NEW: Resolve exact path from a validator line using the index
+  function resolvePathFromLine(xml: string, lineNumber: number): string | null {
+    try {
+      if (!lineNumber || lineNumber < 1) return null;
+      const lines = xml.split(/\r?\n/);
+      const offset = lines.slice(0, Math.min(lines.length, lineNumber - 1)).reduce((acc, ln) => acc + ln.length + 1, 0); // +1 for newline
+      const idx = buildXmlIndex(xml);
+
+      // Prefer element containment
+      const el = idx.elements.find(b => b.start <= offset && offset <= b.end);
+      if (el && el.parent) return `${el.parent} > ${el.idShort}`;
+      if (el) return el.idShort;
+
+      // Otherwise check submodel containment
+      const sm = idx.submodels.find(b => b.start <= offset && offset <= b.end);
+      if (sm) return sm.idShort;
+
+      // Or conceptDescription containment
+      const cd = idx.concepts.find(b => b.start <= offset && offset <= b.end);
+      if (cd) return `Concept > ${cd.idShort}`;
+
+      return null;
+    } catch {
+      return null;
     }
   }
 
