@@ -3456,7 +3456,7 @@ ${indent}</conceptDescription>`
   }
 
   // NEW: Friendly XML error formatter (local helper) — now includes line numbers and guessed path
-  type FriendlyXmlError = { message: string; hint?: string; path?: string; field?: string };
+  type FriendlyXmlError = { message: string; hint?: string; path?: string; field?: string; displayField?: string };
 
   function buildFriendlyXmlErrors(errs: (string | { message?: string; loc?: { lineNumber?: number } })[]): FriendlyXmlError[] {
     return (errs || []).map((raw) => {
@@ -3467,18 +3467,20 @@ ${indent}</conceptDescription>`
       let hint: string | undefined;
       let path: string | undefined;
       let field: string | undefined;
+      let displayField: string | undefined;
 
       // Derive path from line number using the last generated XML
       const line = typeof raw === "object" ? (raw?.loc?.lineNumber ?? undefined) : undefined;
       if (line && lastGeneratedXml) {
-        const guessed = guessPathFromXmlLine(lastGeneratedXml, line);
-        if (guessed) path = guessed;
-        // Append "(Line N)" for quick reference
+        const ctx = getContextFromXml(lastGeneratedXml, line);
+        path = ctx.path;
         msg = `${msg} (Line ${line})`;
       }
 
-      // Field from message
       field = getFieldFromMessage(text);
+      if (field) {
+        displayField = path ? `${path} > ${field}` : field;
+      }
 
       if (lower.includes("minlength") && lower.includes("{https://admin-shell.io/aas/3/1}value")) {
         hint = "Provide a non-empty value or remove the empty <value/> for required elements.";
@@ -3490,7 +3492,7 @@ ${indent}</conceptDescription>`
         hint = "If embeddedDataSpecifications is present, it must contain at least one embeddedDataSpecification.";
       } else if (lower.includes("definition") && lower.includes("langstringdefinitiontypeiec61360")) {
         hint = "IEC61360 definition must include langStringDefinitionTypeIec61360 with language and text.";
-      } else if (lower.includes("valuereferencepairs") && lower.includes("valuereferencepair")) {
+      } else if (lower.includes("valuereferencepairs") && lower.includes("valueReferencePair".toLowerCase())) {
         hint = "Value list must include at least one valueReferencePair entry or remove the empty list.";
       } else if (lower.includes("valuetype") || lower.includes("sequence")) {
         hint = "Ensure valueType appears before value for Property / MultiLanguageProperty.";
@@ -3500,7 +3502,7 @@ ${indent}</conceptDescription>`
         hint = "Use ExternalReference with keys → GlobalReference → value containing the semantic ID.";
       }
 
-      return { message: msg, hint, path, field };
+      return { message: msg, hint, path, field, displayField };
     });
   }
 
@@ -3514,8 +3516,8 @@ ${indent}</conceptDescription>`
       const windowText = lines.slice(start, end + 1).join("\n");
 
       const idShortRegex = /<idShort>([^<]+)<\/idShort>/g;
-      const submodelRegex = /<submodel>([\s\S]*?)<\/submodel>/g;
-      const conceptRegex = /<conceptDescription>([\s\S]*?)<\/conceptDescription>/g;
+      const submodelRegex = /<submodel>[\s\S]*?<idShort>([^<]+)<\/idShort>/g;
+      const conceptRegex = /<conceptDescription>[\s\S]*?<idShort>([^<]+)<\/idShort>/g;
 
       const lastIdShorts: string[] = [];
       let m: RegExpExecArray | null;
@@ -3578,7 +3580,7 @@ ${indent}</conceptDescription>`
     if (lower.includes("{https://admin-shell.io/aas/3/1}value")) return "value";
     if (lower.includes("displayname")) return "displayName";
     if (lower.includes("{https://admin-shell.io/aas/3/1}description") || lower.includes("langstringtexttype")) return "description";
-    if (lower.includes("embeddedataspecifications")) return "embeddedDataSpecifications";
+    if (lower.includes("embeddeddataspecifications")) return "embeddedDataSpecifications";
     if (lower.includes("{https://admin-shell.io/aas/3/1}definition") || lower.includes("langstringdefinitiontypeiec61360")) return "definition";
     if (lower.includes("{https://admin-shell.io/aas/3/1}valuereferencepairs") || lower.includes("valuereferencepair")) return "valueReferencePairs";
     return undefined;
@@ -3937,7 +3939,7 @@ ${indent}</conceptDescription>`
                                 <div className="font-medium">{fe.message}</div>
                                 {fe.field && (
                                   <div className="text-xs text-yellow-700/80 dark:text-yellow-300/80 mt-0.5">
-                                    Field: {fe.field}
+                                    Field: {fe.displayField ?? fe.field}
                                   </div>
                                 )}
                                 {fe.hint && (
@@ -4232,7 +4234,7 @@ ${indent}</conceptDescription>`
                           <div className="text-sm">
                             <div className="font-medium text-gray-900 dark:text-gray-100">{fe.message}</div>
                             {fe.field && (
-                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Field: {fe.field}</div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Field: {fe.displayField ?? fe.field}</div>
                             )}
                             {fe.hint && (
                               <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{fe.hint}</div>
