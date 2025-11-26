@@ -1,4 +1,3 @@
-Element path using an index of the XML; show full display field.">
 "use client"
 
 import { useState, useEffect } from "react"
