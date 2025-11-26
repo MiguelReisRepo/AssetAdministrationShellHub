@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { toast } from "sonner"
 
 import { useState, useCallback } from "react"
 import { Upload, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
@@ -45,8 +46,19 @@ export function DataUploader({ onDataUploaded }: DataUploaderProps) {
         try {
           for (const file of files) {
             setUploadedFileNames((prev) => [...prev, file.name])
-            const results = await processFile(file, setUploadProgress) // Use the new processFile
+            const results = await processFile(file, setUploadProgress)
+            let notifiedServiceDown = false
             results.forEach(result => {
+              if (!notifiedServiceDown && result && result.errors) {
+                const hasServiceDown = (result.errors as any[]).some((err: any) => {
+                  const msg = typeof err === "string" ? err : (err?.message || "")
+                  return /validation service unavailable|validation service timeout|failed to fetch/i.test(msg)
+                })
+                if (hasServiceDown) {
+                  toast.warning(`XML validation service is unavailable; "${file.name}" was checked without XML schema.`)
+                  notifiedServiceDown = true
+                }
+              }
               if (onDataUploaded) {
                 onDataUploaded(result)
               }
@@ -71,8 +83,19 @@ export function DataUploader({ onDataUploaded }: DataUploaderProps) {
         try {
           for (const file of files) {
             setUploadedFileNames((prev) => [...prev, file.name])
-            const results = await processFile(file, setUploadProgress) // Use the new processFile
+            const results = await processFile(file, setUploadProgress)
+            let notifiedServiceDown = false
             results.forEach(result => {
+              if (!notifiedServiceDown && result && result.errors) {
+                const hasServiceDown = (result.errors as any[]).some((err: any) => {
+                  const msg = typeof err === "string" ? err : (err?.message || "")
+                  return /validation service unavailable|validation service timeout|failed to fetch/i.test(msg)
+                })
+                if (hasServiceDown) {
+                  toast.warning(`XML validation service is unavailable; "${file.name}" was checked without XML schema.`)
+                  notifiedServiceDown = true
+                }
+              }
               if (onDataUploaded) {
                 onDataUploaded(result)
               }

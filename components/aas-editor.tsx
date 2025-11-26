@@ -2036,7 +2036,7 @@ ${conceptXml}
         keys: [{
           type: "Submodel",
           value: sm.id
-        }]
+        }])
       }))
     };
 
@@ -3150,7 +3150,16 @@ ${indent}</conceptDescription>`
     const xmlErrCount = Array.isArray(rawErrors) ? rawErrors.length : xmlErrorsNormalized.length;
     const internalCount = internal.missingFields.length;
 
-    const allGood = internalCount === 0 && jsonResult.valid && xmlResult.valid;
+    // Detect service outage and notify via toast
+    const serviceDown = Array.isArray(rawErrors) && rawErrors.some((e: any) => {
+      const msg = typeof e === "string" ? e : (e?.message || "");
+      return /validation service unavailable|validation service timeout|failed to fetch/i.test(msg);
+    });
+    if (serviceDown) {
+      toast.warning("XML validation service is unavailable. Skipping XML check; you can still proceed.");
+    }
+
+    const allGood = internalCount === 0 && jsonResult.valid && (serviceDown ? true : xmlResult.valid);
 
     // Open validation result popup
     setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
@@ -3160,18 +3169,17 @@ ${indent}</conceptDescription>`
 
     setHasValidated(true);
 
-    // NEW: When validation passes, save the fixed XML to the current file entry so Home shows valid
     if (allGood && onSave) {
       const resultToSave: ValidationResult = {
-        file: `${aasConfig.idShort}.aasx`, // will be overridden by existing.file in parent merge
-        type: "AASX",                      // keep AASX type in listing
+        file: `${aasConfig.idShort}.aasx`,
+        type: "AASX",
         valid: true,
         processingTime: 0,
         parsed: xmlResult.parsed,
         aasData: xmlResult.aasData,
-        originalXml: xmlBuilt,             // fixed XML bytes
+        originalXml: xmlBuilt, // fixed XML bytes
         thumbnail: initialThumbnail || undefined,
-        attachments: attachmentsState || attachments, // UPDATED: use fixed JSON from attachmentsState
+        attachments: attachmentsState || attachments,
       };
       onSave(resultToSave);
       toast.success("Model fixed and saved; it will show as valid on Home and export with the corrected XML.");
