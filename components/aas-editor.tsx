@@ -3456,7 +3456,7 @@ ${indent}</conceptDescription>`
   }
 
   // NEW: Friendly XML error formatter (local helper) — now includes line numbers and guessed path
-  type FriendlyXmlError = { message: string; hint?: string; path?: string };
+  type FriendlyXmlError = { message: string; hint?: string; path?: string; field?: string };
 
   function buildFriendlyXmlErrors(errs: (string | { message?: string; loc?: { lineNumber?: number } })[]): FriendlyXmlError[] {
     return (errs || []).map((raw) => {
@@ -3466,6 +3466,7 @@ ${indent}</conceptDescription>`
       let msg = text;
       let hint: string | undefined;
       let path: string | undefined;
+      let field: string | undefined;
 
       // Derive path from line number using the last generated XML
       const line = typeof raw === "object" ? (raw?.loc?.lineNumber ?? undefined) : undefined;
@@ -3475,6 +3476,9 @@ ${indent}</conceptDescription>`
         // Append "(Line N)" for quick reference
         msg = `${msg} (Line ${line})`;
       }
+
+      // Field from message
+      field = getFieldFromMessage(text);
 
       if (lower.includes("minlength") && lower.includes("{https://admin-shell.io/aas/3/1}value")) {
         hint = "Provide a non-empty value or remove the empty <value/> for required elements.";
@@ -3493,10 +3497,10 @@ ${indent}</conceptDescription>`
       } else if (lower.includes("contenttype") && lower.includes("file")) {
         hint = "File elements must include contentType and a valid value (path or URL).";
       } else if (lower.includes("semanticid")) {
-        hint = "Use ExternalReference with keys -> GlobalReference -> value containing the semantic ID.";
+        hint = "Use ExternalReference with keys → GlobalReference → value containing the semantic ID.";
       }
 
-      return { message: msg, hint, path };
+      return { message: msg, hint, path, field };
     });
   }
 
@@ -3565,6 +3569,64 @@ ${indent}</conceptDescription>`
       return null;
     } catch {
       return null;
+    }
+  }
+
+  // Helper: map error message to field name
+  function getFieldFromMessage(text: string): string | undefined {
+    const lower = text.toLowerCase();
+    if (lower.includes("{https://admin-shell.io/aas/3/1}value")) return "value";
+    if (lower.includes("displayname")) return "displayName";
+    if (lower.includes("{https://admin-shell.io/aas/3/1}description") || lower.includes("langstringtexttype")) return "description";
+    if (lower.includes("embeddedataspecifications")) return "embeddedDataSpecifications";
+    if (lower.includes("{https://admin-shell.io/aas/3/1}definition") || lower.includes("langstringdefinitiontypeiec61360")) return "definition";
+    if (lower.includes("{https://admin-shell.io/aas/3/1}valuereferencepairs") || lower.includes("valuereferencepair")) return "valueReferencePairs";
+    return undefined;
+  }
+
+  // Helper: get submodel idShort and nearest element idShort before a given line
+  function getContextFromXml(xml: string, lineNumber: number): { submodel?: string; element?: string; path?: string } {
+    try {
+      const lines = xml.split(/\r?\n/);
+      const idx = Math.max(0, Math.min(lines.length - 1, (lineNumber || 1) - 1));
+      const upTo = lines.slice(0, idx + 1).join("\n");
+
+      // Find the last submodel idShort before this line
+      let submodel: string | undefined;
+      const submodelRegex = /<submodel>[\s\S]*?<idShort>([^<]+)<\/idShort>/g;
+      let smMatch: RegExpExecArray | null;
+      while ((smMatch = submodelRegex.exec(upTo))) {
+        submodel = (smMatch[1] || "").trim();
+      }
+
+      // Find the nearest element idShort before this line (avoid catching the submodel idShort if possible)
+      let element: string | undefined;
+      // Look for a block with one of the known element tags containing an idShort
+      const elementBlockRegex = /<(property|multiLanguageProperty|file|submodelElementCollection|submodelElementList|referenceElement|blob|range|basicEventElement|operation|entity|capability)[^>]*>([\s\S]*?)<\/\1>/gi;
+      let elBlock: RegExpExecArray | null;
+      let lastElBlock: string | undefined;
+      while ((elBlock = elementBlockRegex.exec(upTo))) {
+        lastElBlock = elBlock[2];
+      }
+      if (lastElBlock) {
+        const idMatch = /<idShort>([^<]+)<\/idShort>/i.exec(lastElBlock);
+        if (idMatch) element = (idMatch[1] || "").trim();
+      } else {
+        // Fallback: last idShort anywhere before this line
+        let idShortMatch: RegExpExecArray | null;
+        const idShortRegex = /<idShort>([^<]+)<\/idShort>/gi;
+        let lastId: string | undefined;
+        while ((idShortMatch = idShortRegex.exec(upTo))) {
+          lastId = (idShortMatch[1] || "").trim();
+        }
+        // Avoid submodel idShort if it equals
+        element = lastId && lastId !== submodel ? lastId : undefined;
+      }
+
+      const path = submodel && element ? `${submodel} > ${element}` : (element || submodel);
+      return { submodel, element, path };
+    } catch {
+      return {};
     }
   }
 
@@ -3873,6 +3935,11 @@ ${indent}</conceptDescription>`
                             <li key={idx} className="flex items-start justify-between gap-3 p-2 rounded bg-white dark:bg-gray-800 border border-yellow-200 dark:border-yellow-700">
                               <div className="text-yellow-800 dark:text-yellow-200">
                                 <div className="font-medium">{fe.message}</div>
+                                {fe.field && (
+                                  <div className="text-xs text-yellow-700/80 dark:text-yellow-300/80 mt-0.5">
+                                    Field: {fe.field}
+                                  </div>
+                                )}
                                 {fe.hint && (
                                   <div className="text-xs text-yellow-700/80 dark:text-yellow-300/80 mt-0.5">
                                     {fe.hint}
@@ -4164,6 +4231,9 @@ ${indent}</conceptDescription>`
                         <li key={idx} className="flex items-start justify-between gap-3">
                           <div className="text-sm">
                             <div className="font-medium text-gray-900 dark:text-gray-100">{fe.message}</div>
+                            {fe.field && (
+                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Field: {fe.field}</div>
+                            )}
                             {fe.hint && (
                               <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{fe.hint}</div>
                             )}
