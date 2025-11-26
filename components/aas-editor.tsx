@@ -1920,8 +1920,8 @@ ${conceptXml}
   };
 
   // ADD: buildJsonEnvironment helper (JSON structure mirrors export)
+  // UPDATED: sanitize idShorts when creating JSON, so export always passes validation
   function buildJsonEnvironment() {
-    // Helper to ensure xs:* prefix for common XML Schema types
     const prefixXs = (type?: string) => {
       if (!type) return undefined;
       const t = type.trim();
@@ -1934,10 +1934,9 @@ ${conceptXml}
       return common.includes(t) && !t.startsWith('xs:') ? `xs:${t}` : t;
     };
 
-    // Map UI element to AAS JSON submodelElement
     const mapElementToJson = (element: any): any => {
       const base: any = {
-        idShort: element.idShort,
+        idShort: sanitizeIdShortJson(element.idShort),
         modelType: element.modelType,
       };
 
@@ -1954,7 +1953,6 @@ ${conceptXml}
         };
       }
 
-      // Persist IEC 61360 metadata for visualizer
       if (element.preferredName) {
         base.preferredName = typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName;
       }
@@ -2000,7 +1998,6 @@ ${conceptXml}
             value: Array.isArray(element.children) ? element.children.map(mapElementToJson) : [],
           };
         case "ReferenceElement":
-          // Keep simple form; upload/import side understands both simple and keyed forms
           return {
             ...base,
             value: element.value
@@ -2010,43 +2007,39 @@ ${conceptXml}
       }
     };
 
-    // Build submodels
     const jsonSubmodels = aasConfig.selectedSubmodels.map(sm => {
       const elements = submodelData[sm.idShort] || [];
+      const smIdShortSan = sanitizeIdShortJson(sm.idShort);
       return {
-        idShort: sm.idShort,
-        id: `${aasConfig.id}/submodels/${sm.idShort}`,
+        idShort: smIdShortSan,
+        id: `${aasConfig.id}/submodels/${smIdShortSan}`,
         kind: "Instance",
         semanticId: {
           keys: [{
             type: "GlobalReference",
-            value: sm.template.url || `https://admin-shell.io/submodels/${sm.idShort}`
+            value: sm.template.url || `https://admin-shell.io/submodels/${smIdShortSan}`
           }]
         },
         submodelElements: elements.map(mapElementToJson),
       };
     });
 
-    // Shell
+    const shellIdShortSan = sanitizeIdShortJson(aasConfig.idShort || "");
     const jsonShell = {
       id: aasConfig.id,
-      idShort: aasConfig.idShort,
+      idShort: shellIdShortSan,
       assetInformation: {
         assetKind: aasConfig.assetKind,
         globalAssetId: aasConfig.globalAssetId,
       },
-      submodels: aasConfig.selectedSubmodels.map(sm => ({
-        type: "ModelReference",  // ← this was missing!
-        keys: [
-          {
-            type: "Submodel",
-            value: sm.id  // ← use the actual submodel.id (the identifiable, e.g. URI)
-          }
-        ]
+      submodels: jsonSubmodels.map(sm => ({
+        keys: [{
+          type: "Submodel",
+          value: sm.id
+        }]
       }))
     };
 
-    // Collect conceptDescriptions from elements with semanticId
     const collectedConcepts: Record<string, any> = {};
     const collect = (els: any[]) => {
       els.forEach(el => {
@@ -2058,7 +2051,7 @@ ${conceptXml}
             const definitionArr = el.description ? [{ language: "en", text: typeof el.description === 'string' ? el.description : String(el.description) }] : undefined;
             collectedConcepts[id] = {
               id,
-              idShort: el.idShort,
+              idShort: sanitizeIdShortJson(el.idShort),
               embeddedDataSpecifications: [
                 {
                   dataSpecification: {
@@ -2068,7 +2061,7 @@ ${conceptXml}
                   },
                   dataSpecificationContent: {
                     dataSpecificationIec61360: {
-                      preferredName: preferredName ? Object.entries(preferredName).map(([language, text]) => ({ language, text })) : [{ language: "en", text: el.idShort }],
+                      preferredName: preferredName ? Object.entries(preferredName).map(([language, text]) => ({ language, text })) : [{ language: "en", text: sanitizeIdShortJson(el.idShort) }],
                       ...(shortName ? { shortName: Object.entries(shortName).map(([language, text]) => ({ language, text })) } : {}),
                       ...(el.unit ? { unit: el.unit } : {}),
                       ...(el.dataType ? { dataType: el.dataType } : {}),
@@ -2494,19 +2487,6 @@ ${indent}            </langStringPreferredNameTypeIec61360>
         <globalAssetId>${escapeXml(aasConfig.globalAssetId)}</globalAssetId>
 ${defaultThumbnailXml}      </assetInformation>
       <submodels>
-${aasConfig.selectedSubmodels.map(sm => `        <reference>
-          <type>ModelReference</type>
-          <keys>
-            <key>
-              <type>Submodel</type>
-              <value>${escapeXml(`${aasConfig.id}/submodels/${sm.idShort}`)}</value>
-            </key>
-          </keys>
-        </reference>`).join('\n')}
-      </submodels>
-    </assetAdministrationShell>
-  </assetAdministrationShells>
-  <submodels>
 ${aasConfig.selectedSubmodels.map(sm => {
         const elements = submodelData[sm.idShort] || []
         return `    <submodel>
@@ -3621,7 +3601,7 @@ ${indent}</conceptDescription>`
 
       // Find the last submodel idShort before this line
       let submodel: string | undefined;
-      const submodelRegex = /<submodel>[\s\S]*?<idShort>([^<]+)<\/idShort>/g;
+      const submodelRegex = /<submodel>[\s\S]*?<\/submodel>/gi;
       let smMatch: RegExpExecArray | null;
       while ((smMatch = submodelRegex.exec(upTo))) {
         submodel = (smMatch[1] || "").trim();
@@ -3630,7 +3610,7 @@ ${indent}</conceptDescription>`
       // Find the nearest element idShort before this line (avoid catching the submodel idShort if possible)
       let element: string | undefined;
       // Look for a block with one of the known element tags containing an idShort
-      const elementBlockRegex = /<(property|multiLanguageProperty|file|submodelElementCollection|submodelElementList|referenceElement|blob|range|basicEventElement|operation|entity|capability)[^>]*>([\s\S]*?)<\/\1>/gi;
+      const elementBlockRegex = /<(property|multiLanguageProperty|file|submodelElementCollection|submodelElementList|referenceElement|blob|range|basicEventElement|operation|entity|capability)[^>]*>[\s\S]*?<idShort>([^<]+)<\/idShort>[\s\S]*?<\/\1>/gi;
       let elBlock: RegExpExecArray | null;
       let lastElBlock: string | undefined;
       while ((elBlock = elementBlockRegex.exec(upTo))) {
@@ -4103,14 +4083,19 @@ ${indent}</conceptDescription>`
   }
 
   // Reuse XML idShort sanitizer for JSON
-  const idShortPattern = /^[A-Za-z][A-Za-z0-9_-]*[A-Za-z0-9_]$/;
+  // UPDATED: align with json-validator.ts pattern (final char must be a letter or digit)
+  const idShortPattern = /^[A-Za-z][A-Za-z0-9_-]*[A-Za-z0-9]$|^[A-Za-z]$/;
   function sanitizeIdShortJson(val: string): string {
     let s = (val || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+    // ensure starts with a letter
     if (!/^[A-Za-z]/.test(s)) s = "X" + s.replace(/^[^A-Za-z]+/, "");
-    s = s.replace(/-+$/, "");
+    // remove trailing underscores/dashes
+    s = s.replace(/[_-]+$/, "");
+    // fallback if becomes empty
     if (!s) s = "X1";
+    // enforce pattern; ensure final char is alphanumeric
     if (!idShortPattern.test(s)) {
-      if (!/[A-Za-z0-9_]$/.test(s)) s = s + "1";
+      if (!/[A-Za-z0-9]$/.test(s)) s = s + "1";
       if (!idShortPattern.test(s)) s = "X1";
     }
     return s;
@@ -4129,9 +4114,7 @@ ${indent}</conceptDescription>`
       if (!jsonKey) return;
 
       const rawDataUrl = att[jsonKey];
-      if (!/^data:.*\/json/.test(rawDataUrl) && !/^data:.*text\/plain/.test(rawDataUrl)) {
-        // Still try to parse in case it's plain text
-      }
+      // still try to parse even if content-type is text/plain
       const jsonText = dataUrlToString(rawDataUrl);
       const env = JSON.parse(jsonText);
 
@@ -4163,14 +4146,13 @@ ${indent}</conceptDescription>`
           // specificAssetIds: array expected; if missing/empty, add one
           let sai = ai.specificAssetIds;
           if (!Array.isArray(sai)) {
-            // Some inputs use "" — replace with array
             sai = [];
           }
           if (sai.length === 0) {
             ai.specificAssetIds = [
               {
-                name: shell.idShort || "asset",
-                value: ai.globalAssetId || shell.idShort || "asset",
+                name: sanitizeIdShortJson(shell.idShort || "asset"),
+                value: ai.globalAssetId || sanitizeIdShortJson(shell.idShort || "asset"),
               },
             ];
           } else {
