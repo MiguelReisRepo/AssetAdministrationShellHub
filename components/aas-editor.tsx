@@ -4177,6 +4177,59 @@ ${indent}</conceptDescription>`
       }
     });
 
+    // Pass 13: For each File, ensure contentType is a valid non-empty MIME (infer from value path or fallback)
+    Array.from(doc.getElementsByTagName("file")).forEach((fileEl) => {
+      const getChild = (name: string) => Array.from(fileEl.children).find((c) => c.localName === name) as Element | undefined;
+      let ctEl = getChild("contentType");
+      const valEl = getChild("value");
+      const valPath = (valEl?.textContent || "").trim().toLowerCase();
+
+      // Infer MIME from extension
+      const ext = (() => {
+        if (!valPath) return "";
+        const parts = valPath.split("?")[0].split("#")[0].split(".");
+        return parts.length > 1 ? parts.pop() || "" : "";
+      })();
+      const extToMime = (e: string): string | undefined => {
+        switch (e) {
+          case "png": return "image/png";
+          case "jpg":
+          case "jpeg": return "image/jpeg";
+          case "gif": return "image/gif";
+          case "svg": return "image/svg+xml";
+          case "pdf": return "application/pdf";
+          case "txt": return "text/plain";
+          case "json": return "application/json";
+          default: return undefined;
+        }
+      };
+      const mimeFromExt = extToMime(ext);
+      const isValidMime = (s: string) => /^[!#$%&'*+\-.\^_`|~0-9a-zA-Z]+\/[!#$%&'*+\-.\^_`|~0-9a-zA-Z]+(?:\s*;\s*[!#$%&'*+\-.\^_`|~0-9a-zA-Z]+=(?:[!#$%&'*+\-.\^_`|~0-9a-zA-Z]+|"[^"]*"))*$/.test(s);
+
+      const chosen = mimeFromExt || "application/octet-stream";
+
+      if (!ctEl) {
+        ctEl = create("contentType");
+        ctEl.textContent = chosen;
+        // Insert contentType before value if possible to keep typical order
+        if (valEl) fileEl.insertBefore(ctEl, valEl);
+        else fileEl.appendChild(ctEl);
+      } else {
+        const raw = (ctEl.textContent || "").trim();
+        if (raw.length === 0 || !isValidMime(raw)) {
+          ctEl.textContent = chosen;
+        }
+      }
+    });
+
+    // Pass 14: Ensure valueFormat has non-empty text (schema minLength=1)
+    Array.from(doc.getElementsByTagName("valueFormat")).forEach((vfEl) => {
+      const txt = (vfEl.textContent || "").trim();
+      if (txt.length === 0) {
+        vfEl.textContent = "text/plain";
+      }
+    });
+
     const fixed = new XMLSerializer().serializeToString(doc);
     const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
 
