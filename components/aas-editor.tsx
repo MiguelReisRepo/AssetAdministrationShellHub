@@ -4067,6 +4067,30 @@ ${indent}</conceptDescription>`
       });
     });
 
+    // Pass 8: remove empty submodelElements containers (must contain at least one allowed element if present)
+    Array.from(doc.getElementsByTagName("submodelElements")).forEach((container) => {
+      const allowed = new Set([
+        "relationshipElement",
+        "annotatedRelationshipElement",
+        "basicEventElement",
+        "blob",
+        "capability",
+        "entity",
+        "file",
+        "multiLanguageProperty",
+        "operation",
+        "property",
+        "range",
+        "referenceElement",
+        "submodelElementCollection",
+        "submodelElementList"
+      ]);
+      const hasAny = Array.from(container.children).some((c) => allowed.has(c.localName));
+      if (!hasAny) {
+        container.parentElement?.removeChild(container);
+      }
+    });
+
     const fixed = new XMLSerializer().serializeToString(doc);
     const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
 
@@ -4194,6 +4218,26 @@ ${indent}</conceptDescription>`
     } catch (err) {
       console.warn("[v0] Fix JSON failed:", err);
     }
+  }
+
+  // NEW: find an attachment key by filename (case-insensitive)
+  function findAttachmentKeyByBasename(att: Record<string, string> | undefined, nameCandidates: string[]): string | undefined {
+    if (!att) return undefined;
+    const keys = Object.keys(att);
+    const lcCandidates = nameCandidates.map((n) => n.toLowerCase());
+    for (const key of keys) {
+      const base = key.split("/").pop() || key;
+      const lcBase = base.toLowerCase();
+      if (lcCandidates.includes(lcBase)) return key;
+    }
+    // fallback: check exact endsWith snippet
+    for (const key of keys) {
+      const lcKey = key.toLowerCase();
+      for (const cand of lcCandidates) {
+        if (lcKey.endsWith("/" + cand) || lcKey.endsWith(cand)) return key;
+      }
+    }
+    return undefined;
   }
 
   return (
