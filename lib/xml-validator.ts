@@ -347,14 +347,23 @@ export async function validateAASXXml(
   console.log("[v0] Original XML length:", xml.length)
   console.log("[v0] Original XML first 500 chars:", xml.substring(0, 500))
 
-  // IMPORTANT: Replace namespace for compatibility with AAS 3.1 schema
-  const normalizedXml = xml.replace(
-    /xmlns="https:\/\/admin-shell\.io\/aas\/3\/0"/,
-    'xmlns="https://admin-shell.io/aas/3/1"',
-  )
+  // Detect declared AAS namespace version (3.0 vs 3.1)
+  const nsMatch = xml.match(/xmlns="https:\/\/admin-shell\.io\/aas\/(\d+)\/(\d+)"/i)
+  const declaredMajor = nsMatch ? nsMatch[1] : null
+  const declaredMinor = nsMatch ? nsMatch[2] : null
+  const declaredVersion = declaredMajor && declaredMinor ? `${declaredMajor}.${declaredMinor}` : null
+  const is31 = declaredVersion === "3.1"
+  const is30 = declaredVersion === "3.0"
 
-  console.log("[v0] Normalized XML length:", normalizedXml.length)
-  console.log("[v0] Namespace replacement applied:", xml !== normalizedXml)
+  console.log("[v0] Detected AAS XML namespace version:", declaredVersion || "unknown")
+
+  // Keep the original XML for parsing and data extraction
+  const originalXml = xml
+
+  // Optional: a 3.1-upgraded string we may use for a compatibility validation when source is 3.0
+  const upgradedTo31Xml = is30
+    ? originalXml.replace(/xmlns="https:\/\/admin-shell\.io\/aas\/3\/0"/i, 'xmlns="https://admin-shell.io/aas/3/1"')
+    : originalXml
 
   // Parse XML
   let parsed: any
@@ -366,7 +375,7 @@ export async function validateAASXXml(
       allowBooleanAttributes: true,
       removeNSPrefix: true,
     })
-    parsed = parser.parse(normalizedXml)
+    parsed = parser.parse(originalXml)
     console.log("[v0] XML parsed successfully")
 
     if (parsed.environment) {
@@ -381,13 +390,10 @@ export async function validateAASXXml(
     return { valid: false, errors: [`XML parsing failed: ${err.message}`] }
   }
 
-  // REMOVED: direct AAS structure validation to avoid inflated error counts
-  // console.log("[v0] Starting direct AAS structure validation...")
-  // const structureValidation = validateAASStructure(parsed)
-  // if (!structureValidation.valid) { ... return { valid: false, errors: ... } }
-  // console.log("[v0] AAS structure validation PASSED")
+  // Extract AAS data for downstream editor/visualizer usage regardless of schema result
+  const aasData = extractAASDataFromXML(parsed)
 
-  // Proceed with full schema validation only
+  // Schema URL remains the same file; it's versioned by target namespace inside.
   const schemaUrl =
     "https://raw.githubusercontent.com/admin-shell-io/aas-specs-metamodel/refs/heads/master/schemas/xml/AAS.xsd"
 
@@ -397,7 +403,6 @@ export async function validateAASXXml(
     if (!res.ok) {
       const errorMsg = `Failed to fetch AAS schema: ${res.status} ${res.statusText}. Cannot perform full schema validation.`
       console.warn(`[v0] ${errorMsg}`)
-      const aasData = extractAASDataFromXML(parsed)
       console.log("[v0] ===== XML VALIDATION END (FAILED - SCHEMA FETCH FAILED) =====")
       return { valid: false, errors: [errorMsg], parsed, aasData }
     }
@@ -405,10 +410,12 @@ export async function validateAASXXml(
     console.log(`[v0] Schema fetched successfully, length: ${xsd.length}`)
 
     console.log("[v0] Starting XML validation against AAS schema (external service)...")
-    const validationResult = await validateXml(normalizedXml, xsd)
+    // Version-aware schema validation:
+    // - For 3.1: validate original XML.
+    // - For 3.0: validate a compat-upgraded 3.1 string and mark errors as compatibility results.
+    const xmlForValidation = is31 ? originalXml : upgradedTo31Xml
+    const validationResult = await validateXml(xmlForValidation, xsd)
     console.log("[v0] External validation service result:", validationResult)
-
-    const aasData = extractAASDataFromXML(parsed)
 
     if (validationResult.valid) {
       console.log("[v0] XML validation PASSED")
@@ -416,7 +423,14 @@ export async function validateAASXXml(
       return { valid: true, parsed, aasData }
     } else {
       // DEDUP already applied in validateXml; keep stable output
-      const errors = validationResult.errors ?? ["XML validation failed"]
+      let errors = validationResult.errors ?? ["XML validation failed"]
+      // If we ran a 3.0 → 3.1 compatibility check, prepend a clear note for the user
+      if (is30) {
+        errors = [
+          "Compatibility check: This XML declares AAS 3.0. We validated against 3.1 to highlight upgrade issues; you can still edit and use 'Fix' to upgrade.",
+          ...errors,
+        ]
+      }
       console.log("[v0] XML validation FAILED with errors:", errors)
       console.log("[v0] ===== XML VALIDATION END (FAILED) =====")
       return { valid: false, errors, parsed, aasData }
@@ -424,7 +438,6 @@ export async function validateAASXXml(
   } catch (err: any) {
     const errorMsg = `Schema validation error (external service issue): ${err.message}. Cannot perform full schema validation.`
     console.error("[v0] " + errorMsg, err)
-    const aasData = extractAASDataFromXML(parsed)
     console.log("[v0] ===== XML VALIDATION END (FAILED - EXTERNAL SERVICE ERROR) =====")
     return { valid: false, errors: [errorMsg], parsed, aasData }
   }
