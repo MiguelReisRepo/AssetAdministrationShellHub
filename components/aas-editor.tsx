@@ -4122,6 +4122,61 @@ ${indent}</conceptDescription>`
       }
     });
 
+    // Pass 12: For each Property, ensure valueType exists and comes BEFORE any direct <value>; reorder if needed
+    Array.from(doc.getElementsByTagName("property")).forEach((prop) => {
+      const children = Array.from(prop.children);
+      const vtEl = children.find((c) => c.localName === "valueType") as Element | undefined;
+      const valueEls = children.filter((c) => c.localName === "value") as Element[];
+
+      // If multiple <value> children, keep the first and remove the extras
+      if (valueEls.length > 1) {
+        for (let i = 1; i < valueEls.length; i++) {
+          prop.removeChild(valueEls[i]);
+        }
+      }
+      const firstValue = valueEls[0];
+
+      // Build a valueType if missing, preferring IEC 61360 dataType, else xs:string
+      const ensureValueType = (): Element => {
+        // Try IEC 61360 dataType from embeddedDataSpecifications › dataSpecificationContent › dataSpecificationIec61360 › dataType
+        let iecType = "";
+        const eds = prop.getElementsByTagName("embeddedDataSpecifications")[0];
+        if (eds) {
+          const dsc = eds.getElementsByTagName("dataSpecificationContent")[0];
+          if (dsc) {
+            const iec = dsc.getElementsByTagName("dataSpecificationIec61360")[0];
+            if (iec) {
+              const dt = iec.getElementsByTagName("dataType")[0];
+              iecType = dt?.textContent?.trim() || "";
+            }
+          }
+        }
+        const vtText = (typeof deriveValueTypeFromIEC === "function" ? (deriveValueTypeFromIEC(iecType) || "xs:string") : "xs:string");
+        const el = create("valueType");
+        el.textContent = vtText;
+        // Insert before the first <value> (or append if no value)
+        if (firstValue) {
+          prop.insertBefore(el, firstValue);
+        } else {
+          prop.appendChild(el);
+        }
+        return el;
+      };
+
+      const vt = vtEl || ensureValueType();
+
+      // Ensure order: valueType must be before value
+      if (firstValue) {
+        const vtIdx = children.indexOf(vt);
+        const valIdx = children.indexOf(firstValue);
+        if (valIdx !== -1 && vtIdx !== -1 && valIdx < vtIdx) {
+          // move value to be right after valueType
+          prop.removeChild(firstValue);
+          prop.insertBefore(firstValue, vt.nextSibling);
+        }
+      }
+    });
+
     const fixed = new XMLSerializer().serializeToString(doc);
     const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
 
