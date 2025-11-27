@@ -3770,7 +3770,7 @@ ${indent}</conceptDescription>`
   }
 
   // NEW: Auto-fix XML errors in original XML (or current XML preview) by adding/removing minimal content to satisfy schema
-  function fixXmlErrors() {
+  function fixXmlErrors(): string | null {
     // Use original uploaded XML if present; else fall back to latest built XML
     const xml =
       (originalXml && originalXml.trim()) ||
@@ -3780,8 +3780,8 @@ ${indent}</conceptDescription>`
     const doc = new DOMParser().parseFromString(xml, "application/xml");
     const parserError = doc.querySelector("parsererror");
     if (parserError) {
-      // If XML can't be parsed, bubble the error so we can address it
-      throw new Error("Unable to parse XML for fixing.");
+      toast.error("Unable to parse XML to apply fixes.");
+      return null;
     }
 
     const ns = doc.documentElement.namespaceURI || "https://admin-shell.io/aas/3/1";
@@ -4269,6 +4269,7 @@ ${indent}</conceptDescription>`
     fixJsonEnvironment();
 
     toast.success("Applied fixes. Click Validate to re-check.");
+    return withHeader;
   }
 
   // ADD: keep an editable attachments state so we can replace model.json
@@ -4410,10 +4411,8 @@ ${indent}</conceptDescription>`
     setIsFixing(true);
     console.log("[v0] Fix button clicked");
     try {
-      // Apply XML + JSON safe fixes
-      fixXmlErrors();
-      // Re-validate once to update the dialog summary and logs
-      await runInternalValidation(undefined, { openDialog: true });
+      const fixedXml = fixXmlErrors();
+      await runInternalValidation(fixedXml || undefined, { openDialog: true });
     } finally {
       setIsFixing(false);
     }
