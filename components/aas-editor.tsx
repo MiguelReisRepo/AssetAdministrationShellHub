@@ -4091,6 +4091,37 @@ ${indent}</conceptDescription>`
       }
     });
 
+    // Pass 9: sanitize all <language> values to valid BCP47 tags (fallback to 'en' if invalid)
+    Array.from(doc.getElementsByTagName("language")).forEach((langEl) => {
+      const raw = (langEl.textContent || "").trim();
+      // Simple BCP47 check: starts with 2–8 letters and only allowed subtags
+      const isValid = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{2,8})*$/.test(raw);
+      if (!isValid || raw.length === 0) {
+        langEl.textContent = "en";
+      }
+    });
+
+    // Pass 10: ensure non-empty <text> in any langString* blocks
+    Array.from(doc.getElementsByTagName("text")).forEach((textEl) => {
+      const parent = textEl.parentElement;
+      const isLangString = !!parent && parent.localName.toLowerCase().startsWith("langstring");
+      const raw = (textEl.textContent || "").trim();
+      if (isLangString && raw.length === 0) {
+        textEl.textContent = "—";
+      }
+    });
+
+    // Pass 11: remove defaultThumbnail if path is empty or missing (schema requires non-empty path)
+    Array.from(doc.getElementsByTagName("defaultThumbnail")).forEach((thumbEl) => {
+      const pathEl = Array.from(thumbEl.children).find((c) => c.localName === "path");
+      const contentEl = Array.from(thumbEl.children).find((c) => c.localName === "contentType");
+      const pathTxt = (pathEl?.textContent || "").trim();
+      const contentTxt = (contentEl?.textContent || "").trim();
+      if (!pathEl || pathTxt.length === 0 || (contentEl && contentTxt.length === 0)) {
+        thumbEl.parentElement?.removeChild(thumbEl);
+      }
+    });
+
     const fixed = new XMLSerializer().serializeToString(doc);
     const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
 
