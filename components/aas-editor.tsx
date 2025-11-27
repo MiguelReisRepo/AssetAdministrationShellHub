@@ -3125,7 +3125,7 @@ ${indent}</conceptDescription>`
   }
 
   // ADD: manual validate action (internal)
-  const runInternalValidation = async () => {
+  const runInternalValidation = async (overrideXml?: string) => {
     // Our internal required-fields/type checks
     const internal = validateAAS();
     setInternalIssues(internal.missingFields);
@@ -3135,7 +3135,12 @@ ${indent}</conceptDescription>`
     const jsonResult = await validateAASXJson(JSON.stringify(env));
 
     // Prefer original uploaded XML if available
-    const xmlBuilt = originalXml && originalXml.trim().length > 0 ? originalXml : buildCurrentXml();
+    const xmlBuilt =
+      (overrideXml && overrideXml.trim().length > 0)
+        ? overrideXml
+        : (originalXml && originalXml.trim().length > 0)
+          ? originalXml
+          : buildCurrentXml();
     setLastGeneratedXml(xmlBuilt);
     const xmlResult = await validateAASXXml(xmlBuilt);
 
@@ -3185,6 +3190,11 @@ ${indent}</conceptDescription>`
       };
       onSave(resultToSave);
       toast.success("Model fixed and saved; it will show as valid on Home and export with the corrected XML.");
+    }
+
+    // Auto-fix if all good
+    if (allGood && xmlResult.valid && !serviceDown) {
+      fixXmlErrors();
     }
   };
 
@@ -3532,8 +3542,8 @@ ${indent}</conceptDescription>`
       const windowText = lines.slice(start, end + 1).join("\n");
 
       const idShortRegex = /<idShort>([^<]+)<\/idShort>/g;
-      const submodelRegex = /<submodel>[\s\S]*?<idShort>([^<]+)<\/idShort>/g;
-      const conceptRegex = /<conceptDescription>[\s\S]*?<idShort>([^<]+)<\/idShort>/g;
+      const submodelRegex = /<submodel>[\s\S]*?<\/submodel>/g;
+      const conceptRegex = /<conceptDescription>[\s\S]*?<\/conceptDescription>/g;
 
       const lastIdShorts: string[] = [];
       let m: RegExpExecArray | null;
@@ -4241,9 +4251,7 @@ ${indent}</conceptDescription>`
     fixJsonEnvironment();
 
     toast.success("Applied fixes; validating...");
-    setTimeout(() => {
-      runInternalValidation();
-    }, 0);
+    runInternalValidation(withHeader);
   }
 
   // ADD: keep an editable attachments state so we can replace model.json
@@ -4479,7 +4487,7 @@ ${indent}</conceptDescription>`
                  {editMode ? "Done" : "Edit"}
                </Button>
                <Button
-                 onClick={runInternalValidation}
+                 onClick={() => runInternalValidation()}
                  size="lg"
                  variant="default"
                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
