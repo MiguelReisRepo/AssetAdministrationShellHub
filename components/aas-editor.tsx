@@ -242,6 +242,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     json: 0,
     xml: 0,
   })
+  const [validationDialogDismissed, setValidationDialogDismissed] = useState(false)
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
@@ -3125,7 +3126,7 @@ ${indent}</conceptDescription>`
   }
 
   // ADD: manual validate action (internal)
-  const runInternalValidation = async (overrideXml?: string) => {
+  const runInternalValidation = async (overrideXml?: string, options?: { openDialog?: boolean }) => {
     // Our internal required-fields/type checks
     const internal = validateAAS();
     setInternalIssues(internal.missingFields);
@@ -3168,10 +3169,11 @@ ${indent}</conceptDescription>`
 
     const allGood = internalCount === 0 && jsonResult.valid && (serviceDown ? true : xmlResult.valid);
 
-    // Open validation result popup
+    // Open validation result popup (respect options and dismissal)
+    const openDialog = options?.openDialog ?? true;
     setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
     setValidationDialogStatus(allGood ? 'valid' : 'invalid');
-    setValidationDialogOpen(true);
+    setValidationDialogOpen(openDialog);
     setCanGenerate(allGood);
 
     setHasValidated(true);
@@ -4251,7 +4253,7 @@ ${indent}</conceptDescription>`
     fixJsonEnvironment();
 
     toast.success("Applied fixes; validating...");
-    runInternalValidation(withHeader);
+    runInternalValidation(withHeader, { openDialog: validationDialogOpen });
   }
 
   // ADD: keep an editable attachments state so we can replace model.json
@@ -4487,7 +4489,10 @@ ${indent}</conceptDescription>`
                  {editMode ? "Done" : "Edit"}
                </Button>
                <Button
-                 onClick={() => runInternalValidation()}
+                 onClick={() => {
+                   setValidationDialogDismissed(false);
+                   runInternalValidation(undefined, { openDialog: true });
+                 }}
                  size="lg"
                  variant="default"
                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md"
@@ -4868,7 +4873,13 @@ ${indent}</conceptDescription>`
       </Dialog>
 
       {/* Validation Result Dialog */}
-      <Dialog open={validationDialogOpen} onOpenChange={setValidationDialogOpen}>
+      <Dialog
+        open={validationDialogOpen}
+        onOpenChange={(open) => {
+          setValidationDialogOpen(open);
+          setValidationDialogDismissed(!open);
+        }}
+      >
         <DialogContent showCloseButton>
           <DialogHeader>
             <DialogTitle>Validation Result</DialogTitle>
