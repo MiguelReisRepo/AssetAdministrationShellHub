@@ -274,11 +274,10 @@ export async function validateAASXJson(
       return { valid: true, parsed: parsedJson, aasData }
     } else {
       const errors = (result.errors || []).map((e) => `${e.path}: ${e.message}`)
-      console.error("JSON Validation Errors:", errors)
+      console.warn("JSON Validation Errors:", errors)
       return {
         valid: false,
         errors: errors.length > 0 ? errors : ["Unknown validation error"],
-        parsed: parsedJson,
       }
     }
   } catch (err: any) {
