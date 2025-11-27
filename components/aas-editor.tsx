@@ -4879,6 +4879,7 @@ ${indent}</conceptDescription>`
         open={validationDialogOpen}
         onOpenChange={(open) => {
           setValidationDialogOpen(open);
+          if (!open) setValidationDialogDismissed(true); // mark as dismissed only when closing
         }}
       >
         <DialogContent showCloseButton>
