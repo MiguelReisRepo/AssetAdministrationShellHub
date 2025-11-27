@@ -243,6 +243,12 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     xml: 0,
   })
   const [validationDialogDismissed, setValidationDialogDismissed] = useState(false)
+  // Add UI state for fixing/validation busy (near other useState declarations)
+  const [isFixing, setIsFixing] = useState(false);
+  const [validationBusy, setValidationBusy] = useState(false);
+
+  // Add a reentrancy guard ref if not present already
+  const validationRunningRef = useRef(false);
 
   // Any change to AAS content should require re-validation
   useEffect(() => {
@@ -3127,78 +3133,86 @@ ${indent}</conceptDescription>`
 
   // ADD: manual validate action (internal)
   const runInternalValidation = async (overrideXml?: string, options?: { openDialog?: boolean }) => {
-    // Our internal required-fields/type checks
-    const internal = validateAAS();
-    setInternalIssues(internal.missingFields);
+    if (validationRunningRef.current) return;
+    validationRunningRef.current = true;
+    setValidationBusy(true);
+    try {
+      // Our internal required-fields/type checks
+      const internal = validateAAS();
+      setInternalIssues(internal.missingFields);
 
-    // Build JSON for structural validation
-    const env = buildJsonEnvironment();
-    const jsonResult = await validateAASXJson(JSON.stringify(env));
+      // Build JSON for structural validation
+      const env = buildJsonEnvironment();
+      const jsonResult = await validateAASXJson(JSON.stringify(env));
 
-    // Prefer original uploaded XML if available
-    const xmlBuilt =
-      (overrideXml && overrideXml.trim().length > 0)
-        ? overrideXml
-        : (originalXml && originalXml.trim().length > 0)
-          ? originalXml
-          : buildCurrentXml();
-    setLastGeneratedXml(xmlBuilt);
-    const xmlResult = await validateAASXXml(xmlBuilt);
+      // Prefer original uploaded XML if available
+      const xmlBuilt =
+        (overrideXml && overrideXml.trim().length > 0)
+          ? overrideXml
+          : (originalXml && originalXml.trim().length > 0)
+            ? originalXml
+            : buildCurrentXml();
+      setLastGeneratedXml(xmlBuilt);
+      const xmlResult = await validateAASXXml(xmlBuilt);
 
-    // Preserve raw XML errors so we can show line number + friendlier hints
-    const rawErrors = (xmlResult as any)?.errors || [];
-    setXmlErrorsRaw(Array.isArray(rawErrors) ? rawErrors : []);
-    // Also keep a normalized string list for legacy UI bits
-    const xmlErrorsNormalized = Array.isArray(rawErrors)
-      ? rawErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e))))
-      : [];
-    setExternalIssues(xmlErrorsNormalized);
+      // Preserve raw XML errors so we can show line number + friendlier hints
+      const rawErrors = (xmlResult as any)?.errors || [];
+      setXmlErrorsRaw(Array.isArray(rawErrors) ? rawErrors : []);
+      // Also keep a normalized string list for legacy UI bits
+      const xmlErrorsNormalized = Array.isArray(rawErrors)
+        ? rawErrors.map((e: any) => (typeof e === 'string' ? e : (e?.message || String(e))))
+        : [];
+      setExternalIssues(xmlErrorsNormalized);
 
-    const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
-    const xmlErrCount = Array.isArray(rawErrors) ? rawErrors.length : xmlErrorsNormalized.length;
-    const internalCount = internal.missingFields.length;
+      const jsonErrCount = (jsonResult as any)?.errors?.length || 0;
+      const xmlErrCount = Array.isArray(rawErrors) ? rawErrors.length : xmlErrorsNormalized.length;
+      const internalCount = internal.missingFields.length;
 
-    // Detect service outage and notify via toast
-    const serviceDown = Array.isArray(rawErrors) && rawErrors.some((e: any) => {
-      const msg = typeof e === "string" ? e : (e?.message || "");
-      return /validation service unavailable|validation service timeout|failed to fetch/i.test(msg);
-    });
-    if (serviceDown) {
-      toast.warning("XML validation service is unavailable. Skipping XML check; you can still proceed.");
-    }
+      // Detect service outage and notify via toast
+      const serviceDown = Array.isArray(rawErrors) && rawErrors.some((e: any) => {
+        const msg = typeof e === "string" ? e : (e?.message || "");
+        return /validation service unavailable|validation service timeout|failed to fetch/i.test(msg);
+      });
+      if (serviceDown) {
+        toast.warning("XML validation service is unavailable. Skipping XML check; you can still proceed.");
+      }
 
-    const allGood = internalCount === 0 && jsonResult.valid && (serviceDown ? true : xmlResult.valid);
+      const allGood = internalCount === 0 && jsonResult.valid && (serviceDown ? true : xmlResult.valid);
 
-    // Open validation result popup (respect options and dismissal)
-    const wantOpen = options?.openDialog ?? validationDialogOpen;
-    const shouldOpen = wantOpen && !validationDialogDismissed;
-    setValidationDialogOpen(shouldOpen);
+      // Open validation result popup (respect options and dismissal)
+      const wantOpen = options?.openDialog ?? validationDialogOpen;
+      const shouldOpen = wantOpen && !validationDialogDismissed;
+      setValidationDialogOpen(shouldOpen);
 
-    setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
-    setValidationDialogStatus(allGood ? 'valid' : 'invalid');
-    setCanGenerate(allGood);
+      setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
+      setValidationDialogStatus(allGood ? 'valid' : 'invalid');
+      setCanGenerate(allGood);
 
-    setHasValidated(true);
+      setHasValidated(true);
 
-    if (allGood && onSave) {
-      const resultToSave: ValidationResult = {
-        file: `${aasConfig.idShort}.aasx`,
-        type: "AASX",
-        valid: true,
-        processingTime: 0,
-        parsed: xmlResult.parsed,
-        aasData: xmlResult.aasData,
-        originalXml: xmlBuilt, // fixed XML bytes
-        thumbnail: initialThumbnail || undefined,
-        attachments: attachmentsState || attachments,
-      };
-      onSave(resultToSave);
-      toast.success("Model fixed and saved; it will show as valid on Home and export with the corrected XML.");
-    }
+      if (allGood && onSave) {
+        const resultToSave: ValidationResult = {
+          file: `${aasConfig.idShort}.aasx`,
+          type: "AASX",
+          valid: true,
+          processingTime: 0,
+          parsed: xmlResult.parsed,
+          aasData: xmlResult.aasData,
+          originalXml: xmlBuilt, // fixed XML bytes
+          thumbnail: initialThumbnail || undefined,
+          attachments: attachmentsState || attachments,
+        };
+        onSave(resultToSave);
+        toast.success("Model fixed and saved; it will show as valid on Home and export with the corrected XML.");
+      }
 
-    // Auto-fix if all good
-    if (allGood && xmlResult.valid && !serviceDown) {
-      fixXmlErrors();
+      // Auto-fix if all good
+      if (allGood && xmlResult.valid && !serviceDown) {
+        fixXmlErrors();
+      }
+    } finally {
+      validationRunningRef.current = false;
+      setValidationBusy(false);
     }
   };
 
@@ -4390,6 +4404,21 @@ ${indent}</conceptDescription>`
     return undefined;
   }
 
+  // ADD: click handler for the Fix button that fixes then validates once
+  const handleFixClick = async () => {
+    if (isFixing || validationBusy) return;
+    setIsFixing(true);
+    console.log("[v0] Fix button clicked");
+    try {
+      // Apply XML + JSON safe fixes
+      fixXmlErrors();
+      // Re-validate once to update the dialog summary and logs
+      await runInternalValidation(undefined, { openDialog: true });
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-900">
       {/* Header */}
@@ -4906,8 +4935,12 @@ ${indent}</conceptDescription>`
           </div>
 
           <DialogFooter>
-            <Button onClick={fixXmlErrors} className="bg-[#61caf3] hover:bg-[#4db6e6] text-white">
-              Fix Errors
+            <Button
+              onClick={handleFixClick}
+              disabled={isFixing || validationBusy}
+              className="bg-[#61caf3] hover:bg-[#4db6e6] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isFixing ? "Fixing..." : "Fix Errors"}
             </Button>
           </DialogFooter>
         </DialogContent>
