@@ -3170,10 +3170,12 @@ ${indent}</conceptDescription>`
     const allGood = internalCount === 0 && jsonResult.valid && (serviceDown ? true : xmlResult.valid);
 
     // Open validation result popup (respect options and dismissal)
-    const openDialog = options?.openDialog ?? true;
+    const wantOpen = options?.openDialog ?? validationDialogOpen;
+    const shouldOpen = wantOpen && !validationDialogDismissed;
+    setValidationDialogOpen(shouldOpen);
+
     setValidationCounts({ internal: internalCount, json: jsonErrCount, xml: xmlErrCount });
     setValidationDialogStatus(allGood ? 'valid' : 'invalid');
-    setValidationDialogOpen(openDialog);
     setCanGenerate(allGood);
 
     setHasValidated(true);
