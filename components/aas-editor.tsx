@@ -4092,6 +4092,11 @@ ${indent}</conceptDescription>`
     return fromBase64Utf8(base64);
   }
 
+  // NEW: build XML data URL from string
+  function xmlToDataUrl(xml: string): string {
+    return "data:text/xml;base64," + toBase64Utf8(xml);
+  }
+
   // Reuse XML idShort sanitizer for JSON
   // UPDATED: align with json-validator.ts pattern (final char must be a letter or digit)
   const idShortPattern = /^[A-Za-z][A-Za-z0-9_-]*[A-Za-z0-9]$|^[A-Za-z]$/;
