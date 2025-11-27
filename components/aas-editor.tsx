@@ -4057,6 +4057,16 @@ ${indent}</conceptDescription>`
       });
     });
 
+    // Pass 7: remove empty Operation variable containers (they're optional but cannot be empty)
+    ["inputVariables", "outputVariables", "inoutputVariables"].forEach((localName) => {
+      Array.from(doc.getElementsByTagName(localName)).forEach((container) => {
+        const hasOpVar = Array.from(container.children).some((c) => c.localName === "operationVariable");
+        if (!hasOpVar) {
+          container.parentElement?.removeChild(container);
+        }
+      });
+    });
+
     const fixed = new XMLSerializer().serializeToString(doc);
     const withHeader = fixed.startsWith("<?xml") ? fixed : `<?xml version="1.0" encoding="UTF-8"?>\n${fixed}`;
 
