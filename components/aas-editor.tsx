@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ChevronRight, ChevronDown, Download, ArrowLeft, FileText, Plus, Trash2, X, Upload, GripVertical, Copy, Eye } from 'lucide-react'
 // ADD: extra icons and UI + toast
 import { AlertCircle, CheckCircle } from 'lucide-react'
@@ -4254,8 +4254,7 @@ ${indent}</conceptDescription>`
     // NEW: also fix model.json in attachments
     fixJsonEnvironment();
 
-    toast.success("Applied fixes; validating...");
-    runInternalValidation(withHeader, { openDialog: validationDialogOpen });
+    toast.success("Applied fixes. Click Validate to re-check.");
   }
 
   // ADD: keep an editable attachments state so we can replace model.json
