@@ -302,20 +302,18 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     const pdfs: { name: string; bytes: Uint8Array }[] = []
 
     const fromAttachments = (raw: string): { name: string; bytes: Uint8Array } | null => {
-      if (!attachments) return null
+      const att = attachmentsState || attachments
+      if (!att) return null
       let candidate = raw.trim()
       if (!candidate) return null
-      // decode URL-safe base64 that may encode a path
       const decoded = tryDecodeBase64(candidate)
       if (decoded) candidate = decoded.trim()
-      // direct data URL
       if (/^data:/i.test(candidate)) {
         if (/^data:application\/pdf/i.test(candidate)) {
           return { name: "document.pdf", bytes: dataUrlToUint8(candidate) }
         }
         return null
       }
-      // normalize incoming path
       candidate = tryDecodeUri(candidate)
       const norm = normalizePath(stripQueryAndFragment(fixSlashes(candidate)))
       const basename = deriveBasename(norm)
@@ -326,13 +324,15 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         `/${basename}`,
         `aasx/${basename}`,
         `/aasx/${basename}`,
+        `aasx/Document/${basename}`,
+        `/aasx/Document/${basename}`,
       ]
       let foundKey: string | undefined
       for (const key of searchKeys) {
-        if (attachments[key]) { foundKey = key; break }
+        if (att[key]) { foundKey = key; break }
       }
       if (!foundKey) {
-        const kv = Object.entries(attachments).find(([k]) => {
+        const kv = Object.entries(att).find(([k]) => {
           const lk = k.toLowerCase()
           const bb = basename.toLowerCase()
           return lk.endsWith(`/${bb}`) || lk === bb
@@ -340,7 +340,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         if (kv) foundKey = kv[0]
       }
       if (!foundKey) return null
-      const dataUrl = attachments[foundKey]
+      const dataUrl = att[foundKey]
       const isPdfMime = /^data:application\/pdf/i.test(dataUrl)
       const looksPdf = /\.pdf$/i.test(foundKey) || /\.pdf$/i.test(basename)
       if (!isPdfMime && !looksPdf) return null
@@ -1606,7 +1606,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         if (valStr) {
           xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
         } else {
-          // INSERT: empty value to satisfy 3.1 sequence when neither value nor valueId exists
           xml += `${indent}  <value/>\n`;
         }
       } else if (normalizedType === "MultiLanguageProperty") {
@@ -1623,7 +1622,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           });
           xml += `${indent}  </value>\n`;
         } else {
-          // INSERT: empty value element to satisfy schema order
           xml += `${indent}  <value/>\n`;
         }
       } else if (normalizedType === "File") {
@@ -1633,7 +1631,6 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         if (valStr) {
           xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
         } else {
-          // INSERT: empty value element to satisfy schema order
           xml += `${indent}  <value/>\n`;
         }
       } else if (normalizedType === "SubmodelElementCollection" || normalizedType === "SubmodelElementList") {
@@ -1645,27 +1642,28 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
           xml += `${indent}  </value>\n`;
         }
       } else if (normalizedType === "ReferenceElement") {
-        const val = element.value as any;
-        const hasKeys = val && typeof val === "object" && Array.isArray(val.keys);
+        // Always emit valueId (Reference). If keys exist, build a proper Reference; else fall back to a simple GlobalReference by string.
+        const v: any = element.value;
+        const hasKeys = v && typeof v === "object" && Array.isArray(v.keys) && v.keys.length > 0;
+        const fallback = (typeof v === "string" ? v.trim() : "") || (element.semanticId || "").trim();
+        xml += `${indent}  <valueId>\n`;
+        xml += `${indent}    <type>ExternalReference</type>\n`;
+        xml += `${indent}    <keys>\n`;
         if (hasKeys) {
-          xml += `${indent}  <value>\n`;
-          xml += `${indent}    <type>${escapeXml(val.type || "ExternalReference")}</type>\n`;
-          xml += `${indent}    <keys>\n`;
-          (val.keys as any[]).forEach((k) => {
+          (v.keys as any[]).forEach((k) => {
             xml += `${indent}      <key>\n`;
             xml += `${indent}        <type>${escapeXml(k.type || "GlobalReference")}</type>\n`;
             xml += `${indent}        <value>${escapeXml(k.value || "")}</value>\n`;
             xml += `${indent}      </key>\n`;
           });
-          xml += `${indent}    </keys>\n`;
-          xml += `${indent}  </value>\n`;
-        } else {
-          const simple = typeof val === "string" ? val.trim() : "";
-          const fallback = simple || (element.semanticId || "").trim();
-          if (fallback) {
-            xml += `${indent}  <valueId>${escapeXml(fallback)}</valueId>\n`;
-          }
+        } else if (fallback) {
+          xml += `${indent}      <key>\n`;
+          xml += `${indent}        <type>GlobalReference</type>\n`;
+          xml += `${indent}        <value>${escapeXml(fallback)}</value>\n`;
+          xml += `${indent}      </key>\n`;
         }
+        xml += `${indent}    </keys>\n`;
+        xml += `${indent}  </valueId>\n`;
       }
 
       // semanticId NEVER on ReferenceElement
@@ -1681,15 +1679,18 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
         xml += `${indent}  </semanticId>\n`;
       }
 
-      // Embedded Data Specifications (IEC 61360)
+      // Embedded Data Specifications (IEC 61360) — not allowed on ReferenceElement
+      const allowIec61360 = normalizedType !== "ReferenceElement";
       const hasIECMeta =
-        (typeof element.preferredName === "string" && element.preferredName.trim() !== "") ||
-        (typeof element.preferredName === "object" && element.preferredName && Object.values(element.preferredName).some(v => v && String(v).trim() !== "")) ||
-        (typeof element.shortName === "string" && element.shortName.trim() !== "") ||
-        (typeof element.shortName === "object" && element.shortName && Object.values(element.shortName).some(v => v && String(v).trim() !== "")) ||
-        (element.unit && element.unit.trim() !== "") ||
-        (element.dataType && element.dataType.trim() !== "") ||
-        (element.description && String(element.description).trim() !== "");
+        allowIec61360 && (
+          (typeof element.preferredName === "string" && element.preferredName.trim() !== "") ||
+          (typeof element.preferredName === "object" && element.preferredName && Object.values(element.preferredName).some(v => v && String(v).trim() !== "")) ||
+          (typeof element.shortName === "string" && element.shortName.trim() !== "") ||
+          (typeof element.shortName === "object" && element.shortName && Object.values(element.shortName).some(v => v && String(v).trim() !== "")) ||
+          (element.unit && element.unit.trim() !== "") ||
+          (element.dataType && element.dataType.trim() !== "") ||
+          (element.description && String(element.description).trim() !== "")
+        );
 
       if (hasIECMeta) {
         const prefNames = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {});
@@ -1902,10 +1903,10 @@ ${submodelRefs}
   <submodels>
 ${submodelsXml}
   </submodels>
-  <conceptDescriptions>
+${conceptXml && conceptXml.trim().length > 0 ? `  <conceptDescriptions>
 ${conceptXml}
   </conceptDescriptions>
-</environment>`;
+` : ""}</environment>`;
     return xml;
   };
 
