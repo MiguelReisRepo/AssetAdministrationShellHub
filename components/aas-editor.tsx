@@ -1914,6 +1914,217 @@ ${conceptXml}
     };
   }
 
+  // Generate XML for a SubmodelElement (AAS 3.1)
+  function generateElementXml(element: SubmodelElement, indent: string = "      "): string {
+    const typeKey = String(element.modelType || "Property").toLowerCase();
+    const tagName =
+      typeKey === "property" ? "property" :
+      typeKey === "multilanguageproperty" ? "multiLanguageProperty" :
+      typeKey === "submodelelementcollection" ? "submodelElementCollection" :
+      typeKey === "submodelelementlist" ? "submodelElementList" :
+      typeKey === "file" ? "file" :
+      typeKey === "referenceelement" ? "referenceElement" :
+      "property";
+
+    const isReference = tagName === "referenceElement";
+
+    let xml = `${indent}<${tagName}>\n`;
+
+    // Optional category
+    if (element.category && String(element.category).trim() !== "") {
+      xml += `${indent}  <category>${escapeXml(element.category)}</category>\n`;
+    }
+
+    // idShort
+    xml += `${indent}  <idShort>${escapeXml(element.idShort)}</idShort>\n`;
+
+    // Optional description (langStringTextType) when non-empty
+    if (element.description && String(element.description).trim() !== "") {
+      const desc = typeof element.description === "string" ? element.description : String(element.description);
+      xml += `${indent}  <description>\n`;
+      xml += `${indent}    <langStringTextType>\n`;
+      xml += `${indent}      <language>en</language>\n`;
+      xml += `${indent}      <text>${escapeXml(desc)}</text>\n`;
+      xml += `${indent}    </langStringTextType>\n`;
+      xml += `${indent}  </description>\n`;
+    }
+
+    // Type-specific content
+    if (tagName === "property") {
+      const vt = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || "xs:string";
+      xml += `${indent}  <valueType>${escapeXml(vt)}</valueType>\n`;
+      const valStr = typeof element.value === "string" ? element.value.trim() : "";
+      if (valStr) {
+        xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
+      } else {
+        xml += `${indent}  <value/>\n`;
+      }
+    } else if (tagName === "multiLanguageProperty") {
+      const entries = (element.value && typeof element.value === "object")
+        ? Object.entries(element.value as Record<string, string>).filter(([, t]) => t && String(t).trim() !== "")
+        : [];
+      if (entries.length > 0) {
+        xml += `${indent}  <value>\n`;
+        for (const [lang, text] of entries) {
+          xml += `${indent}    <langStringTextType>\n`;
+          xml += `${indent}      <language>${escapeXml(lang)}</language>\n`;
+          xml += `${indent}      <text>${escapeXml(text)}</text>\n`;
+          xml += `${indent}    </langStringTextType>\n`;
+        }
+        xml += `${indent}  </value>\n`;
+      } else {
+        xml += `${indent}  <value/>\n`;
+      }
+    } else if (tagName === "file") {
+      const contentType = (element.fileData?.mimeType || "application/octet-stream").trim();
+      xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`;
+      const valStr = typeof element.value === "string" ? element.value.trim() : "";
+      if (valStr) {
+        xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
+      } else {
+        xml += `${indent}  <value/>\n`;
+      }
+    } else if (tagName === "submodelElementCollection" || tagName === "submodelElementList") {
+      const kids = Array.isArray(element.children) ? element.children : [];
+      if (kids.length > 0) {
+        xml += `${indent}  <value>\n`;
+        for (const child of kids) {
+          xml += generateElementXml(child, indent + "    ");
+        }
+        xml += `${indent}  </value>\n`;
+      }
+    } else if (tagName === "referenceElement") {
+      // ReferenceElement must contain valueId (Reference). No <value>, no IEC61360.
+      const v: any = element.value;
+      const hasKeys = v && typeof v === "object" && Array.isArray(v.keys) && v.keys.length > 0;
+      const fallback = (typeof v === "string" ? v.trim() : "") || (element.semanticId || "").trim();
+      xml += `${indent}  <valueId>\n`;
+      xml += `${indent}    <type>ExternalReference</type>\n`;
+      xml += `${indent}    <keys>\n`;
+      if (hasKeys) {
+        for (const k of v.keys as any[]) {
+          xml += `${indent}      <key>\n`;
+          xml += `${indent}        <type>${escapeXml(k.type || "GlobalReference")}</type>\n`;
+          xml += `${indent}        <value>${escapeXml(k.value || "")}</value>\n`;
+          xml += `${indent}      </key>\n`;
+        }
+      } else if (fallback) {
+        xml += `${indent}      <key>\n`;
+        xml += `${indent}        <type>GlobalReference</type>\n`;
+        xml += `${indent}        <value>${escapeXml(fallback)}</value>\n`;
+        xml += `${indent}      </key>\n`;
+      }
+      xml += `${indent}    </keys>\n`;
+      xml += `${indent}  </valueId>\n`;
+    }
+
+    // semanticId (skip for ReferenceElement)
+    if (element.semanticId && !isReference) {
+      const sem = String(element.semanticId).trim();
+      if (sem) {
+        xml += `${indent}  <semanticId>\n`;
+        xml += `${indent}    <type>ExternalReference</type>\n`;
+        xml += `${indent}    <keys>\n`;
+        xml += `${indent}      <key>\n`;
+        xml += `${indent}        <type>GlobalReference</type>\n`;
+        xml += `${indent}        <value>${escapeXml(sem)}</value>\n`;
+        xml += `${indent}      </key>\n`;
+        xml += `${indent}    </keys>\n`;
+        xml += `${indent}  </semanticId>\n`;
+      }
+    }
+
+    // embeddedDataSpecifications (IEC 61360) — only when actual meta exists and NOT for ReferenceElement
+    if (!isReference) {
+      const hasPref = (() => {
+        if (!element.preferredName) return false;
+        if (typeof element.preferredName === "string") return element.preferredName.trim() !== "";
+        return Object.values(element.preferredName).some((t) => t && String(t).trim() !== "");
+      })();
+      const hasShort = (() => {
+        if (!element.shortName) return false;
+        if (typeof element.shortName === "string") return element.shortName.trim() !== "";
+        return Object.values(element.shortName).some((t) => t && String(t).trim() !== "");
+      })();
+      const hasUnit = !!(element.unit && element.unit.trim() !== "");
+      const hasDt = !!(element.dataType && element.dataType.trim() !== "");
+      const hasDef = !!(element.description && String(element.description).trim() !== "");
+
+      if (hasPref || hasShort || hasUnit || hasDt || hasDef) {
+        const prefObj = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {});
+        const shortObj = typeof element.shortName === "string" ? { en: element.shortName } : (element.shortName || {});
+
+        // preferredName entries (fallback to idShort if none)
+        const preferredNameEntries = Object.entries(prefObj as Record<string, string>)
+          .filter(([, t]) => t && String(t).trim() !== "");
+        const preferredXml = preferredNameEntries.length > 0
+          ? preferredNameEntries.map(([lang, text]) =>
+              `${indent}            <langStringPreferredNameTypeIec61360>
+${indent}              <language>${escapeXml(lang)}</language>
+${indent}              <text>${escapeXml(text)}</text>
+${indent}            </langStringPreferredNameTypeIec61360>\n`
+            ).join("")
+          : `${indent}            <langStringPreferredNameTypeIec61360>
+${indent}              <language>en</language>
+${indent}              <text>${escapeXml(element.idShort)}</text>
+${indent}            </langStringPreferredNameTypeIec61360>\n`;
+
+        const shortNameEntries = Object.entries(shortObj as Record<string, string>)
+          .filter(([, t]) => t && String(t).trim() !== "");
+        const shortXml = shortNameEntries.map(([lang, text]) =>
+          `${indent}            <langStringShortNameTypeIec61360>
+${indent}              <language>${escapeXml(lang)}</language>
+${indent}              <text>${escapeXml(text)}</text>
+${indent}            </langStringShortNameTypeIec61360>\n`
+        ).join("");
+
+        xml += `${indent}  <embeddedDataSpecifications>\n`;
+        xml += `${indent}    <embeddedDataSpecification>\n`;
+        xml += `${indent}      <dataSpecification>\n`;
+        xml += `${indent}        <type>ExternalReference</type>\n`;
+        xml += `${indent}        <keys>\n`;
+        xml += `${indent}          <key>\n`;
+        xml += `${indent}            <type>GlobalReference</type>\n`;
+        xml += `${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>\n`;
+        xml += `${indent}          </key>\n`;
+        xml += `${indent}        </keys>\n`;
+        xml += `${indent}      </dataSpecification>\n`;
+        xml += `${indent}      <dataSpecificationContent>\n`;
+        xml += `${indent}        <dataSpecificationIec61360>\n`;
+        xml += `${indent}          <preferredName>\n`;
+        xml += preferredXml;
+        xml += `${indent}          </preferredName>\n`;
+        if (shortXml) {
+          xml += `${indent}          <shortName>\n`;
+          xml += shortXml;
+          xml += `${indent}          </shortName>\n`;
+        }
+        if (hasUnit) {
+          xml += `${indent}          <unit>${escapeXml(element.unit!)}</unit>\n`;
+        }
+        if (hasDt) {
+          xml += `${indent}          <dataType>${escapeXml(element.dataType!)}</dataType>\n`;
+        }
+        if (hasDef) {
+          const d = typeof element.description === "string" ? element.description : String(element.description);
+          xml += `${indent}          <definition>\n`;
+          xml += `${indent}            <langStringDefinitionTypeIec61360>\n`;
+          xml += `${indent}              <language>en</language>\n`;
+          xml += `${indent}              <text>${escapeXml(d)}</text>\n`;
+          xml += `${indent}            </langStringDefinitionTypeIec61360>\n`;
+          xml += `${indent}          </definition>\n`;
+        }
+        xml += `${indent}        </dataSpecificationIec61360>\n`;
+        xml += `${indent}      </dataSpecificationContent>\n`;
+        xml += `${indent}    </embeddedDataSpecification>\n`;
+        xml += `${indent}  </embeddedDataSpecifications>\n`;
+      }
+    }
+
+    xml += `${indent}</${tagName}>\n`;
+    return xml;
+  }
+
   const generateFinalAAS = async () => {
     setIsGenerating(true)
     
