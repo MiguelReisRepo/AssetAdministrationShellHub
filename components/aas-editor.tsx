@@ -2111,7 +2111,11 @@ ${conceptXml}
     try {
       // NEW: Option 1 — if the model was validated and we still have the original XML,
       // package those exact bytes instead of regenerating.
-      const preferOriginalXml = hasValidated && originalXml && originalXml.trim().length > 0;
+      // NEW: Only reuse original XML if it's already AAS 3.x; upgrade legacy 1.0/3.0 on export
+      const isLegacy10 = !!originalXml && (/http:\/\/www\.admin-shell\.io\/aas\/1\/0/i.test(originalXml) || /<aas:aasenv/i.test(originalXml));
+      const is3xXml = !!originalXml && /https:\/\/admin-shell\.io\/aas\/3\/[01]/i.test(originalXml);
+      const preferOriginalXml = hasValidated && !!originalXml && originalXml.trim().length > 0 && is3xXml;
+
       if (preferOriginalXml) {
         // Build AASX zip with the original XML
         const zip = new JSZip();
@@ -2125,9 +2129,9 @@ ${conceptXml}
 
         // Add any File attachments present in the editor state
         const addFilesFromElements = (elements: SubmodelElement[]) => {
-          elements.forEach(element => {
+          elements.forEach((element) => {
             if (element.modelType === "File" && element.fileData) {
-              const base64Data = element.fileData.content.split(',')[1];
+              const base64Data = element.fileData.content.split(",")[1];
               const binaryData = atob(base64Data);
               const arrayBuffer = new ArrayBuffer(binaryData.length);
               const uint8Array = new Uint8Array(arrayBuffer);
@@ -2139,18 +2143,18 @@ ${conceptXml}
             if (element.children) addFilesFromElements(element.children);
           });
         };
-        aasConfig.selectedSubmodels.forEach(sm => {
+        aasConfig.selectedSubmodels.forEach((sm) => {
           addFilesFromElements(submodelData[sm.idShort] || []);
         });
 
         // Add thumbnail (if present) to the root
         if (thumbnail) {
-          const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/)
+          const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/);
           if (mimeTypeMatch) {
             const mime = mimeTypeMatch[1];
-            const ext = mimeTypeMatch[2] === 'svg+xml' ? 'svg' : mimeTypeMatch[2];
+            const ext = mimeTypeMatch[2] === "svg+xml" ? "svg" : mimeTypeMatch[2];
             const thumbName = `thumbnail.${ext}`;
-            const base64Data = thumbnail.split(',')[1];
+            const base64Data = thumbnail.split(",")[1];
             const binaryData = atob(base64Data);
             const arrayBuffer = new ArrayBuffer(binaryData.length);
             const uint8Array = new Uint8Array(arrayBuffer);
@@ -2162,22 +2166,32 @@ ${conceptXml}
         }
 
         // AASX relationship structure
-        zip.file("aasx/aasx-origin", `<?xml version="1.0" encoding="UTF-8"?>
+        zip.file(
+          "aasx/aasx-origin",
+          `<?xml version="1.0" encoding="UTF-8"?>
 <origin xmlns="http://admin-shell.io/aasx/relationships/aasx-origin">
   <originPath>/${xmlFileName}</originPath>
-</origin>`);
-        zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8"?>
+</origin>`
+        );
+        zip.file(
+          "_rels/.rels",
+          `<?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="aasx-origin" Type="http://admin-shell.io/aasx/relationships/aasx-origin" Target="/aasx/aasx-origin"/>
-</Relationships>`);
+</Relationships>`
+        );
         const relId = "R" + Math.random().toString(16).slice(2);
-        zip.file("_rels/aasx-original.rels", `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="http://admin-shell.io/aasx/relationships/aas-spec" Target="/${xmlFileName}" Id="${relId}" /></Relationships>`);
-        zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="text/xml" /><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" /><Default Extension="png" ContentType="image/png" /><Default Extension="pdf" ContentType="application/pdf" /><Default Extension="json" ContentType="text/plain" /><Override PartName="/aasx/aasx-origin" ContentType="text/plain" /></Types>`);
+        zip.file(
+          "_rels/aasx-original.rels",
+          `<?xml version="1.0" encoding="utf-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="http://admin-shell.io/aasx/relationships/aas-spec" Target="/${xmlFileName}" Id="${relId}" /></Relationships>`
+        );
+        zip.file(
+          "[Content_Types].xml",
+          `<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="text/xml" /><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml" /><Default Extension="png" ContentType="image/png" /><Default Extension="pdf" ContentType="application/pdf" /><Default Extension="json" ContentType="text/plain" /><Override PartName="/aasx/aasx-origin" ContentType="text/plain" /></Types>`
+        );
 
-        // Generate ZIP blob
         const blob = await zip.generateAsync({ type: "blob" });
 
-        // Parse like Upload so Visualizer receives consistent data
         if (onFileGenerated) {
           const aasxFile = new File([blob], `${aasConfig.idShort}.aasx`, { type: "application/zip" });
           const results = await processFile(aasxFile, () => {});
@@ -2196,7 +2210,6 @@ ${conceptXml}
           }
         }
 
-        // Download
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -2206,7 +2219,7 @@ ${conceptXml}
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
 
-        toast.success("AASX exported using your original XML.");
+        toast.success("AASX exported using your original 3.x XML.");
         return; // Skip generator path
       }
 
