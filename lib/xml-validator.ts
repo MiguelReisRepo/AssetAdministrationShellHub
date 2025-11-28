@@ -102,7 +102,40 @@ function parseXMLSubmodelElements(elementsContainer: any): any[] {
 
   const elements: any[] = []
 
-  // Handle different XML element types
+  // AAS 1.0 shape: submodelElements.submodelElement[] where each entry contains exactly one typed object
+  const smEl = (elementsContainer as any).submodelElement
+  if (smEl) {
+    const entries = Array.isArray(smEl) ? smEl : [smEl]
+    const elementTypes = [
+      "property",
+      "multiLanguageProperty",
+      "file",
+      "blob",
+      "range",
+      "submodelElementCollection",
+      "submodelElementList",
+      "referenceElement",
+      "basicEventElement",
+      "operation",
+      "capability",
+      "entity",
+    ]
+    entries.forEach((entry: any) => {
+      if (!entry || typeof entry !== "object") return
+      elementTypes.forEach((type) => {
+        if (entry[type]) {
+          const typeEntries = Array.isArray(entry[type]) ? entry[type] : [entry[type]]
+          typeEntries.forEach((el: any) => {
+            const parsed = parseXMLElement(el, type)
+            if (parsed) elements.push(parsed)
+          })
+        }
+      })
+    })
+    return elements
+  }
+
+  // AAS 3.x shape: container has arrays per type
   const elementTypes = [
     "property",
     "multiLanguageProperty",
@@ -119,8 +152,10 @@ function parseXMLSubmodelElements(elementsContainer: any): any[] {
   ]
 
   elementTypes.forEach((type) => {
-    if (elementsContainer[type]) {
-      const typeElements = Array.isArray(elementsContainer[type]) ? elementsContainer[type] : [elementsContainer[type]]
+    if ((elementsContainer as any)[type]) {
+      const typeElements = Array.isArray((elementsContainer as any)[type])
+        ? (elementsContainer as any)[type]
+        : [(elementsContainer as any)[type]]
 
       typeElements.forEach((element: any) => {
         const parsed = parseXMLElement(element, type)
@@ -141,22 +176,27 @@ function parseXMLElement(element: any, type: string): any {
     category: element.category,
     description: parseXMLDescription(element.description),
     semanticId: element.semanticId,
-    qualifiers: element.qualifiers || [],
+    qualifiers: element.qualifiers || element.qualifier || [],
     embeddedDataSpecifications: element.embeddedDataSpecifications || [],
   }
 
   switch (type) {
-    case "property":
+    case "property": {
+      // Value may be a plain string, or { "#text": "..." } in AAS 1.0
+      const valNode = element.value
+      const val =
+        typeof valNode === "object" && valNode !== null && "#text" in valNode ? valNode["#text"] : valNode
       return {
         ...base,
-        valueType: element.valueType,
-        value: element.value,
+        valueType: element.valueType || element.valueTypeListElement,
+        value: val,
       }
+    }
 
     case "multiLanguageProperty":
       return {
         ...base,
-        value: parseXMLLangStringArray(element.value),
+        value: parseXMLLangStringArray(element.value || element),
       }
 
     case "file":
@@ -166,11 +206,14 @@ function parseXMLElement(element: any, type: string): any {
         contentType: element.contentType,
       }
 
-    case "submodelElementCollection":
+    case "submodelElementCollection": {
+      // In AAS 1.0, nested elements live under value.submodelElement[]
+      const inner = element.value && element.value.submodelElement ? element.value : (element.value || {})
       return {
         ...base,
-        value: parseXMLSubmodelElements(element.value || {}),
+        value: parseXMLSubmodelElements(inner),
       }
+    }
 
     case "submodelElementList":
       return {
@@ -243,7 +286,16 @@ function parseXMLDescription(description: any): any[] {
       : [description.langStringTextType]
 
     return langStrings.map((ls: any) => ({
-      language: ls.language || ls["@_language"] || "en",
+      language: ls.language || ls["@_language"] || ls["@_lang"] || "en",
+      text: ls.text || ls["#text"] || "",
+    }))
+  }
+
+  // AAS 1.0 compatibility: sometimes uses 'langString'
+  if (description.langString) {
+    const langStrings = Array.isArray(description.langString) ? description.langString : [description.langString]
+    return langStrings.map((ls: any) => ({
+      language: ls.language || ls["@_language"] || ls["@_lang"] || "en",
       text: ls.text || ls["#text"] || "",
     }))
   }
@@ -258,7 +310,16 @@ function parseXMLLangStringArray(value: any): any[] {
     const langStrings = Array.isArray(value.langStringTextType) ? value.langStringTextType : [value.langStringTextType]
 
     return langStrings.map((ls: any) => ({
-      language: ls.language || ls["@_language"] || "en",
+      language: ls.language || ls["@_language"] || ls["@_lang"] || "en",
+      text: ls.text || ls["#text"] || "",
+    }))
+  }
+
+  // AAS 1.0 compatibility: 'langString'
+  if (value.langString) {
+    const langStrings = Array.isArray(value.langString) ? value.langString : [value.langString]
+    return langStrings.map((ls: any) => ({
+      language: ls.language || ls["@_language"] || ls["@_lang"] || "en",
       text: ls.text || ls["#text"] || "",
     }))
   }
