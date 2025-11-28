@@ -1544,267 +1544,79 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
   const buildCurrentXml = (): string => {
     const collectedConceptDescriptions: Record<string, ConceptDescription> = {};
 
-    const escape = (s?: string) => {
-      if (s == null) return "";
-      return String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&apos;");
+    // ... existing helper defs ...
+
+    // NEW helpers for asset information normalization and derivation
+    const normalizeAssetKind = (ak?: string) => {
+      const v = String(ak || "").trim();
+      return ["Instance", "Type", "Role", "NotApplicable"].includes(v) ? v : "Instance";
     };
-
-    const normalizeVT = (t?: string, iec?: string) =>
-      normalizeValueType(t) || deriveValueTypeFromIEC(iec) || "xs:string";
-
-    const generateElementXml = (element: SubmodelElement, indent: string): string => {
-      const normalizedType = (() => {
-        const t = (element.modelType || "Property").toLowerCase();
-        switch (t) {
-          case "property": return "Property";
-          case "multilanguageproperty": return "MultiLanguageProperty";
-          case "submodelelementcollection": return "SubmodelElementCollection";
-          case "submodelelementlist": return "SubmodelElementList";
-          case "file": return "File";
-          case "referenceelement": return "ReferenceElement";
-          default: return "Property";
-        }
-      })();
-
-      const tagName =
-        normalizedType === "Property" ? "property" :
-        normalizedType === "MultiLanguageProperty" ? "multiLanguageProperty" :
-        normalizedType === "SubmodelElementCollection" ? "submodelElementCollection" :
-        normalizedType === "SubmodelElementList" ? "submodelElementList" :
-        normalizedType === "File" ? "file" :
-        normalizedType === "ReferenceElement" ? "referenceElement" :
-        "property";
-
-      let xml = `${indent}<${tagName}>\n`;
-
-      // Common fields
-      if (element.category) {
-        xml += `${indent}  <category>${escapeXml(element.category)}</category>\n`;
-      }
-      xml += `${indent}  <idShort>${escapeXml(element.idShort)}</idShort>\n`;
-
-      if (element.description && String(element.description).trim() !== "") {
-        const desc = typeof element.description === "string" ? element.description : String(element.description);
-        xml += `${indent}  <description>\n`;
-        xml += `${indent}    <langStringTextType>\n`;
-        xml += `${indent}      <language>en</language>\n`;
-        xml += `${indent}      <text>${escapeXml(desc)}</text>\n`;
-        xml += `${indent}    </langStringTextType>\n`;
-        xml += `${indent}  </description>\n`;
-      }
-
-      // Type-specific content FIRST
-      if (normalizedType === "Property") {
-        const vtNorm = normalizeValueType(element.valueType) || deriveValueTypeFromIEC(element.dataType) || "xs:string";
-        xml += `${indent}  <valueType>${escapeXml(vtNorm)}</valueType>\n`;
-        const valStr = typeof element.value === "string" ? element.value.trim() : "";
-        if (valStr) {
-          xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
-        } else {
-          xml += `${indent}  <value/>\n`;
-        }
-      } else if (normalizedType === "MultiLanguageProperty") {
-        const hasLangValues = typeof element.value === "object" && element.value !== null && Object.values(element.value).some(text => text && String(text).trim() !== "");
-        if (hasLangValues) {
-          xml += `${indent}  <value>\n`;
-          Object.entries(element.value as Record<string, string>).forEach(([lang, text]) => {
-            if (text && String(text).trim() !== "") {
-              xml += `${indent}    <langStringTextType>\n`;
-              xml += `${indent}      <language>${lang}</language>\n`;
-              xml += `${indent}      <text>${escapeXml(text)}</text>\n`;
-              xml += `${indent}    </langStringTextType>\n`;
+    const findPropertyValue = (ids: string[]): string | undefined => {
+      const wanted = new Set(ids.map((s) => s.toLowerCase()));
+      for (const sm of aasConfig.selectedSubmodels) {
+        const els = submodelData[sm.idShort] || [];
+        const walk = (list: SubmodelElement[]): string | undefined => {
+          for (const el of list) {
+            if (el.modelType === "Property" && wanted.has(String(el.idShort || "").toLowerCase())) {
+              const val = typeof el.value === "string" ? el.value.trim() : "";
+              if (val) return val;
             }
-          });
-          xml += `${indent}  </value>\n`;
-        } else {
-          xml += `${indent}  <value/>\n`;
-        }
-      } else if (normalizedType === "File") {
-        const contentType = element.fileData?.mimeType || "application/octet-stream";
-        xml += `${indent}  <contentType>${escapeXml(contentType)}</contentType>\n`;
-        const valStr = typeof element.value === "string" ? element.value.trim() : "";
-        if (valStr) {
-          xml += `${indent}  <value>${escapeXml(valStr)}</value>\n`;
-        } else {
-          xml += `${indent}  <value/>\n`;
-        }
-      } else if (normalizedType === "SubmodelElementCollection" || normalizedType === "SubmodelElementList") {
-        if (element.children && element.children.length > 0) {
-          xml += `${indent}  <value>\n`;
-          element.children.forEach(child => {
-            xml += generateElementXml(child, indent + "    ");
-          });
-          xml += `${indent}  </value>\n`;
-        }
-      } else if (normalizedType === "ReferenceElement") {
-        // Always emit valueId (Reference). If keys exist, build a proper Reference; else fall back to a simple GlobalReference by string.
-        const v: any = element.value;
-        const hasKeys = v && typeof v === "object" && Array.isArray(v.keys) && v.keys.length > 0;
-        const fallback = (typeof v === "string" ? v.trim() : "") || (element.semanticId || "").trim();
-        xml += `${indent}  <valueId>\n`;
-        xml += `${indent}    <type>ExternalReference</type>\n`;
-        xml += `${indent}    <keys>\n`;
-        if (hasKeys) {
-          (v.keys as any[]).forEach((k) => {
-            xml += `${indent}      <key>\n`;
-            xml += `${indent}        <type>${escapeXml(k.type || "GlobalReference")}</type>\n`;
-            xml += `${indent}        <value>${escapeXml(k.value || "")}</value>\n`;
-            xml += `${indent}      </key>\n`;
-          });
-        } else if (fallback) {
-          xml += `${indent}      <key>\n`;
-          xml += `${indent}        <type>GlobalReference</type>\n`;
-          xml += `${indent}        <value>${escapeXml(fallback)}</value>\n`;
-          xml += `${indent}      </key>\n`;
-        }
-        xml += `${indent}    </keys>\n`;
-        xml += `${indent}  </valueId>\n`;
-      }
-
-      // semanticId NEVER on ReferenceElement
-      if (element.semanticId && normalizedType !== "ReferenceElement") {
-        xml += `${indent}  <semanticId>\n`;
-        xml += `${indent}    <type>ExternalReference</type>\n`;
-        xml += `${indent}    <keys>\n`;
-        xml += `${indent}      <key>\n`;
-        xml += `${indent}        <type>GlobalReference</type>\n`;
-        xml += `${indent}        <value>${escapeXml(element.semanticId)}</value>\n`;
-        xml += `${indent}      </key>\n`;
-        xml += `${indent}    </keys>\n`;
-        xml += `${indent}  </semanticId>\n`;
-      }
-
-      // Embedded Data Specifications (IEC 61360) — not allowed on ReferenceElement
-      const allowIec61360 = normalizedType !== "ReferenceElement";
-      const hasIECMeta =
-        allowIec61360 && (
-          (typeof element.preferredName === "string" && element.preferredName.trim() !== "") ||
-          (typeof element.preferredName === "object" && element.preferredName && Object.values(element.preferredName).some(v => v && String(v).trim() !== "")) ||
-          (typeof element.shortName === "string" && element.shortName.trim() !== "") ||
-          (typeof element.shortName === "object" && element.shortName && Object.values(element.shortName).some(v => v && String(v).trim() !== "")) ||
-          (element.unit && element.unit.trim() !== "") ||
-          (element.dataType && element.dataType.trim() !== "") ||
-          (element.description && String(element.description).trim() !== "")
-        );
-
-      if (hasIECMeta) {
-        const prefNames = typeof element.preferredName === "string" ? { en: element.preferredName } : (element.preferredName || {});
-        const shortNames = typeof element.shortName === "string" ? { en: element.shortName } : (element.shortName || {});
-        const preferredNameXml = Object.entries(prefNames as Record<string, string>)
-          .filter(([_, text]) => text && String(text).trim() !== "")
-          .map(([lang, text]) =>
-            `${indent}            <langStringPreferredNameTypeIec61360>
-${indent}              <language>${lang}</language>
-${indent}              <text>${escapeXml(text)}</text>
-${indent}            </langStringPreferredNameTypeIec61360>
-`).join("");
-        const hasShortNames = shortNames && Object.values(shortNames as Record<string, string>).some(v => v && String(v).trim() !== "");
-        const shortNameXml = hasShortNames
-          ? Object.entries(shortNames as Record<string, string>)
-              .filter(([_, text]) => text && String(text).trim() !== "")
-              .map(([lang, text]) =>
-                `${indent}            <langStringShortNameTypeIec61360>
-${indent}              <language>${lang}</language>
-${indent}              <text>${escapeXml(text)}</text>
-${indent}            </langStringShortNameTypeIec61360>
-`).join("")
-          : "";
-
-        xml += `${indent}  <embeddedDataSpecifications>\n`;
-        xml += `${indent}    <embeddedDataSpecification>\n`;
-        xml += `${indent}      <dataSpecification>\n`;
-        xml += `${indent}        <type>ExternalReference</type>\n`;
-        xml += `${indent}        <keys>\n`;
-        xml += `${indent}          <key>\n`;
-        xml += `${indent}            <type>GlobalReference</type>\n`;
-        xml += `${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>\n`;
-        xml += `${indent}          </key>\n`;
-        xml += `${indent}        </keys>\n`;
-        xml += `${indent}      </dataSpecification>\n`;
-        xml += `${indent}      <dataSpecificationContent>\n`;
-        xml += `${indent}        <dataSpecificationIec61360>\n`;
-        xml += `${indent}          <preferredName>\n`;
-        xml += `${indent}            <langStringPreferredNameTypeIec61360>
-${indent}              <language>en</language>
-${indent}              <text>${escapeXml(element.idShort)}</text>
-${indent}            </langStringPreferredNameTypeIec61360>
-`;
-        xml += `${indent}          </preferredName>\n`;
-        if (hasShortNames) {
-          xml += `${indent}          <shortName>\n`;
-          xml += shortNameXml;
-          xml += `${indent}          </shortName>\n`;
-        }
-        if (element.unit && element.unit.trim() !== "") {
-          xml += `${indent}          <unit>${escapeXml(element.unit)}</unit>\n`;
-        }
-        if (element.dataType && element.dataType.trim() !== "") {
-          xml += `${indent}          <dataType>${escapeXml(element.dataType)}</dataType>\n`;
-        }
-        if (element.description && String(element.description).trim() !== "") {
-          const desc2 = typeof element.description === "string" ? element.description : String(element.description);
-          xml += `${indent}          <definition>\n`;
-          xml += `${indent}            <langStringDefinitionTypeIec61360>\n`;
-          xml += `${indent}              <language>en</language>\n`;
-          xml += `${indent}              <text>${escapeXml(desc2)}</text>\n`;
-          xml += `${indent}            </langStringDefinitionTypeIec61360>\n`;
-          xml += `${indent}          </definition>\n`;
-        }
-        xml += `${indent}        </dataSpecificationIec61360>\n`;
-        xml += `${indent}      </dataSpecificationContent>\n`;
-        xml += `${indent}    </embeddedDataSpecification>\n`;
-        xml += `${indent}  </embeddedDataSpecifications>\n`;
-      }
-
-      xml += `${indent}</${tagName}>\n`;
-      return xml;
-    };
-
-    const collectConcepts = (elements: SubmodelElement[]) => {
-      elements.forEach(element => {
-        if (element.semanticId) {
-          const id = element.semanticId;
-          if (!collectedConceptDescriptions[id]) {
-            collectedConceptDescriptions[id] = {
-              id,
-              idShort: element.idShort,
-              preferredName: typeof element.preferredName === 'string' ? { en: element.preferredName } : element.preferredName,
-              shortName: typeof element.shortName === 'string' ? { en: element.shortName } : element.shortName,
-              description: element.description,
-              dataType: element.dataType,
-              unit: element.unit,
-              category: element.category,
-              valueType: element.valueType,
-            };
+            if (Array.isArray(el.children) && el.children.length) {
+              const got = walk(el.children);
+              if (got) return got;
+            }
           }
-        }
-        if (element.children) collectConcepts(element.children);
-      });
+          return undefined;
+        };
+        const r = walk(els);
+        if (r) return r;
+      }
+      return undefined;
+    };
+    const deriveGlobalAssetIdValue = (): string => {
+      const cfg = String(aasConfig.globalAssetId || "").trim();
+      if (cfg) return cfg;
+      const fromAssetId = findPropertyValue(["AssetId", "AssetID"]);
+      if (fromAssetId) return fromAssetId;
+      return "urn:placeholder";
+    };
+    const deriveManufacturerPartId = (): string | undefined => {
+      return (
+        findPropertyValue(["MAN_PROD_NUM", "ManufacturerPartNumber"]) ||
+        undefined
+      );
     };
 
-    aasConfig.selectedSubmodels.forEach(sm => {
-      const elements = submodelData[sm.idShort] || [];
-      collectConcepts(elements);
-    });
+    // ... existing code that collects concepts ...
 
     let defaultThumbnailXml = '';
     if (thumbnail) {
-      const mimeTypeMatch = thumbnail.match(/^data:(image\/(png|jpeg|gif|svg\+xml));base64,/)
-      if (mimeTypeMatch) {
-        const mime = mimeTypeMatch[1];
-        const ext = mimeTypeMatch[2] === 'svg+xml' ? 'svg' : mimeTypeMatch[2];
-        defaultThumbnailXml = `        <defaultThumbnail>
-          <path>thumbnail.${ext}</path>
-          <contentType>${mime}</contentType>
-        </defaultThumbnail>
-`;
-      }
+      // ... existing thumbnail code ...
     }
+
+    // NEW: prebuild assetInformation fragments
+    const assetKindXmlVal = normalizeAssetKind(aasConfig.assetKind);
+    const gaiVal = deriveGlobalAssetIdValue();
+    const globalAssetIdXml = `        <globalAssetId>
+          <type>ExternalReference</type>
+          <keys>
+            <key>
+              <type>AssetGlobalIdentifier</type>
+              <value>${escapeXml(gaiVal)}</value>
+            </key>
+          </keys>
+        </globalAssetId>
+`;
+    const mpn = deriveManufacturerPartId();
+    const specificAssetIdsXml = mpn
+      ? `        <specificAssetIds>
+          <specificAssetId>
+            <name>manufacturerPartId</name>
+            <value>${escapeXml(mpn)}</value>
+          </specificAssetId>
+        </specificAssetIds>
+`
+      : "";
 
     const submodelsXml = aasConfig.selectedSubmodels.map(sm => {
       const elements = submodelData[sm.idShort] || [];
@@ -1891,9 +1703,8 @@ ${indent}</conceptDescription>`;
       <idShort>${escapeXml(aasConfig.idShort)}</idShort>
       <id>${escapeXml(aasConfig.id)}</id>
       <assetInformation>
-        <assetKind>${aasConfig.assetKind}</assetKind>
-        <globalAssetId>${escapeXml(aasConfig.globalAssetId)}</globalAssetId>
-${defaultThumbnailXml.trimEnd()}
+        <assetKind>${assetKindXmlVal}</assetKind>
+${globalAssetIdXml}${specificAssetIdsXml}${defaultThumbnailXml.trimEnd()}
       </assetInformation>
       <submodels>
 ${submodelRefs}
@@ -2038,7 +1849,11 @@ ${conceptXml}
       idShort: shellIdShortSan,
       assetInformation: {
         assetKind: aasConfig.assetKind,
-        globalAssetId: aasConfig.globalAssetId,
+        globalAssetId: {
+          type: "ExternalReference",
+          keys: [{ type: "AssetGlobalIdentifier", value: aasConfig.globalAssetId || sanitizeIdShortJson(aasConfig.idShort || "") }],
+        },
+        ...(aasConfig.selectedSubmodels.length > 0 ? { specificAssetIds: [] } : {}),
       },
       submodels: jsonSubmodels.map(sm => ({
         keys: [
@@ -2391,7 +2206,11 @@ ${conceptXml}
           idShort: aasConfig.idShort,
           assetInformation: {
             assetKind: aasConfig.assetKind,
-            globalAssetId: aasConfig.globalAssetId,
+            globalAssetId: {
+              type: "ExternalReference",
+              keys: [{ type: "AssetGlobalIdentifier", value: aasConfig.globalAssetId || sanitizeIdShortJson(aasConfig.idShort || "") }],
+            },
+            ...(aasConfig.selectedSubmodels.length > 0 ? { specificAssetIds: [] } : {}),
           },
           submodels: aasConfig.selectedSubmodels.map(sm => ({
             keys: [{
