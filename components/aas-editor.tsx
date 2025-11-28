@@ -1597,15 +1597,7 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
     // NEW: prebuild assetInformation fragments
     const assetKindXmlVal = normalizeAssetKind(aasConfig.assetKind);
     const gaiVal = deriveGlobalAssetIdValue();
-    const globalAssetIdXml = `        <globalAssetId>
-          <type>ExternalReference</type>
-          <keys>
-            <key>
-              <type>AssetGlobalIdentifier</type>
-              <value>${escapeXml(gaiVal)}</value>
-            </key>
-          </keys>
-        </globalAssetId>
+    const globalAssetIdXml = `        <globalAssetId keys="AssetGlobalIdentifier=${escapeXml(gaiVal)}"/>
 `;
     const mpn = deriveManufacturerPartId();
     const specificAssetIdsXml = mpn
@@ -1620,17 +1612,15 @@ export function AASEditor({ aasConfig, onBack, onFileGenerated, onUpdateAASConfi
 
     const submodelsXml = aasConfig.selectedSubmodels.map(sm => {
       const elements = submodelData[sm.idShort] || [];
+      const smIdShortSan = sanitizeIdShortJson(sm.idShort);
       return `    <submodel>
-      <idShort>${escapeXml(sm.idShort)}</idShort>
-      <id>${escapeXml(`${aasConfig.id}/submodels/${sm.idShort}`)}</id>
+      <idShort>${escapeXml(smIdShortSan)}</idShort>
+      <id>${escapeXml(`${aasConfig.id}/submodels/${smIdShortSan}`)}</id>
       <kind>Instance</kind>
       <semanticId>
         <type>ExternalReference</type>
         <keys>
-          <key>
-            <type>GlobalReference</type>
-            <value>${escapeXml(sm.template.url || ('https://admin-shell.io/submodels/' + sm.idShort))}</value>
-          </key>
+          <key type="GlobalReference" value="${escapeXml(sm.template.url || ('https://admin-shell.io/submodels/' + smIdShortSan))}"/>
         </keys>
       </semanticId>
       <submodelElements>
@@ -1640,61 +1630,71 @@ ${elements.map(el => generateElementXml(el, "        ")).join('')}      </submod
 
     const conceptXml = Object.values(collectedConceptDescriptions).map(concept => {
       const indent = "    ";
+      const cdIdShortSan = sanitizeIdShortJson(concept.idShort);
       const ensuredPreferredName = (concept.preferredName && Object.values(concept.preferredName).some(v => v && String(v).trim() !== ""))
         ? concept.preferredName!
-        : { en: concept.idShort };
+        : { en: cdIdShortSan };
+
+      const preferredXml = Object.entries(ensuredPreferredName).map(([lang, text]) => {
+        if (!text || String(text).trim() === "") return "";
+        return `${indent}      <langStringPreferredNameTypeIec61360>
+${indent}        <language>${escapeXml(lang)}</language>
+${indent}        <text>${escapeXml(text)}</text>
+${indent}      </langStringPreferredNameTypeIec61360>`;
+      }).filter(Boolean).join("\n");
+
+      const shortNameXml = concept.shortName
+        ? Object.entries(concept.shortName).map(([lang, text]) => {
+            if (!text || String(text).trim() === "") return "";
+            return `${indent}      <langStringShortNameTypeIec61360>
+${indent}        <language>${escapeXml(lang)}</language>
+${indent}        <text>${escapeXml(text)}</text>
+${indent}      </langStringShortNameTypeIec61360>`;
+          }).filter(Boolean).join("\n")
+        : "";
+
+      const unitXml = concept.unit ? `${indent}    <unit>${escapeXml(concept.unit)}</unit>` : "";
+      const dataTypeXml = concept.dataType ? `${indent}    <dataType>${escapeXml(concept.dataType)}</dataType>` : "";
+      const definitionXml = concept.description
+        ? `${indent}    <definition>
+${indent}      <langStringDefinitionTypeIec61360>
+${indent}        <language>en</language>
+${indent}        <text>${escapeXml(concept.description)}</text>
+${indent}      </langStringDefinitionTypeIec61360>
+${indent}    </definition>`
+        : "";
+
       return `${indent}<conceptDescription>
-${indent}  <idShort>${escapeXml(concept.idShort)}</idShort>
+${indent}  <idShort>${escapeXml(cdIdShortSan)}</idShort>
 ${indent}  <id>${escapeXml(concept.id)}</id>
-${indent}  <embeddedDataSpecifications>
-${indent}    <embeddedDataSpecification>
-${indent}      <dataSpecification>
-${indent}        <type>ExternalReference</type>
-${indent}        <keys>
-${indent}          <key>
-${indent}            <type>GlobalReference</type>
-${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>
-${indent}          </key>
-${indent}        </keys>
-${indent}      </dataSpecification>
-${indent}      <dataSpecificationContent>
-${indent}        <dataSpecificationIec61360>
-${indent}          <preferredName>
-${indent}            <langStringPreferredNameTypeIec61360>
-${indent}              <language>en</language>
-${indent}              <text>${escapeXml(concept.idShort)}</text>
-${indent}            </langStringPreferredNameTypeIec61360>
-${indent}          </preferredName>
-${concept.shortName ? `${indent}          <shortName>
-${Object.entries(concept.shortName).map(([lang, text]) => text ? `${indent}            <langStringShortNameTypeIec61360>
-${indent}              <language>${lang}</language>
-${indent}              <text>${escapeXml(text)}</text>
-${indent}            </langStringShortNameTypeIec61360>` : '').join('\n')}
-${indent}          </shortName>
-` : ""}${concept.unit ? `${indent}          <unit>${escapeXml(concept.unit)}</unit>
-` : ""}${concept.dataType ? `${indent}          <dataType>${escapeXml(concept.dataType)}</dataType>
-` : ""}${concept.description ? `${indent}          <definition>
-${indent}            <langStringDefinitionTypeIec61360>
-${indent}              <language>en</language>
-${indent}              <text>${escapeXml(concept.description)}</text>
-${indent}            </langStringDefinitionTypeIec61360>
-${indent}          </definition>
-` : ""}${indent}        </dataSpecificationIec61360>
-${indent}      </dataSpecificationContent>
-${indent}    </embeddedDataSpecification>
-${indent}  </embeddedDataSpecifications>
+${indent}  <dataSpecifications>
+${indent}    <dataSpecification>
+${indent}      <type>ExternalReference</type>
+${indent}      <keys>
+${indent}        <key type="GlobalReference" value="https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360"/>
+${indent}      </keys>
+${indent}    </dataSpecification>
+${indent}    <dataSpecificationContent>
+${indent}      <dataSpecificationIec61360>
+${indent}        <preferredName>
+${preferredXml}
+${indent}        </preferredName>
+${shortNameXml ? `${indent}        <shortName>\n${shortNameXml}\n${indent}        </shortName>` : ""}
+${unitXml ? unitXml + "\n" : ""}${dataTypeXml ? dataTypeXml + "\n" : ""}${definitionXml ? definitionXml + "\n" : ""}${indent}      </dataSpecificationIec61360>
+${indent}    </dataSpecificationContent>
+${indent}  </dataSpecifications>
 ${indent}</conceptDescription>`;
     }).join('\n');
 
-    const submodelRefs = aasConfig.selectedSubmodels.map(sm => `        <reference>
+    const submodelRefs = aasConfig.selectedSubmodels.map(sm => {
+      const smIdShortSan = sanitizeIdShortJson(sm.idShort);
+      return `        <reference>
           <type>ModelReference</type>
           <keys>
-            <key>
-              <type>Submodel</type>
-              <value>${escapeXml(`${aasConfig.id}/submodels/${sm.idShort}`)}</value>
-            </key>
+            <key type="Submodel" value="${escapeXml(`${aasConfig.id}/submodels/${smIdShortSan}`)}"/>
           </keys>
-        </reference>`).join('\n');
+        </reference>`;
+    }).join('\n');
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <environment xmlns="https://admin-shell.io/aas/3/1" xmlns:xs="http://www.w3.org/2001/XMLSchema">
@@ -1935,8 +1935,8 @@ ${conceptXml}
       xml += `${indent}  <category>${escapeXml(element.category)}</category>\n`;
     }
 
-    // idShort
-    xml += `${indent}  <idShort>${escapeXml(element.idShort)}</idShort>\n`;
+    const elIdShortSan = sanitizeIdShortJson(element.idShort);
+    xml += `${indent}  <idShort>${escapeXml(elIdShortSan)}</idShort>\n`;
 
     // Optional description (langStringTextType) when non-empty
     if (element.description && String(element.description).trim() !== "") {
@@ -2003,16 +2003,10 @@ ${conceptXml}
       xml += `${indent}    <keys>\n`;
       if (hasKeys) {
         for (const k of v.keys as any[]) {
-          xml += `${indent}      <key>\n`;
-          xml += `${indent}        <type>${escapeXml(k.type || "GlobalReference")}</type>\n`;
-          xml += `${indent}        <value>${escapeXml(k.value || "")}</value>\n`;
-          xml += `${indent}      </key>\n`;
+          xml += `${indent}      <key type="${escapeXml(k.type || "GlobalReference")}" value="${escapeXml(k.value || "")}"/>\n`;
         }
       } else if (fallback) {
-        xml += `${indent}      <key>\n`;
-        xml += `${indent}        <type>GlobalReference</type>\n`;
-        xml += `${indent}        <value>${escapeXml(fallback)}</value>\n`;
-        xml += `${indent}      </key>\n`;
+        xml += `${indent}      <key type="GlobalReference" value="${escapeXml(fallback)}"/>\n`;
       }
       xml += `${indent}    </keys>\n`;
       xml += `${indent}  </valueId>\n`;
@@ -2025,10 +2019,7 @@ ${conceptXml}
         xml += `${indent}  <semanticId>\n`;
         xml += `${indent}    <type>ExternalReference</type>\n`;
         xml += `${indent}    <keys>\n`;
-        xml += `${indent}      <key>\n`;
-        xml += `${indent}        <type>GlobalReference</type>\n`;
-        xml += `${indent}        <value>${escapeXml(sem)}</value>\n`;
-        xml += `${indent}      </key>\n`;
+        xml += `${indent}      <key type="GlobalReference" value="${escapeXml(sem)}"/>\n`;
         xml += `${indent}    </keys>\n`;
         xml += `${indent}  </semanticId>\n`;
       }
@@ -2066,7 +2057,7 @@ ${indent}            </langStringPreferredNameTypeIec61360>\n`
             ).join("")
           : `${indent}            <langStringPreferredNameTypeIec61360>
 ${indent}              <language>en</language>
-${indent}              <text>${escapeXml(element.idShort)}</text>
+${indent}              <text>${escapeXml(elIdShortSan)}</text>
 ${indent}            </langStringPreferredNameTypeIec61360>\n`;
 
         const shortNameEntries = Object.entries(shortObj as Record<string, string>)
@@ -2083,10 +2074,7 @@ ${indent}            </langStringShortNameTypeIec61360>\n`
         xml += `${indent}      <dataSpecification>\n`;
         xml += `${indent}        <type>ExternalReference</type>\n`;
         xml += `${indent}        <keys>\n`;
-        xml += `${indent}          <key>\n`;
-        xml += `${indent}            <type>GlobalReference</type>\n`;
-        xml += `${indent}            <value>https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360</value>\n`;
-        xml += `${indent}          </key>\n`;
+        xml += `${indent}          <key type="GlobalReference" value="https://admin-shell.io/DataSpecificationTemplates/DataSpecificationIEC61360"/>\n`;
         xml += `${indent}        </keys>\n`;
         xml += `${indent}      </dataSpecification>\n`;
         xml += `${indent}      <dataSpecificationContent>\n`;
