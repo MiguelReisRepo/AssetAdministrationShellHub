@@ -184,8 +184,8 @@ export async function processFile(file: File, onProgress: (progress: number) => 
           console.error(`[v0] JSON validation error for ${mainJsonFile}:`, error)
         }
       } else {
-        overallValid = false
-        allErrors.push("No AAS JSON files found in AASX archive")
+        // CHANGED: JSON is optional — don't flip overallValid to false, just add a warning
+        allErrors.push("No AAS JSON files found in AASX archive (optional)")
       }
 
       // Build attachments from all non-XML/JSON files in the archive

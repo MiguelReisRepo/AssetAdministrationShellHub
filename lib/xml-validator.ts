@@ -274,6 +274,9 @@ export function extractAASDataFromXML(parsed: any): ParsedAASData | null {
     let aasData = parsed
     if (parsed.environment) {
       aasData = parsed.environment
+    } else if ((parsed as any).aasenv) {
+      // NEW: unwrap legacy AAS 1.0 wrapper
+      aasData = (parsed as any).aasenv
     }
 
     const result: ParsedAASData = {
@@ -292,15 +295,15 @@ export function extractAASDataFromXML(parsed: any): ParsedAASData | null {
         : []
 
       result.assetAdministrationShells = shells.map((shell: any) => ({
-        id: shell.id || shell["@_id"] || "Unknown ID",
+        id: shell.id || shell["@_id"] || (shell.identification?.["#text"] || shell.identification) || "Unknown ID",
         idShort: shell.idShort || shell["@_idShort"] || "Unknown",
-        assetKind: shell.assetInformation?.assetKind || "Unknown",
+        assetKind: (shell.assetInformation?.assetKind) || shell.assetKind || "Unknown",
         assetInformation: shell.assetInformation || {},
         description: shell.description || [],
         administration: shell.administration || {},
         derivedFrom: shell.derivedFrom || null,
         embeddedDataSpecifications: shell.embeddedDataSpecifications || [],
-        submodelRefs: extractSubmodelRefs(shell.submodels),
+        submodelRefs: extractSubmodelRefs(shell.submodels || shell.submodelRefs || shell.submodelRef),
         rawData: shell,
       }))
     }
@@ -347,20 +350,20 @@ export async function validateAASXXml(
   console.log("[v0] Original XML length:", xml.length)
   console.log("[v0] Original XML first 500 chars:", xml.substring(0, 500))
 
-  // Detect declared AAS namespace version (3.0 vs 3.1)
+  // Detect declared AAS namespace version (1.0 vs 3.0 vs 3.1)
+  const isLegacy10 = /http:\/\/www\.admin-shell\.io\/aas\/1\/0/i.test(xml) || /<aas:aasenv/i.test(xml)
   const nsMatch = xml.match(/xmlns="https:\/\/admin-shell\.io\/aas\/(\d+)\/(\d+)"/i)
   const declaredMajor = nsMatch ? nsMatch[1] : null
   const declaredMinor = nsMatch ? nsMatch[2] : null
-  const declaredVersion = declaredMajor && declaredMinor ? `${declaredMajor}.${declaredMinor}` : null
+  const declaredVersion = declaredMajor && declaredMinor ? `${declaredMajor}.${declaredMinor}` : (isLegacy10 ? "1.0" : null)
   const is31 = declaredVersion === "3.1"
   const is30 = declaredVersion === "3.0"
 
   console.log("[v0] Detected AAS XML namespace version:", declaredVersion || "unknown")
 
-  // Keep the original XML for parsing and data extraction
   const originalXml = xml
 
-  // Optional: a 3.1-upgraded string we may use for a compatibility validation when source is 3.0
+  // For 3.0, we still optionally upgrade the string for a compatibility check
   const upgradedTo31Xml = is30
     ? originalXml.replace(/xmlns="https:\/\/admin-shell\.io\/aas\/3\/0"/i, 'xmlns="https://admin-shell.io/aas/3/1"')
     : originalXml
@@ -381,6 +384,9 @@ export async function validateAASXXml(
     if (parsed.environment) {
       console.log("[v0] Found environment wrapper, extracting...")
       parsed = parsed.environment
+    } else if ((parsed as any).aasenv) {
+      console.log("[v0] Found legacy AAS 1.0 wrapper (aasenv), extracting...")
+      parsed = (parsed as any).aasenv
     }
 
     console.log("[v0] Parsed XML structure keys:", Object.keys(parsed))
@@ -392,6 +398,13 @@ export async function validateAASXXml(
 
   // Extract AAS data for downstream editor/visualizer usage regardless of schema result
   const aasData = extractAASDataFromXML(parsed)
+
+  // If this is AAS 1.0, skip 3.x schema validation and treat as soft-compatible
+  if (isLegacy10) {
+    console.warn("[v0] Legacy AAS 1.0 detected. Skipping 3.x schema validation and allowing edit in compatibility mode.")
+    console.log("[v0] ===== XML VALIDATION END (LEGACY 1.0 - SKIPPED SCHEMA) =====")
+    return { valid: true, parsed, aasData }
+  }
 
   // Schema URL remains the same file; it's versioned by target namespace inside.
   const schemaUrl =
@@ -410,9 +423,6 @@ export async function validateAASXXml(
     console.log(`[v0] Schema fetched successfully, length: ${xsd.length}`)
 
     console.log("[v0] Starting XML validation against AAS schema (external service)...")
-    // Version-aware schema validation:
-    // - For 3.1: validate original XML.
-    // - For 3.0: validate a compat-upgraded 3.1 string and mark errors as compatibility results.
     const xmlForValidation = is31 ? originalXml : upgradedTo31Xml
     const validationResult = await validateXml(xmlForValidation, xsd)
     console.log("[v0] External validation service result:", validationResult)
@@ -422,9 +432,7 @@ export async function validateAASXXml(
       console.log("[v0] ===== XML VALIDATION END (PASSED) =====")
       return { valid: true, parsed, aasData }
     } else {
-      // DEDUP already applied in validateXml; keep stable output
       let errors = validationResult.errors ?? ["XML validation failed"]
-      // If we ran a 3.0 → 3.1 compatibility check, prepend a clear note for the user
       if (is30) {
         errors = [
           "Compatibility check: This XML declares AAS 3.0. We validated against 3.1 to highlight upgrade issues; you can still edit and use 'Fix' to upgrade.",
