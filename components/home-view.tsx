@@ -29,9 +29,10 @@ interface HomeViewProps {
   onReorder: (fromIndex: number, toIndex: number) => void;
   onDelete: (index: number) => void;
   onImportFromMinio?: (keys: string[]) => void;
+  onSendToMinio?: () => void;
 }
 
-export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder, onDelete, onImportFromMinio }: HomeViewProps) {
+export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder, onDelete, onImportFromMinio, onSendToMinio }: HomeViewProps) {
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState<string>("");
@@ -122,6 +123,13 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
             >
               <CloudDownload className="mr-2 h-4 w-4" />
               Import from MinIO
+            </Button>
+            <Button
+              onClick={() => onSendToMinio?.()}
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+            >
+              <CloudDownload className="mr-2 h-4 w-4 rotate-180" />
+              Send to MinIO
             </Button>
           </div>
         </div>

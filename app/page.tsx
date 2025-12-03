@@ -12,6 +12,7 @@ import UploadDialog from "@/components/upload-dialog"
 import MinioSetupDialog from "@/components/minio-setup-dialog"
 import { toast } from "sonner"
 import { processFile } from "@/lib/process-file"
+import MinioSendDialog from "@/components/minio-send-dialog"
 
 type ViewMode = "home" | "upload" | "visualizer" | "creator" | "editor"
 
@@ -23,6 +24,9 @@ export default function VisualizerPage() {
   const [initialSubmodelData, setInitialSubmodelData] = useState<Record<string, any> | null>(null)
   const [editorFileIndex, setEditorFileIndex] = useState<number | null>(null)
   const [openMinioDialog, setOpenMinioDialog] = useState<boolean>(false)
+  // NEW: control Send dialog and store originals
+  const [openSendDialog, setOpenSendDialog] = useState<boolean>(false)
+  const [originals, setOriginals] = useState<Record<string, { name: string; base64: string; contentType?: string }>>({})
 
   // ADD: Import from MinIO handler
   const handleImportFromMinio = async (keys: string[]) => {
@@ -71,7 +75,17 @@ export default function VisualizerPage() {
         }
 
         const { name, base64, contentType } = await res.json();
-        const fileObj = base64ToFile(base64, name, contentType);
+
+        // Store original for later re-upload
+        setOriginals((prev) => ({ ...prev, [name]: { name, base64, contentType } }));
+
+        const fileObj = (() => {
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const blob = new Blob([bytes], { type: contentType || "application/octet-stream" });
+          return new File([blob], name, { type: blob.type });
+        })();
 
         // Process through existing pipeline; cast to any to satisfy types
         const results = await processFile(fileObj as any, () => {});
@@ -338,6 +352,9 @@ export default function VisualizerPage() {
             onReorder={reorderFiles}
             onDelete={deleteFileAt}
             onImportFromMinio={handleImportFromMinio}
+            // ADD: open Send dialog
+            // @ts-expect-error pass through unknown prop handled in HomeView
+            onSendToMinio={() => setOpenSendDialog(true)}
           />
         )}
         {viewMode === "upload" && (
@@ -368,7 +385,9 @@ export default function VisualizerPage() {
         {/* Visualizer view is no longer reachable from the navbar; kept for internal use if needed */}
       </div>
 
+      {/* MinIO setup and Send dialogs */}
       <MinioSetupDialog open={openMinioDialog} onOpenChange={setOpenMinioDialog} />
+      <MinioSendDialog open={openSendDialog} onOpenChange={setOpenSendDialog} files={uploadedFiles} originals={originals} />
     </div>
   )
 }
