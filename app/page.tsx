@@ -10,6 +10,8 @@ import type { ValidationResult } from "@/lib/types" // Import ValidationResult t
 import HomeView from "@/components/home-view"
 import UploadDialog from "@/components/upload-dialog"
 import MinioSetupDialog from "@/components/minio-setup-dialog"
+import { toast } from "sonner"
+import { processFile } from "@/lib/process-file"
 
 type ViewMode = "home" | "upload" | "visualizer" | "creator" | "editor"
 
@@ -21,6 +23,68 @@ export default function VisualizerPage() {
   const [initialSubmodelData, setInitialSubmodelData] = useState<Record<string, any> | null>(null)
   const [editorFileIndex, setEditorFileIndex] = useState<number | null>(null)
   const [openMinioDialog, setOpenMinioDialog] = useState<boolean>(false)
+
+  // ADD: Import from MinIO handler
+  const handleImportFromMinio = async (keys: string[]) => {
+    if (!keys || keys.length === 0) {
+      toast.info("No objects selected.");
+      return;
+    }
+
+    const stored = typeof window !== "undefined" ? localStorage.getItem("minioConfig") : null;
+    if (!stored) {
+      toast.error("MinIO is not configured. Please set up MinIO first.");
+      setOpenMinioDialog(true);
+      return;
+    }
+
+    let config: any;
+    try {
+      config = JSON.parse(stored);
+    } catch {
+      toast.error("Invalid MinIO config in localStorage.");
+      return;
+    }
+
+    toast.loading(`Importing ${keys.length} item(s) from MinIO...`, { id: "minio-import" });
+
+    // Helper: convert base64 to a browser File
+    const base64ToFile = (base64: string, name: string, type?: string) => {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: type || "application/octet-stream" });
+      return new File([blob], name, { type: blob.type });
+    };
+
+    try {
+      for (const key of keys) {
+        const res = await fetch("/api/minio/get", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...config, key }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error || `Failed to download '${key}' (${res.status})`);
+        }
+
+        const { name, base64, contentType } = await res.json();
+        const fileObj = base64ToFile(base64, name, contentType);
+
+        // Process through existing pipeline; cast to any to satisfy types
+        const results = await processFile(fileObj as any, () => {});
+        if (Array.isArray(results) && results.length > 0) {
+          setUploadedFiles((prev) => [...prev, ...results]);
+        }
+      }
+
+      toast.success("Import completed.", { id: "minio-import" });
+    } catch (err: any) {
+      toast.error(err?.message || "Import failed.", { id: "minio-import" });
+    }
+  };
 
   const reorderFiles = (fromIndex: number, toIndex: number) => {
     setUploadedFiles((prev) => {
@@ -273,6 +337,7 @@ export default function VisualizerPage() {
             onCreateClick={() => setViewMode("creator")}
             onReorder={reorderFiles}
             onDelete={deleteFileAt}
+            onImportFromMinio={handleImportFromMinio}
           />
         )}
         {viewMode === "upload" && (
