@@ -118,7 +118,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
             </Button>
             <Button
               onClick={() => setOpenImportDialog(true)}
-              className="bg-[rgb(142,152,169)] text-[rgb(255,57,88)] hover:bg-[rgb(142,152,169)]"
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
             >
               <CloudDownload className="mr-2 h-4 w-4" />
               Import from MinIO

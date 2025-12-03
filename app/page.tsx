@@ -318,7 +318,7 @@ export default function VisualizerPage() {
           </button>
           <button
             onClick={() => setOpenMinioDialog(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all bg-[rgb(142,152,169)] text-[rgb(255,57,88)] hover:bg-[rgb(142,152,169)]"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all bg-indigo-600 text-white hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-700"
             aria-label="MinIO Sync"
           >
             <Server className="w-4 h-4" />
