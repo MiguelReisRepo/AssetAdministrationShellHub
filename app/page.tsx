@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 import { Upload, Plus, Home as HomeIcon } from 'lucide-react'
+import { Server } from 'lucide-react'
 import { AASXVisualizer } from "@/components/aasx-visualizer"
 import { AASCreator } from "@/components/aas-creator"
 import { AASEditor } from "@/components/aas-editor"
 import type { ValidationResult } from "@/lib/types" // Import ValidationResult type
 import HomeView from "@/components/home-view"
 import UploadDialog from "@/components/upload-dialog"
+import MinioSetupDialog from "@/components/minio-setup-dialog"
 
 type ViewMode = "home" | "upload" | "visualizer" | "creator" | "editor"
 
@@ -18,6 +20,7 @@ export default function VisualizerPage() {
   const [currentAASConfig, setCurrentAASConfig] = useState<any>(null)
   const [initialSubmodelData, setInitialSubmodelData] = useState<Record<string, any> | null>(null)
   const [editorFileIndex, setEditorFileIndex] = useState<number | null>(null)
+  const [openMinioDialog, setOpenMinioDialog] = useState<boolean>(false)
 
   const reorderFiles = (fromIndex: number, toIndex: number) => {
     setUploadedFiles((prev) => {
@@ -249,6 +252,14 @@ export default function VisualizerPage() {
           >
             Editor
           </button>
+          <button
+            onClick={() => setOpenMinioDialog(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all bg-white/70 text-purple-700 hover:bg-white dark:bg-gray-700 dark:text-purple-400"
+            aria-label="MinIO Sync"
+          >
+            <Server className="w-4 h-4" />
+            MinIO Sync
+          </button>
         </div>
       </div>
 
@@ -291,6 +302,8 @@ export default function VisualizerPage() {
         )}
         {/* Visualizer view is no longer reachable from the navbar; kept for internal use if needed */}
       </div>
+
+      <MinioSetupDialog open={openMinioDialog} onOpenChange={setOpenMinioDialog} />
     </div>
   )
 }

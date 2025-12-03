@@ -3,7 +3,9 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus, X, Server } from "lucide-react";
+import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus, X } from "lucide-react";
+import { FileText as _FileText, ArrowRight as _ArrowRight, AlertCircle as _AlertCircle, CheckCircle as _CheckCircle, Upload as _Upload, Plus as _Plus, X as _X } from "lucide-react";
+import { CloudDownload } from "lucide-react";
 import { Search, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,7 +18,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import type { ValidationResult } from "@/lib/types";
-import MinioSetupDialog from "@/components/minio-setup-dialog";
+import MinioImportDialog from "@/components/minio-import-dialog";
+import { toast } from "sonner";
 
 interface HomeViewProps {
   files: ValidationResult[];
@@ -25,15 +28,16 @@ interface HomeViewProps {
   onCreateClick: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onDelete: (index: number) => void;
+  onImportFromMinio?: (keys: string[]) => void;
 }
 
-export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder, onDelete }: HomeViewProps) {
+export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, onReorder, onDelete, onImportFromMinio }: HomeViewProps) {
   const [dragIndex, setDragIndex] = React.useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [selectedSubmodels, setSelectedSubmodels] = React.useState<Set<string>>(new Set());
   const [validityFilter, setValidityFilter] = React.useState<"all" | "valid" | "invalid">("all");
-  const [openMinioDialog, setOpenMinioDialog] = React.useState<boolean>(false);
+  const [openImportDialog, setOpenImportDialog] = React.useState<boolean>(false);
 
   const getIdShort = (file: ValidationResult): string => {
     const idShort =
@@ -113,11 +117,11 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
               Create AAS
             </Button>
             <Button
-              onClick={() => setOpenMinioDialog(true)}
+              onClick={() => setOpenImportDialog(true)}
               className="bg-purple-600 text-white hover:bg-purple-700"
             >
-              <Server className="mr-2 h-4 w-4" />
-              MinIO Sync
+              <CloudDownload className="mr-2 h-4 w-4" />
+              Import from MinIO
             </Button>
           </div>
         </div>
@@ -311,9 +315,14 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
           </div>
         )}
       </div>
-      <MinioSetupDialog
-        open={openMinioDialog}
-        onOpenChange={setOpenMinioDialog}
+
+      <MinioImportDialog
+        open={openImportDialog}
+        onOpenChange={setOpenImportDialog}
+        onImport={(keys) => {
+          toast.success(`Selected ${keys.length} model(s)`);
+          onImportFromMinio?.(keys);
+        }}
       />
     </div>
   );
