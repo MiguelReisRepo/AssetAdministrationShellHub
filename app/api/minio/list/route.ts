@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import Minio from "minio";
+import { Client } from "minio";
 
 export async function POST(request: Request | NextRequest) {
   const body = await request.json();
@@ -10,7 +10,7 @@ export async function POST(request: Request | NextRequest) {
     return Response.json({ error: "Missing MinIO configuration fields." }, { status: 400 });
   }
 
-  const client = new Minio.Client({
+  const client = new Client({
     endPoint: endpoint,
     port: Number(port),
     useSSL: Boolean(useSSL),
