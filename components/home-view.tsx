@@ -3,7 +3,7 @@
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus, X } from "lucide-react";
+import { FileText, ArrowRight, AlertCircle, CheckCircle, Upload, Plus, X, Server } from "lucide-react";
 import { Search, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import type { ValidationResult } from "@/lib/types";
+import MinioSetupDialog from "@/components/minio-setup-dialog";
 
 interface HomeViewProps {
   files: ValidationResult[];
@@ -32,6 +33,7 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
   const [searchQuery, setSearchQuery] = React.useState<string>("");
   const [selectedSubmodels, setSelectedSubmodels] = React.useState<Set<string>>(new Set());
   const [validityFilter, setValidityFilter] = React.useState<"all" | "valid" | "invalid">("all");
+  const [openMinioDialog, setOpenMinioDialog] = React.useState<boolean>(false);
 
   const getIdShort = (file: ValidationResult): string => {
     const idShort =
@@ -109,6 +111,13 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
             >
               <Plus className="mr-2 h-4 w-4" />
               Create AAS
+            </Button>
+            <Button
+              onClick={() => setOpenMinioDialog(true)}
+              className="bg-purple-600 text-white hover:bg-purple-700"
+            >
+              <Server className="mr-2 h-4 w-4" />
+              MinIO Sync
             </Button>
           </div>
         </div>
@@ -302,6 +311,10 @@ export default function HomeView({ files, onOpen, onUploadClick, onCreateClick, 
           </div>
         )}
       </div>
+      <MinioSetupDialog
+        open={openMinioDialog}
+        onOpenChange={setOpenMinioDialog}
+      />
     </div>
   );
 }
