@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+build/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env*
+!.env.example
+
+# OS / Editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Large binaries
+*.node
