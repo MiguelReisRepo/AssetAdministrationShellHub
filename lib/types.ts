@@ -19,6 +19,9 @@ export interface ValidationResult {
   attachments?: Record<string, string>
   // ADDED: raw uploaded XML to allow the editor to validate the exact bytes
   originalXml?: string
+  // ADDED: original file payload so we can re-upload "as-is" (primarily for AASX)
+  originalBase64?: string
+  originalContentType?: string
 }
 
 // Interfaces for parsed AAS data (simplified for display)

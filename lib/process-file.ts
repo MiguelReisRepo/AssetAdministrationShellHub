@@ -25,6 +25,16 @@ function getMimeTypeFromExt(ext: string): string {
   }
 }
 
+// ADD: helper to convert ArrayBuffer to base64
+function arrayBufferToBase64(ab: ArrayBuffer): string {
+  const bytes = new Uint8Array(ab)
+  let binary = ""
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 async function extractThumbnail(zipContent: JSZip): Promise<string | null> {
   try {
     // Look for common thumbnail locations in AASX files
@@ -86,6 +96,11 @@ export async function processFile(file: File, onProgress: (progress: number) => 
       const zipContent = await zip.loadAsync(file)
       onProgress(30)
       const startedAt = Date.now()
+
+      // NEW: capture original file base64 and content type for re-upload
+      const originalBuffer = await file.arrayBuffer()
+      const originalBase64 = arrayBufferToBase64(originalBuffer)
+      const originalContentType = "application/zip"
 
       const thumbnail = await extractThumbnail(zipContent)
 
@@ -216,6 +231,9 @@ export async function processFile(file: File, onProgress: (progress: number) => 
         attachments: Object.keys(attachments).length ? attachments : undefined,
         // ADDED: original XML content selected from AASX (if found)
         originalXml: selectedXmlContent || undefined,
+        // ADDED: original file payload for Send to MinIO
+        originalBase64,
+        originalContentType,
       }
       results.push(aasxResult)
 

@@ -51,7 +51,7 @@ export default function MinioSendDialog({ open, onOpenChange, files, originals =
         const name = f.file || "";
         const thumb = f.thumbnail || "";
         const display = name || ((f.aasData as any)?.assetAdministrationShells?.[0]?.idShort || "Model");
-        return { key: name || display, name, thumb, display };
+        return { key: name || display, name, thumb, display, ref: f };
       })
       .filter((it) => (q ? it.display.toLowerCase().includes(q) || it.name.toLowerCase().includes(q) : true));
   }, [files, query]);
@@ -106,15 +106,17 @@ export default function MinioSendDialog({ open, onOpenChange, files, originals =
     for (const it of chosen) {
       // Find original content for this item
       const original = originals[it.name] || originals[it.key];
-      if (!original) {
-        // Fallback: we cannot reconstruct original archive; skip with message
+
+      // fallback to locally captured originalBase64 (primarily for AASX)
+      const fallbackBase64 = it.ref?.originalBase64;
+      const fallbackContentType = it.ref?.originalContentType || (it.name?.toLowerCase().endsWith(".aasx") ? "application/zip" : "application/octet-stream");
+
+      if (!original && !fallbackBase64) {
         failed += 1;
         toast.error(`Missing original file for ${it.display || it.name || "model"}. Skipped.`);
       } else {
-        const fileName = original.name || it.name || `model-${Date.now()}.aasx`;
-        const contentType =
-          original.contentType ||
-          (fileName.toLowerCase().endsWith(".aasx") ? "application/zip" : "application/octet-stream");
+        const fileName = (original?.name) || it.name || `model-${Date.now()}.aasx`;
+        const contentType = (original?.contentType) || fallbackContentType;
 
         const res = await fetch("/api/minio/put", {
           method: "POST",
@@ -122,7 +124,7 @@ export default function MinioSendDialog({ open, onOpenChange, files, originals =
           body: JSON.stringify({
             ...config,
             name: fileName,
-            base64: original.base64,
+            base64: (original?.base64) || fallbackBase64,
             contentType,
           }),
         });
